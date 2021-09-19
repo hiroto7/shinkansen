@@ -17,6 +17,7 @@ import {
 } from "react-bootstrap";
 import "bootstrap/dist/css/bootstrap.min.css";
 import parse from "csv-parse/lib/sync";
+import _ from "lodash";
 
 interface Station {
   name: string;
@@ -108,6 +109,38 @@ const StationDropdown: React.FC<{
   );
 };
 
+const f2 = (distance: number) =>
+  16.2 * Math.min(distance, 300) +
+  12.85 * Math.max(Math.min(distance - 300, 300), 0) +
+  7.05 * Math.max(distance - 600, 0);
+
+// 1-3: 140, 4-6: 160, 7-10: 170
+// 1-3: 150, 4-6: 190, 7-10: 200
+const f1 = (distance: number) =>
+  distance > 600
+    ? f2(Math.ceil(distance / 40) * 40 - 20)
+    : distance > 100
+    ? f2(Math.ceil(distance / 20) * 20 - 10)
+    : distance > 50
+    ? f2(Math.ceil(distance / 10) * 10 - 5)
+    : f2(Math.ceil(distance / 5) * 5 - 2);
+
+const f0 = (distance: number) =>
+  distance > 10
+    ? _.round(
+        (distance > 100
+          ? _.round(f1(distance), -2)
+          : _.ceil(f1(distance), -1)) * 1.1,
+        -1
+      )
+    : distance > 6
+    ? 200
+    : distance > 3
+    ? 190
+    : 150;
+
+console.log(f0);
+
 const C2: React.VFC<{ departure: Station; arrival: Station }> = ({
   departure,
   arrival,
@@ -165,6 +198,8 @@ const C2: React.VFC<{ departure: Station; arrival: Station }> = ({
     </>
   );
 
+  const fare = f0(distance);
+
   return (
     <>
       <dl>
@@ -185,7 +220,7 @@ const C2: React.VFC<{ departure: Station; arrival: Station }> = ({
           <tr>
             <th scope="row">運賃</th>
             <td colSpan={nonReservedAvailable || standingOnlyAvailable ? 2 : 1}>
-              0円
+              {fare}円
             </td>
           </tr>
           <tr>
@@ -206,16 +241,21 @@ const C2: React.VFC<{ departure: Station; arrival: Station }> = ({
             )}
             <td>{reservedExpressFare}円</td>
           </tr>
+          <tr>
+            <th scope="row">割引</th>
+            {nonReservedAvailable || standingOnlyAvailable ? <td>-</td> : <></>}
+            <td>-200円</td>
+          </tr>
         </tbody>
         <tfoot>
           <tr>
             <th scope="row">計</th>
             {nonReservedAvailable || standingOnlyAvailable ? (
-              <td>{nonReservedOrStandingOnlyFare + 0}円</td>
+              <td>{nonReservedOrStandingOnlyFare + fare}円</td>
             ) : (
               <></>
             )}
-            <td>{reservedExpressFare + 0}円</td>
+            <td>{reservedExpressFare + fare - 200}円</td>
           </tr>
         </tfoot>
       </Table>
@@ -227,11 +267,17 @@ const C2: React.VFC<{ departure: Station; arrival: Station }> = ({
         <tbody>
           <tr>
             {nonReservedAvailable || standingOnlyAvailable ? (
-              <td>1.00円/ポイント</td>
+              <td>
+                {((nonReservedOrStandingOnlyFare + fare) / points).toFixed(2)}
+                円/ポイント
+              </td>
             ) : (
               <></>
             )}
-            <td>1.00円/ポイント</td>
+            <td>
+              {((reservedExpressFare + fare - 200) / points).toFixed(2)}
+              円/ポイント
+            </td>
           </tr>
         </tbody>
       </Table>
