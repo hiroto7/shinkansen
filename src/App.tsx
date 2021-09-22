@@ -109,28 +109,27 @@ const StationDropdown: React.FC<{
   );
 };
 
-const f2 = (distance: number) =>
-  16.2 * Math.min(distance, 300) +
-  12.85 * Math.max(Math.min(distance - 300, 300), 0) +
-  7.05 * Math.max(distance - 600, 0);
-
-// 1-3: 140, 4-6: 160, 7-10: 170
-// 1-3: 150, 4-6: 190, 7-10: 200
-const f1 = (distance: number) =>
+const getDistance = (distance: number) =>
   distance > 600
-    ? f2(Math.ceil(distance / 40) * 40 - 20)
+    ? Math.ceil(distance / 40) * 40 - 20
     : distance > 100
-    ? f2(Math.ceil(distance / 20) * 20 - 10)
+    ? Math.ceil(distance / 20) * 20 - 10
     : distance > 50
-    ? f2(Math.ceil(distance / 10) * 10 - 5)
-    : f2(Math.ceil(distance / 5) * 5 - 2);
+    ? Math.ceil(distance / 10) * 10 - 5
+    : Math.ceil(distance / 5) * 5 - 2;
 
-const f0 = (distance: number) =>
-  distance > 10
+// 幹線
+// 1-3: 150, 4-6: 190, 7-10: 200
+const getFare0 = (distance: number) => {
+  const distance1 = getDistance(distance);
+  const fare0 =
+    16.2 * Math.min(distance1, 300) +
+    12.85 * Math.max(Math.min(distance1 - 300, 300), 0) +
+    7.05 * Math.max(distance1 - 600, 0);
+
+  return distance > 10
     ? _.round(
-        (distance > 100
-          ? _.round(f1(distance), -2)
-          : _.ceil(f1(distance), -1)) * 1.1,
+        (distance > 100 ? _.round(fare0, -2) : _.ceil(fare0, -1)) * 1.1,
         -1
       )
     : distance > 6
@@ -138,8 +137,30 @@ const f0 = (distance: number) =>
     : distance > 3
     ? 190
     : 150;
+};
 
-console.log(f0);
+// 東京附近における電車特定区間
+// 1-3: 140, 4-6: 160, 7-10: 170
+const getFare1 = (distance: number) => {
+  const distance1 = getDistance(distance);
+  const fare0 =
+    15.3 * Math.min(distance1, 300) +
+    12.15 * Math.max(Math.min(distance1 - 300, 300), 0);
+
+  return distance > 10
+    ? _.ceil(
+        (distance > 100 ? _.round(fare0, -2) : _.ceil(fare0, -1)) * 1.1,
+        -1
+      )
+    : distance > 6
+    ? 170
+    : distance > 3
+    ? 160
+    : 140;
+};
+
+console.log(getFare0);
+console.log(getFare1);
 
 const C2: React.VFC<{ departure: Station; arrival: Station }> = ({
   departure,
@@ -198,7 +219,10 @@ const C2: React.VFC<{ departure: Station; arrival: Station }> = ({
     </>
   );
 
-  const fare = f0(distance);
+  const fare =
+    stationBIndex <= stations.findIndex((station) => station.name === "大宮")
+      ? getFare1(distance)
+      : getFare0(distance);
 
   return (
     <>
