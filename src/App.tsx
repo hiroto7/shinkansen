@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import logo from "./logo.svg";
 import "bootstrap-icons/font/bootstrap-icons.css";
 import "./App.css";
@@ -59,6 +59,23 @@ const line1: readonly Station[] = [
   { name: "熊谷", distance: 64.7 },
   { name: "本庄早稲田", distance: 86 },
   { name: "高崎", distance: 105 },
+  { name: "上毛高原", distance: 151.6 },
+  { name: "越後湯沢", distance: 199.2 },
+  { name: "浦佐", distance: 228.9 },
+  { name: "長岡", distance: 270.6 },
+  { name: "燕三条", distance: 293.8 },
+  { name: "新潟", distance: 333.9 },
+];
+
+const line2: readonly Station[] = [
+  ...line0.slice(
+    line0.findIndex((station) => station.name === "東京"),
+    line0.findIndex((station) => station.name === "大宮") + 1
+  ),
+  ...line1.slice(
+    line1.findIndex((station) => station.name === "熊谷"),
+    line1.findIndex((station) => station.name === "高崎") + 1
+  ),
   { name: "安中榛名", distance: 123.5 },
   { name: "軽井沢", distance: 146.8 },
   { name: "佐久平", distance: 164.4 },
@@ -73,7 +90,7 @@ const line1: readonly Station[] = [
   // { name: "金沢", distance: 450.5 },
 ];
 
-const csvs = [
+const tables = [
   `
 駅名,東京,上野,大宮,小山,宇都宮,那須塩原,新白河,郡山,福島,白石蔵王,仙台,古川,くりこま高原,一ノ関,水沢江刺,北上,新花巻,盛岡,いわて沼宮内,二戸,八戸,七戸十和田
 上野,2400,,,,,,,,,,,,,,,,,,,,,
@@ -98,6 +115,20 @@ const csvs = [
 八戸,6280,6070,6070,5700,5700,5370,5370,5370,4830,4830,4060,4060,4060,3170,3170,3170,3170,2400,2400,2400,,
 七戸十和田,6280,6070,6070,5700,5700,5700,5370,5370,4830,4830,4830,4060,4060,4060,3170,3170,3170,3170,3170,2400,2400,
 新青森,6810,6600,6070,6070,6070,5700,5700,5370,5370,5370,4830,4830,4060,4060,4060,4060,4060,3170,3170,3170,2400,2400
+`,
+  `
+駅名,東京,上野,大宮,熊谷,本庄早稲田,高崎,上毛高原,越後湯沢,浦佐,長岡,燕三条
+上野,2400,,,,,,,,,,
+大宮,2610,2400,,,,,,,,,
+熊谷,2610,2400,2400,,,,,,,,
+本庄早稲田,2610,2400,2400,2400,,,,,,,
+高崎,3040,2830,2400,2400,2400,,,,,,
+上毛高原,3380,3170,3170,2400,2400,2400,,,,,
+越後湯沢,3380,3170,3170,3170,3170,2400,2400,,,,
+浦佐,4270,4060,3170,3170,3170,3170,2400,2400,,,
+長岡,4270,4060,4060,4060,3170,3170,3170,2400,2400,,
+燕三条,4270,4060,4060,4060,4060,3170,3170,2400,2400,2400,
+新潟,5040,4830,4830,4060,4060,4060,3170,3170,3170,2400,2400
 `,
   `
 駅名,東京,上野,大宮,熊谷,本庄早稲田,高崎,安中榛名,軽井沢,佐久平,上田,長野,飯山,上越妙高,糸魚川,黒部宇奈月温泉,富山,新高岡
@@ -226,9 +257,9 @@ const C2: React.VFC<{
       ? 4620
       : 2160;
 
-  const reservedExpressFare = +(line === line0 ? csvs[0] : csvs[1]).find(
-    (row: any) => row["駅名"] === stationB.name
-  )[stationA.name];
+  const reservedExpressFare = +(
+    line === line0 ? tables[0] : line === line1 ? tables[1] : tables[2]
+  ).find((row: any) => row["駅名"] === stationB.name)[stationA.name];
 
   const nonReservedAvailable =
     line !== line0 ||
@@ -359,6 +390,15 @@ const App: React.VFC = () => {
   const [departure, setDeparture] = useState<Station>();
   const [arrival, setArrival] = useState<Station>();
 
+  useEffect(() => {
+    if (departure && !line.includes(departure)) {
+      setDeparture(undefined);
+    }
+    if (arrival && !line.includes(arrival)) {
+      setArrival(undefined);
+    }
+  }, [arrival, departure, line]);
+
   return (
     <>
       <Navbar variant="dark" bg="dark">
@@ -389,8 +429,11 @@ const App: React.VFC = () => {
                         case "東北新幹線":
                           setLine(line0);
                           break;
-                        case "北陸新幹線":
+                        case "上越新幹線":
                           setLine(line1);
+                          break;
+                        case "北陸新幹線":
+                          setLine(line2);
                           break;
                       }
                     }}
@@ -398,7 +441,7 @@ const App: React.VFC = () => {
                     <option>東北新幹線</option>
                     <option disabled>秋田新幹線</option>
                     <option disabled>山形新幹線</option>
-                    <option disabled>上越新幹線</option>
+                    <option>上越新幹線</option>
                     <option>北陸新幹線</option>
                   </Form.Select>
                 </FloatingLabel>
