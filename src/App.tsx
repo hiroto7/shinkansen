@@ -25,7 +25,7 @@ interface Station {
 }
 
 // (\d+(?:\.\d)?)\t(.+)
-const stations: readonly Station[] = [
+const line0: readonly Station[] = [
   { name: "東京", distance: 0 },
   { name: "上野", distance: 3.6 },
   { name: "大宮", distance: 30.3 },
@@ -51,7 +51,29 @@ const stations: readonly Station[] = [
   { name: "新青森", distance: 713.7 },
 ];
 
-const csv1 = parse(
+const line1: readonly Station[] = [
+  ...line0.slice(
+    line0.findIndex((station) => station.name === "東京"),
+    line0.findIndex((station) => station.name === "大宮") + 1
+  ),
+  { name: "熊谷", distance: 64.7 },
+  { name: "本庄早稲田", distance: 86 },
+  { name: "高崎", distance: 105 },
+  { name: "安中榛名", distance: 123.5 },
+  { name: "軽井沢", distance: 146.8 },
+  { name: "佐久平", distance: 164.4 },
+  { name: "上田", distance: 189.2 },
+  { name: "長野", distance: 222.4 },
+  { name: "飯山", distance: 252.3 },
+  { name: "上越妙高", distance: 281.9 },
+  // { name: "糸魚川", distance: 318.9 },
+  // { name: "黒部宇奈月温泉", distance: 358.1 },
+  // { name: "富山", distance: 391.9 },
+  // { name: "新高岡", distance: 410.8 },
+  // { name: "金沢", distance: 450.5 },
+];
+
+const csvs = [
   `
 駅名,東京,上野,大宮,小山,宇都宮,那須塩原,新白河,郡山,福島,白石蔵王,仙台,古川,くりこま高原,一ノ関,水沢江刺,北上,新花巻,盛岡,いわて沼宮内,二戸,八戸,七戸十和田
 上野,2400,,,,,,,,,,,,,,,,,,,,,
@@ -76,9 +98,28 @@ const csv1 = parse(
 八戸,6280,6070,6070,5700,5700,5370,5370,5370,4830,4830,4060,4060,4060,3170,3170,3170,3170,2400,2400,2400,,
 七戸十和田,6280,6070,6070,5700,5700,5700,5370,5370,4830,4830,4830,4060,4060,4060,3170,3170,3170,3170,3170,2400,2400,
 新青森,6810,6600,6070,6070,6070,5700,5700,5370,5370,5370,4830,4830,4060,4060,4060,4060,4060,3170,3170,3170,2400,2400
-`.trim(),
-  { columns: true }
-);
+`,
+  `
+駅名,東京,上野,大宮,熊谷,本庄早稲田,高崎,安中榛名,軽井沢,佐久平,上田,長野,飯山,上越妙高,糸魚川,黒部宇奈月温泉,富山,新高岡
+上野,2400,,,,,,,,,,,,,,,,
+大宮,2610,2400,,,,,,,,,,,,,,,
+熊谷,2610,2400,2400,,,,,,,,,,,,,,
+本庄早稲田,2610,2400,2400,2400,,,,,,,,,,,,,
+高崎,3040,2830,2400,2400,2400,,,,,,,,,,,,
+安中榛名,3040,2830,2400,2400,2400,2400,,,,,,,,,,,
+軽井沢,3380,3170,3170,2400,2400,2400,2400,,,,,,,,,,
+佐久平,3380,3170,3170,2400,2400,2400,2400,2400,,,,,,,,,
+上田,3380,3170,3170,3170,3170,2400,2400,2400,2400,,,,,,,,
+長野,4270,4060,3170,3170,3170,3170,2400,2400,2400,2400,,,,,,,
+飯山,4270,4060,4060,3170,3170,3170,3170,3170,2400,2400,2400,,,,,,
+上越妙高,4270,4060,4060,4060,3170,3170,3170,3170,3170,2400,2400,2400,,,,,
+糸魚川,5700,5490,4730,4730,4730,4730,3830,3830,3830,3830,3070,3070,2400,,,,
+黒部宇奈月温泉,6030,5820,5820,5050,5050,5050,5050,5050,4160,4160,4160,3830,2400,2400,,,
+富山,6360,6150,6150,6150,6150,5390,5390,5390,5390,5390,4160,3830,3170,2400,2400,,
+新高岡,6900,6690,6150,6150,6150,6150,5390,5390,5390,5390,4160,3830,3170,2400,2400,2400,
+金沢,6900,6690,6690,6150,6150,6150,6150,6150,5390,5390,5050,3830,3170,3170,2400,2400,2400
+`,
+].map((raw) => parse(raw.trim(), { columns: true }));
 
 const StationDropdown: React.FC<{
   value?: Station;
@@ -162,12 +203,13 @@ const getFare1 = (distance: number) => {
 console.log(getFare0);
 console.log(getFare1);
 
-const C2: React.VFC<{ departure: Station; arrival: Station }> = ({
-  departure,
-  arrival,
-}) => {
-  const departureIndex = stations.findIndex((station) => station === departure);
-  const arrivalIndex = stations.findIndex((station) => station === arrival);
+const C2: React.VFC<{
+  line: readonly Station[];
+  departure: Station;
+  arrival: Station;
+}> = ({ line, departure, arrival }) => {
+  const departureIndex = line.findIndex((station) => station === departure);
+  const arrivalIndex = line.findIndex((station) => station === arrival);
 
   const [stationA, stationB, stationAIndex, stationBIndex] =
     departureIndex < arrivalIndex
@@ -184,15 +226,17 @@ const C2: React.VFC<{ departure: Station; arrival: Station }> = ({
       ? 4620
       : 2160;
 
-  const reservedExpressFare = +csv1.find(
+  const reservedExpressFare = +(line === line0 ? csvs[0] : csvs[1]).find(
     (row: any) => row["駅名"] === stationB.name
   )[stationA.name];
 
   const nonReservedAvailable =
-    stationBIndex <= stations.findIndex((station) => station.name === "盛岡");
+    line !== line0 ||
+    stationBIndex <= line.findIndex((station) => station.name === "盛岡");
 
   const standingOnlyAvailable =
-    stationAIndex >= stations.findIndex((station) => station.name === "盛岡");
+    line === line0 &&
+    stationAIndex >= line.findIndex((station) => station.name === "盛岡");
 
   const lowExpressFare =
     stationA.name === "東京" && stationB.name === "大宮"
@@ -202,6 +246,7 @@ const C2: React.VFC<{ departure: Station; arrival: Station }> = ({
           ["古川", "一ノ関"],
           ["一ノ関", "北上"],
           ["北上", "盛岡"],
+          ["熊谷", "高崎"],
         ].some(([a, b]) => stationA.name === a && stationB.name === b)
       ? stationB.distance - stationA.distance > 50
         ? 1000
@@ -220,7 +265,7 @@ const C2: React.VFC<{ departure: Station; arrival: Station }> = ({
   );
 
   const fare =
-    stationBIndex <= stations.findIndex((station) => station.name === "大宮")
+    stationBIndex <= line.findIndex((station) => station.name === "大宮")
       ? getFare1(distance)
       : getFare0(distance);
 
@@ -310,6 +355,7 @@ const C2: React.VFC<{ departure: Station; arrival: Station }> = ({
 };
 
 const App: React.VFC = () => {
+  const [line, setLine] = useState<readonly Station[]>(line0);
   const [departure, setDeparture] = useState<Station>();
   const [arrival, setArrival] = useState<Station>();
 
@@ -336,12 +382,24 @@ const App: React.VFC = () => {
             <Row>
               <Col>
                 <FloatingLabel controlId="floatingSelect" label="路線">
-                  <Form.Select aria-label="Floating label select example">
+                  <Form.Select
+                    aria-label="Floating label select example"
+                    onChange={(e) => {
+                      switch (e.currentTarget.value) {
+                        case "東北新幹線":
+                          setLine(line0);
+                          break;
+                        case "北陸新幹線":
+                          setLine(line1);
+                          break;
+                      }
+                    }}
+                  >
                     <option>東北新幹線</option>
                     <option disabled>秋田新幹線</option>
                     <option disabled>山形新幹線</option>
                     <option disabled>上越新幹線</option>
-                    <option disabled>北陸新幹線</option>
+                    <option>北陸新幹線</option>
                   </Form.Select>
                 </FloatingLabel>
               </Col>
@@ -352,7 +410,7 @@ const App: React.VFC = () => {
                   value={departure}
                   onChange={setDeparture}
                   header="出発駅"
-                  items={stations.map((station) => ({
+                  items={line?.map((station) => ({
                     station,
                     disabled: station === arrival,
                     active: station === departure,
@@ -367,7 +425,7 @@ const App: React.VFC = () => {
                   value={arrival}
                   onChange={setArrival}
                   header="到着駅"
-                  items={stations.map((station) => ({
+                  items={line.map((station) => ({
                     station,
                     disabled: station === departure,
                     active: station === arrival,
@@ -377,7 +435,9 @@ const App: React.VFC = () => {
             </Row>
           </Container>
         </Card>
-        {departure && arrival && <C2 departure={departure} arrival={arrival} />}
+        {departure && arrival && (
+          <C2 line={line} departure={departure} arrival={arrival} />
+        )}
       </Container>
     </>
   );
