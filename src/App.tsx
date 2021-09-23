@@ -4,6 +4,7 @@ import parse from "csv-parse/lib/sync";
 import _ from "lodash";
 import React, { useCallback, useState } from "react";
 import {
+  Alert,
   Badge,
   Card,
   Col,
@@ -477,8 +478,10 @@ const App: React.VFC = () => {
             </Row>
           </Container>
         </Card>
-        {departure && arrival && (
+        {departure && arrival ? (
           <C2 line={line} departure={departure} arrival={arrival} />
+        ) : (
+          <Alert variant="info">出発駅と到着駅を選択してください。</Alert>
         )}
       </Container>
     </>
