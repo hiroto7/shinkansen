@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
-import logo from "./logo.svg";
 import "bootstrap-icons/font/bootstrap-icons.css";
-import "./App.css";
+import "bootstrap/dist/css/bootstrap.min.css";
+import parse from "csv-parse/lib/sync";
+import _ from "lodash";
+import React, { useCallback, useState } from "react";
 import {
   Badge,
   Card,
@@ -15,13 +16,11 @@ import {
   Row,
   Table,
 } from "react-bootstrap";
-import "bootstrap/dist/css/bootstrap.min.css";
-import parse from "csv-parse/lib/sync";
-import _ from "lodash";
+import "./App.css";
 
 interface Station {
-  name: string;
-  distance: number;
+  readonly name: string;
+  readonly distance: number;
 }
 
 // (\d+(?:\.\d)?)\t(.+)
@@ -89,6 +88,12 @@ const line2: readonly Station[] = [
   // { name: "新高岡", distance: 410.8 },
   // { name: "金沢", distance: 450.5 },
 ];
+
+const lines: ReadonlyMap<string, readonly Station[]> = new Map([
+  ["東北新幹線", line0],
+  ["上越新幹線", line1],
+  ["北陸新幹線", line2],
+]);
 
 const tables = [
   `
@@ -390,14 +395,18 @@ const App: React.VFC = () => {
   const [departure, setDeparture] = useState<Station>();
   const [arrival, setArrival] = useState<Station>();
 
-  useEffect(() => {
-    if (departure && !line.includes(departure)) {
-      setDeparture(undefined);
-    }
-    if (arrival && !line.includes(arrival)) {
-      setArrival(undefined);
-    }
-  }, [arrival, departure, line]);
+  const handleLineChange = useCallback(
+    (line: readonly Station[]) => {
+      if (departure && !line.includes(departure)) {
+        setDeparture(undefined);
+      }
+      if (arrival && !line.includes(arrival)) {
+        setArrival(undefined);
+      }
+      setLine(line);
+    },
+    [departure, arrival]
+  );
 
   return (
     <>
@@ -424,19 +433,9 @@ const App: React.VFC = () => {
                 <FloatingLabel controlId="floatingSelect" label="路線">
                   <Form.Select
                     aria-label="Floating label select example"
-                    onChange={(e) => {
-                      switch (e.currentTarget.value) {
-                        case "東北新幹線":
-                          setLine(line0);
-                          break;
-                        case "上越新幹線":
-                          setLine(line1);
-                          break;
-                        case "北陸新幹線":
-                          setLine(line2);
-                          break;
-                      }
-                    }}
+                    onChange={(e) =>
+                      handleLineChange(lines.get(e.currentTarget.value)!)
+                    }
                   >
                     <option>東北新幹線</option>
                     <option disabled>秋田新幹線</option>
