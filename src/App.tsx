@@ -7,8 +7,10 @@ import {
   Accordion,
   AccordionContext,
   Badge,
+  Button,
   Card,
   Col,
+  Collapse,
   Container,
   Dropdown,
   DropdownButton,
@@ -489,41 +491,26 @@ const ContextAwareItem: React.VFC<{
   eventKey: string;
   line: Line;
   train: string;
-  departure: Station;
-  arrival: Station;
-  highSpeedDeparture: Station;
-  highSpeedArrival: Station;
-  onDepartureChange: (departure: Station) => void;
-  onArrivalChange: (arrival: Station) => void;
-}> = ({
-  eventKey,
-  line,
-  train,
-  departure,
-  arrival,
-  highSpeedDeparture,
-  highSpeedArrival,
-  onDepartureChange: setDeparture,
-  onArrivalChange: setArrival,
-}) => {
+  section: Section;
+  highSpeedSection: Section;
+  onChange: (highSpeedSection: Section) => void;
+}> = ({ eventKey, line, train, section, highSpeedSection, onChange }) => {
   const { activeEventKey } = useContext(AccordionContext);
 
   const isCurrentEventKey = activeEventKey === eventKey;
   const stations1 = (
-    departure.index < arrival.index
-      ? line.slice(departure.index, arrival.index + 1)
-      : line.slice(arrival.index, departure.index + 1)
+    section[0].index < section[1].index
+      ? line.slice(section[0].index, section[1].index + 1)
+      : line.slice(section[1].index, section[0].index + 1)
   ).filter(isHighSpeedAvailableStation);
-  const [departure1, arrival1] =
-    departure.index < arrival.index
-      ? [stations1[0], stations1[stations1.length - 1]]
-      : [stations1[stations1.length - 1], stations1[0]];
   const items = stations1.map((station) => ({
     station,
     disabled:
       station.index <= line0.findIndex((station) => station.name === "大宮") ||
       station.index >= line0.findIndex((station) => station.name === "盛岡"),
   }));
+
+  const longestHighSpeedSection = getLongestHighSpeedSection(line, section);
 
   return (
     <Accordion.Item eventKey={eventKey}>
@@ -532,28 +519,29 @@ const ContextAwareItem: React.VFC<{
           <span className="flex-shrink-0">{train}号 利用区間</span>
           <Fade in={!isCurrentEventKey}>
             <span
-              className="ms-2 me-2 overflow-hidden text-nowrap"
+              className="ms-4 me-2 overflow-hidden text-nowrap"
               style={{ textOverflow: "ellipsis" }}
             >
-              <b>{highSpeedDeparture.name}</b>{" "}
+              <b>{highSpeedSection[0].name}</b>{" "}
               <i className="bi bi-arrow-right"></i>{" "}
-              <b>{highSpeedArrival.name}</b>
+              <b>{highSpeedSection[1].name}</b>
             </span>
           </Fade>
         </div>
       </Accordion.Header>
       <Accordion.Body>
-        <Row>
+        <Row className="gy-2 gx-3">
           <Col>
             <StationDropdown
-              value={highSpeedDeparture}
-              onChange={setDeparture}
+              value={highSpeedSection[0]}
+              onChange={(station) => onChange([station, highSpeedSection[1]])}
               header="乗車駅"
               items={items.map(({ station, disabled }) => ({
                 station,
                 disabled:
-                  station === arrival || (disabled && station !== departure),
-                active: station === highSpeedDeparture,
+                  station === section[1] ||
+                  (disabled && station !== section[0]),
+                active: station === highSpeedSection[0],
               }))}
             />
           </Col>
@@ -562,18 +550,36 @@ const ContextAwareItem: React.VFC<{
           </Col>
           <Col>
             <StationDropdown
-              value={highSpeedArrival}
-              onChange={setArrival}
+              value={highSpeedSection[1]}
+              onChange={(station) => onChange([highSpeedSection[0], station])}
               header="降車駅"
               items={items.map(({ station, disabled }) => ({
                 station,
                 disabled:
-                  station === departure || (disabled && station !== arrival),
-                active: station === highSpeedArrival,
+                  station === section[0] ||
+                  (disabled && station !== section[1]),
+                active: station === highSpeedSection[1],
               }))}
             />
           </Col>
         </Row>
+        <Collapse
+          in={
+            highSpeedSection[0] !== longestHighSpeedSection?.[0] ||
+            highSpeedSection[1] !== longestHighSpeedSection?.[1]
+          }
+        >
+          <div>
+            <div className="d-grid mt-3">
+              <Button
+                variant="outline-secondary"
+                onClick={() => onChange(longestHighSpeedSection!)}
+              >
+                デフォルトに戻す
+              </Button>
+            </div>
+          </div>
+        </Collapse>
       </Accordion.Body>
     </Accordion.Item>
   );
@@ -680,7 +686,7 @@ type Action = Readonly<
       payload: Station;
     }
   | {
-      type: "setHighSpeed";
+      type: "setHighSpeedSection";
       payload: Section | undefined;
     }
 >;
@@ -729,7 +735,7 @@ const reducer: Reducer<State, Action> = (state, action) => {
       };
     }
 
-    case "setHighSpeed":
+    case "setHighSpeedSection":
       return {
         ...state,
         highSpeedSection: action.payload,
@@ -795,7 +801,7 @@ const App: React.VFC = () => {
               </FloatingLabel>
             </Col>
           </Row>
-          <Row className="mt-3">
+          <Row className="mt-2 gy-2 gx-3">
             <Col>
               <StationDropdown
                 value={departure}
@@ -834,21 +840,13 @@ const App: React.VFC = () => {
             <ContextAwareItem
               eventKey="0"
               line={line}
-              departure={departure}
-              arrival={arrival}
+              section={section}
               train="はやぶさ"
-              highSpeedDeparture={highSpeedSection[0]}
-              highSpeedArrival={highSpeedSection[1]}
-              onDepartureChange={(station) =>
+              highSpeedSection={highSpeedSection}
+              onChange={(highSpeedSection) =>
                 dispatch({
-                  type: "setHighSpeed",
-                  payload: [station, highSpeedSection[1]],
-                })
-              }
-              onArrivalChange={(station) =>
-                dispatch({
-                  type: "setHighSpeed",
-                  payload: [highSpeedSection[0], station],
+                  type: "setHighSpeedSection",
+                  payload: highSpeedSection,
                 })
               }
             />
