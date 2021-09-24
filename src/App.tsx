@@ -429,7 +429,7 @@ const ContextAwareItem: React.VFC<{
     departure.index < arrival.index
       ? line.slice(departure.index, arrival.index + 1)
       : line.slice(arrival.index, departure.index + 1)
-  ).filter(isHighSpeedServiceAvailable);
+  ).filter(isHighSpeedAvailableStation);
   const [departure1, arrival1] =
     departure.index < arrival.index
       ? [stations1[0], stations1[stations1.length - 1]]
@@ -497,7 +497,7 @@ const ContextAwareItem: React.VFC<{
  * @param station
  * @returns はやぶさ号やこまち号が利用可能な駅ならtrue
  */
-const isHighSpeedServiceAvailable = (station: Station) =>
+const isHighSpeedAvailableStation = (station: Station) =>
   station.index <= line0.findIndex((station) => station.name === "大宮") ||
   station.index >= line0.findIndex((station) => station.name === "仙台");
 
@@ -510,7 +510,7 @@ const getFirstAndLastHighSpeedAvailableStation = (
     departure.index < arrival.index
       ? line.slice(departure.index, arrival.index + 1)
       : line.slice(arrival.index, departure.index + 1)
-  ).filter(isHighSpeedServiceAvailable);
+  ).filter(isHighSpeedAvailableStation);
 
   return departure.index < arrival.index
     ? ([
@@ -543,7 +543,15 @@ M              x xx
 
 |                 x
 */
-const isHighSpeedAvailable = (
+/**
+ * はやぶさ号やこまち号が利用可能な区間かどうか調べる。
+ * `stationB`は`stationA`より終点に近い駅である必要がある
+ * @param line
+ * @param stationA 起点方の駅
+ * @param stationB 終点方の駅
+ * @returns はやぶさ号やこまち号が利用可能な区間ならtrue
+ */
+const isHighSpeedAvailableSection = (
   line: Line,
   stationA: Station,
   stationB: Station
@@ -601,8 +609,8 @@ const App: React.VFC = () => {
 
   const highSpeedAvailable =
     departure.index < arrival.index
-      ? isHighSpeedAvailable(line, departure, arrival)
-      : isHighSpeedAvailable(line, arrival, departure);
+      ? isHighSpeedAvailableSection(line, departure, arrival)
+      : isHighSpeedAvailableSection(line, arrival, departure);
 
   return (
     <>
