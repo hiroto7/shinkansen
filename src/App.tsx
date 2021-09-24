@@ -455,7 +455,8 @@ const C2: React.VFC<{
       </Table>
       <h5>JRE POINTのレート</h5>
       <p>
-        所定の運賃・特急料金を交換ポイントで割った値です。指定列車に乗り遅れた場合を除き、自由席・立席は利用できません。
+        所定の運賃・特急料金を交換ポイントで割った値です。指定列車に乗り遅れた場合を除き、
+        JRE POINT特典チケットで自由席・立席は利用できません。
       </p>
       <Table striped bordered>
         {thead}
@@ -528,9 +529,12 @@ const ContextAwareItem: React.VFC<{
     <Accordion.Item eventKey={eventKey}>
       <Accordion.Header>
         <div className="d-flex justify-content-between flex-grow-1">
-          <span>{train}号 利用区間</span>
+          <span className="flex-shrink-0">{train}号 利用区間</span>
           <Fade in={!isCurrentEventKey}>
-            <span className="me-2">
+            <span
+              className="ms-2 me-2 overflow-hidden text-nowrap"
+              style={{ textOverflow: "ellipsis" }}
+            >
               <b>{highSpeedDeparture.name}</b>{" "}
               <i className="bi bi-arrow-right"></i>{" "}
               <b>{highSpeedArrival.name}</b>
