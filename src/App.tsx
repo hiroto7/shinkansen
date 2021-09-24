@@ -2,8 +2,10 @@ import "bootstrap-icons/font/bootstrap-icons.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import parse from "csv-parse/lib/sync";
 import _ from "lodash";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useContext, useState } from "react";
 import {
+  Accordion,
+  AccordionContext,
   Alert,
   Badge,
   Card,
@@ -11,6 +13,7 @@ import {
   Container,
   Dropdown,
   DropdownButton,
+  Fade,
   FloatingLabel,
   Form,
   Navbar,
@@ -20,12 +23,18 @@ import {
 import "./App.css";
 
 interface Station {
+  readonly index: number;
   readonly name: string;
   readonly distance: number;
 }
 
+type Line = readonly Station[];
+
+const joinIndex = <T,>(array: readonly T[]) =>
+  array.map((value, index) => ({ ...value, index }));
+
 // (\d+(?:\.\d)?)\t(.+)
-const line0: readonly Station[] = [
+const line0: Line = joinIndex([
   { name: "東京", distance: 0 },
   { name: "上野", distance: 3.6 },
   { name: "大宮", distance: 30.3 },
@@ -49,25 +58,27 @@ const line0: readonly Station[] = [
   { name: "八戸", distance: 631.9 },
   { name: "七戸十和田", distance: 668 },
   { name: "新青森", distance: 713.7 },
-];
+]);
 
-const line1: readonly Station[] = [
+const line1: Line = [
   ...line0.slice(
     line0.findIndex((station) => station.name === "東京"),
     line0.findIndex((station) => station.name === "大宮") + 1
   ),
-  { name: "熊谷", distance: 64.7 },
-  { name: "本庄早稲田", distance: 86 },
-  { name: "高崎", distance: 105 },
-  { name: "上毛高原", distance: 151.6 },
-  { name: "越後湯沢", distance: 199.2 },
-  { name: "浦佐", distance: 228.9 },
-  { name: "長岡", distance: 270.6 },
-  { name: "燕三条", distance: 293.8 },
-  { name: "新潟", distance: 333.9 },
+  ...joinIndex([
+    { name: "熊谷", distance: 64.7 },
+    { name: "本庄早稲田", distance: 86 },
+    { name: "高崎", distance: 105 },
+    { name: "上毛高原", distance: 151.6 },
+    { name: "越後湯沢", distance: 199.2 },
+    { name: "浦佐", distance: 228.9 },
+    { name: "長岡", distance: 270.6 },
+    { name: "燕三条", distance: 293.8 },
+    { name: "新潟", distance: 333.9 },
+  ]),
 ];
 
-const line2: readonly Station[] = [
+const line2: Line = [
   ...line0.slice(
     line0.findIndex((station) => station.name === "東京"),
     line0.findIndex((station) => station.name === "大宮") + 1
@@ -76,21 +87,23 @@ const line2: readonly Station[] = [
     line1.findIndex((station) => station.name === "熊谷"),
     line1.findIndex((station) => station.name === "高崎") + 1
   ),
-  { name: "安中榛名", distance: 123.5 },
-  { name: "軽井沢", distance: 146.8 },
-  { name: "佐久平", distance: 164.4 },
-  { name: "上田", distance: 189.2 },
-  { name: "長野", distance: 222.4 },
-  { name: "飯山", distance: 252.3 },
-  { name: "上越妙高", distance: 281.9 },
-  // { name: "糸魚川", distance: 318.9 },
-  // { name: "黒部宇奈月温泉", distance: 358.1 },
-  // { name: "富山", distance: 391.9 },
-  // { name: "新高岡", distance: 410.8 },
-  // { name: "金沢", distance: 450.5 },
+  ...joinIndex([
+    { name: "安中榛名", distance: 123.5 },
+    { name: "軽井沢", distance: 146.8 },
+    { name: "佐久平", distance: 164.4 },
+    { name: "上田", distance: 189.2 },
+    { name: "長野", distance: 222.4 },
+    { name: "飯山", distance: 252.3 },
+    { name: "上越妙高", distance: 281.9 },
+    // { name: "糸魚川", distance: 318.9 },
+    // { name: "黒部宇奈月温泉", distance: 358.1 },
+    // { name: "富山", distance: 391.9 },
+    // { name: "新高岡", distance: 410.8 },
+    // { name: "金沢", distance: 450.5 },
+  ]),
 ];
 
-const lines: ReadonlyMap<string, readonly Station[]> = new Map([
+const lines: ReadonlyMap<string, Line> = new Map([
   ["東北新幹線", line0],
   ["上越新幹線", line1],
   ["北陸新幹線", line2],
@@ -241,17 +254,14 @@ console.log(getFare0);
 console.log(getFare1);
 
 const C2: React.VFC<{
-  line: readonly Station[];
+  line: Line;
   departure: Station;
   arrival: Station;
 }> = ({ line, departure, arrival }) => {
-  const departureIndex = line.findIndex((station) => station === departure);
-  const arrivalIndex = line.findIndex((station) => station === arrival);
-
-  const [stationA, stationB, stationAIndex, stationBIndex] =
-    departureIndex < arrivalIndex
-      ? [departure, arrival, departureIndex, arrivalIndex]
-      : [arrival, departure, arrivalIndex, departureIndex];
+  const [stationA, stationB] =
+    departure.index < arrival.index
+      ? [departure, arrival]
+      : [arrival, departure];
 
   const distance = stationB.distance - stationA.distance;
   const points =
@@ -269,16 +279,16 @@ const C2: React.VFC<{
 
   const nonReservedAvailable =
     line !== line0 ||
-    stationBIndex <= line.findIndex((station) => station.name === "盛岡");
+    stationB.index <= line.findIndex((station) => station.name === "盛岡");
 
   const standingOnlyAvailable =
     line === line0 &&
-    stationAIndex >= line.findIndex((station) => station.name === "盛岡");
+    stationA.index >= line.findIndex((station) => station.name === "盛岡");
 
   const lowExpressFare =
     stationA.name === "東京" && stationB.name === "大宮"
       ? 1090
-      : stationBIndex - stationAIndex === 1 ||
+      : stationB.index - stationA.index === 1 ||
         [
           ["古川", "一ノ関"],
           ["一ノ関", "北上"],
@@ -302,7 +312,7 @@ const C2: React.VFC<{
   );
 
   const fare =
-    stationBIndex <= line.findIndex((station) => station.name === "大宮")
+    stationB.index <= line.findIndex((station) => station.name === "大宮")
       ? getFare1(distance)
       : getFare0(distance);
 
@@ -391,23 +401,208 @@ const C2: React.VFC<{
   );
 };
 
+const ContextAwareItem: React.VFC<{
+  eventKey: string;
+  line: Line;
+  train: string;
+  departure: Station;
+  arrival: Station;
+  highSpeedDeparture: Station;
+  highSpeedArrival: Station;
+  onDepartureChange: (departure: Station) => void;
+  onArrivalChange: (arrival: Station) => void;
+}> = ({
+  eventKey,
+  line,
+  train,
+  departure,
+  arrival,
+  highSpeedDeparture,
+  highSpeedArrival,
+  onDepartureChange: setDeparture,
+  onArrivalChange: setArrival,
+}) => {
+  const { activeEventKey } = useContext(AccordionContext);
+
+  const isCurrentEventKey = activeEventKey === eventKey;
+  const stations1 = (
+    departure.index < arrival.index
+      ? line.slice(departure.index, arrival.index + 1)
+      : line.slice(arrival.index, departure.index + 1)
+  ).filter(isHighSpeedServiceAvailable);
+  const [departure1, arrival1] =
+    departure.index < arrival.index
+      ? [stations1[0], stations1[stations1.length - 1]]
+      : [stations1[stations1.length - 1], stations1[0]];
+  const items = stations1.map((station) => ({
+    station,
+    disabled:
+      station.index <= line0.findIndex((station) => station.name === "大宮") ||
+      station.index >= line0.findIndex((station) => station.name === "盛岡"),
+  }));
+
+  return (
+    <Accordion.Item eventKey={eventKey}>
+      <Accordion.Header>
+        <div className="d-flex justify-content-between flex-grow-1">
+          <span>{train}号 利用区間</span>
+          <Fade in={!isCurrentEventKey}>
+            <span className="me-2">
+              <b>{highSpeedDeparture.name}</b>{" "}
+              <i className="bi bi-arrow-right"></i>{" "}
+              <b>{highSpeedArrival.name}</b>
+            </span>
+          </Fade>
+        </div>
+      </Accordion.Header>
+      <Accordion.Body>
+        <Row>
+          <Col>
+            <StationDropdown
+              value={highSpeedDeparture}
+              onChange={setDeparture}
+              header="乗車駅"
+              items={items.map(({ station, disabled }) => ({
+                station,
+                disabled:
+                  station === arrival || (disabled && station !== departure),
+                active: station === highSpeedDeparture,
+              }))}
+            />
+          </Col>
+          <Col xs="auto" className="align-self-center">
+            <i className="bi bi-arrow-right"></i>
+          </Col>
+          <Col>
+            <StationDropdown
+              value={highSpeedArrival}
+              onChange={setArrival}
+              header="降車駅"
+              items={items.map(({ station, disabled }) => ({
+                station,
+                disabled:
+                  station === departure || (disabled && station !== arrival),
+                active: station === highSpeedArrival,
+              }))}
+            />
+          </Col>
+        </Row>
+      </Accordion.Body>
+    </Accordion.Item>
+  );
+};
+
+/**
+ * はやぶさ号やこまち号が利用可能な駅かどうか調べる
+ * @param station
+ * @returns はやぶさ号やこまち号が利用可能な駅ならtrue
+ */
+const isHighSpeedServiceAvailable = (station: Station) =>
+  station.index <= line0.findIndex((station) => station.name === "大宮") ||
+  station.index >= line0.findIndex((station) => station.name === "仙台");
+
+const getFirstAndLastHighSpeedAvailableStation = (
+  line: Line,
+  departure: Station,
+  arrival: Station
+) => {
+  const stations1 = (
+    departure.index < arrival.index
+      ? line.slice(departure.index, arrival.index + 1)
+      : line.slice(arrival.index, departure.index + 1)
+  ).filter(isHighSpeedServiceAvailable);
+
+  return departure.index < arrival.index
+    ? ([
+        stations1.find(({ index }) => index >= departure.index),
+        stations1.filter(({ index }) => index <= arrival.index).slice(-1)[0],
+      ] as const)
+    : ([
+        stations1.filter(({ index }) => index <= departure.index).slice(-1)[0],
+        stations1.find(({ index }) => index >= arrival.index),
+      ] as const);
+};
+
+/*
+AB -O-- --S- -M- -A
+
+T  xxxx xxoo ooo oo 
+|   xxx xxoo ooo oo
+O    xx xxoo ooo oo
+|     x xxxo ooo oo
+|       xxxo ooo oo
+
+|        xxo ooo oo
+|         xo ooo oo
+S          o ooo oo
+|            ooo oo
+
+|             oo oo
+M              x xx
+|                xx
+
+|                 x
+*/
+const isHighSpeedAvailable = (
+  line: Line,
+  stationA: Station,
+  stationB: Station
+) =>
+  (stationA.index <= line0.findIndex((station) => station.name === "大宮") &&
+    stationB.index >= line0.findIndex((station) => station.name === "仙台")) ||
+  (stationA.index < line0.findIndex((station) => station.name === "盛岡") &&
+    stationB.index > line0.findIndex((station) => station.name === "仙台"));
+
 const App: React.VFC = () => {
-  const [line, setLine] = useState<readonly Station[]>(line0);
-  const [departure, setDeparture] = useState<Station>();
-  const [arrival, setArrival] = useState<Station>();
+  const [line, setLine] = useState<Line>(line0);
+  const [departure, setDeparture] = useState<Station>(line[0]!);
+  const [arrival, setArrival] = useState<Station>(line[line.length - 1]!);
+  const [highSpeedDeparture, setHighSpeedDeparture] = useState<Station>();
+  const [highSpeedArrival, setHighSpeedArrival] = useState<Station>();
 
   const handleLineChange = useCallback(
-    (line: readonly Station[]) => {
-      if (departure && !line.includes(departure)) {
-        setDeparture(undefined);
+    (line: Line) => {
+      if (!line.includes(departure)) {
+        setDeparture(line[0]! === arrival ? line[line.length - 1]! : line[0]!);
       }
-      if (arrival && !line.includes(arrival)) {
-        setArrival(undefined);
+      if (!line.includes(arrival)) {
+        setArrival(
+          line[line.length - 1]! === departure
+            ? line[0]!
+            : line[line.length - 1]!
+        );
       }
       setLine(line);
     },
     [departure, arrival]
   );
+
+  const handleDepartureChange = useCallback(
+    (departure: Station) => {
+      const [nextHighSpeedDeparture, nextHighSpeedArrival] =
+        getFirstAndLastHighSpeedAvailableStation(line, departure, arrival);
+      setDeparture(departure);
+      setHighSpeedDeparture(nextHighSpeedDeparture);
+      setHighSpeedArrival(nextHighSpeedArrival);
+    },
+    [arrival, line]
+  );
+
+  const handleArrivalChange = useCallback(
+    (arrival: Station) => {
+      const [nextHighSpeedDeparture, nextHighSpeedArrival] =
+        getFirstAndLastHighSpeedAvailableStation(line, departure, arrival);
+      setArrival(arrival);
+      setHighSpeedDeparture(nextHighSpeedDeparture);
+      setHighSpeedArrival(nextHighSpeedArrival);
+    },
+    [departure, line]
+  );
+
+  const highSpeedAvailable =
+    departure.index < arrival.index
+      ? isHighSpeedAvailable(line, departure, arrival)
+      : isHighSpeedAvailable(line, arrival, departure);
 
   return (
     <>
@@ -428,61 +623,72 @@ const App: React.VFC = () => {
           が、割引なしのきっぷと比べてどのくらい割がいいのか計算します。
         </p>
         <Card body className="my-3">
-          <Container fluid>
-            <Row>
-              <Col>
-                <FloatingLabel controlId="floatingSelect" label="路線">
-                  <Form.Select
-                    aria-label="Floating label select example"
-                    onChange={(e) =>
-                      handleLineChange(lines.get(e.currentTarget.value)!)
-                    }
-                  >
-                    <option>東北新幹線</option>
-                    <option disabled>秋田新幹線</option>
-                    <option disabled>山形新幹線</option>
-                    <option>上越新幹線</option>
-                    <option>北陸新幹線</option>
-                  </Form.Select>
-                </FloatingLabel>
-              </Col>
-            </Row>
-            <Row className="mt-3">
-              <Col>
-                <StationDropdown
-                  value={departure}
-                  onChange={setDeparture}
-                  header="出発駅"
-                  items={line?.map((station) => ({
-                    station,
-                    disabled: station === arrival,
-                    active: station === departure,
-                  }))}
-                />
-              </Col>
-              <Col xs="auto" className="align-self-center">
-                <i className="bi bi-arrow-right"></i>
-              </Col>
-              <Col>
-                <StationDropdown
-                  value={arrival}
-                  onChange={setArrival}
-                  header="到着駅"
-                  items={line.map((station) => ({
-                    station,
-                    disabled: station === departure,
-                    active: station === arrival,
-                  }))}
-                />
-              </Col>
-            </Row>
-          </Container>
+          <Row>
+            <Col>
+              <FloatingLabel controlId="floatingSelect" label="路線">
+                <Form.Select
+                  aria-label="Floating label select example"
+                  onChange={(e) =>
+                    handleLineChange(lines.get(e.currentTarget.value)!)
+                  }
+                >
+                  <option>東北新幹線</option>
+                  <option disabled>秋田新幹線</option>
+                  <option disabled>山形新幹線</option>
+                  <option>上越新幹線</option>
+                  <option>北陸新幹線</option>
+                </Form.Select>
+              </FloatingLabel>
+            </Col>
+          </Row>
+          <Row className="mt-3">
+            <Col>
+              <StationDropdown
+                value={departure}
+                onChange={handleDepartureChange}
+                header="出発駅"
+                items={line.map((station) => ({
+                  station,
+                  disabled: station === arrival,
+                  active: station === departure,
+                }))}
+              />
+            </Col>
+            <Col xs="auto" className="align-self-center">
+              <i className="bi bi-arrow-right"></i>
+            </Col>
+            <Col>
+              <StationDropdown
+                value={arrival}
+                onChange={handleArrivalChange}
+                header="到着駅"
+                items={line.map((station) => ({
+                  station,
+                  disabled: station === departure,
+                  active: station === arrival,
+                }))}
+              />
+            </Col>
+          </Row>
         </Card>
-        {departure && arrival ? (
-          <C2 line={line} departure={departure} arrival={arrival} />
+        {highSpeedAvailable && highSpeedDeparture && highSpeedArrival ? (
+          <Accordion className="mb-3">
+            <ContextAwareItem
+              eventKey="0"
+              line={line}
+              departure={departure}
+              arrival={arrival}
+              train="はやぶさ"
+              highSpeedDeparture={highSpeedDeparture}
+              highSpeedArrival={highSpeedArrival}
+              onDepartureChange={setHighSpeedDeparture}
+              onArrivalChange={setHighSpeedArrival}
+            />
+          </Accordion>
         ) : (
-          <Alert variant="info">出発駅と到着駅を選択してください。</Alert>
+          <></>
         )}
+        <C2 line={line} departure={departure} arrival={arrival} />
       </Container>
     </>
   );
