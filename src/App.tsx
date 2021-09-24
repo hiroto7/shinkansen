@@ -2,11 +2,18 @@ import "bootstrap-icons/font/bootstrap-icons.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import parse from "csv-parse/lib/sync";
 import _ from "lodash";
-import React, { useCallback, useContext, useState } from "react";
+import React, {
+  Reducer,
+  ReducerAction,
+  SetStateAction,
+  useCallback,
+  useContext,
+  useReducer,
+  useState,
+} from "react";
 import {
   Accordion,
   AccordionContext,
-  Alert,
   Badge,
   Card,
   Col,
@@ -501,26 +508,38 @@ const isHighSpeedAvailableStation = (station: Station) =>
   station.index <= line0.findIndex((station) => station.name === "大宮") ||
   station.index >= line0.findIndex((station) => station.name === "仙台");
 
-const getFirstAndLastHighSpeedAvailableStation = (
+const getLongestHighSpeedSection = (
   line: Line,
-  departure: Station,
-  arrival: Station
-) => {
-  const stations1 = (
+  [departure, arrival]: Section
+): readonly [departure: Station, arrival: Station] | undefined => {
+  const highSpeedAvailableStations = (
     departure.index < arrival.index
       ? line.slice(departure.index, arrival.index + 1)
       : line.slice(arrival.index, departure.index + 1)
   ).filter(isHighSpeedAvailableStation);
 
-  return departure.index < arrival.index
-    ? ([
-        stations1.find(({ index }) => index >= departure.index),
-        stations1.filter(({ index }) => index <= arrival.index).slice(-1)[0],
-      ] as const)
-    : ([
-        stations1.filter(({ index }) => index <= departure.index).slice(-1)[0],
-        stations1.find(({ index }) => index >= arrival.index),
-      ] as const);
+  const [highSpeedDeparture, highSpeedArrival] =
+    departure.index < arrival.index
+      ? [
+          highSpeedAvailableStations.find(
+            ({ index }) => index >= departure.index
+          ),
+          highSpeedAvailableStations
+            .filter(({ index }) => index <= arrival.index)
+            .slice(-1)[0],
+        ]
+      : [
+          highSpeedAvailableStations
+            .filter(({ index }) => index <= departure.index)
+            .slice(-1)[0],
+          highSpeedAvailableStations.find(
+            ({ index }) => index >= arrival.index
+          ),
+        ];
+
+  return highSpeedDeparture && highSpeedArrival
+    ? [highSpeedDeparture, highSpeedArrival]
+    : undefined;
 };
 
 /*
@@ -561,51 +580,95 @@ const isHighSpeedAvailableSection = (
   (stationA.index < line0.findIndex((station) => station.name === "盛岡") &&
     stationB.index > line0.findIndex((station) => station.name === "仙台"));
 
+interface State {
+  readonly line: Line;
+  readonly section: Section;
+  readonly highSpeedSection: Section | undefined;
+}
+
+type Action = Readonly<
+  | {
+      type: "setLine";
+      payload: Line;
+    }
+  | {
+      type: "setDeparture";
+      payload: Station;
+    }
+  | {
+      type: "setArrival";
+      payload: Station;
+    }
+  | {
+      type: "setHighSpeed";
+      payload: Section | undefined;
+    }
+>;
+
+type Section = readonly [departure: Station, arrival: Station];
+
+const reducer: Reducer<State, Action> = (state, action) => {
+  switch (action.type) {
+    case "setLine": {
+      const line = action.payload;
+      const [departure, arrival] = state.section;
+      const firstOfLine = line[0]!;
+      const lastOfLine = line[line.length - 1]!;
+
+      const section: Section = line.includes(departure)
+        ? line.includes(arrival)
+          ? [departure, arrival]
+          : [departure, lastOfLine === departure ? firstOfLine : lastOfLine]
+        : line.includes(arrival)
+        ? [firstOfLine === arrival ? lastOfLine : firstOfLine, arrival]
+        : [firstOfLine, lastOfLine];
+
+      return {
+        ...state,
+        line,
+        section,
+        highSpeedSection: getLongestHighSpeedSection(line, section),
+      };
+    }
+
+    case "setDeparture": {
+      const section = [action.payload, state.section[1]] as const;
+      return {
+        ...state,
+        section,
+        highSpeedSection: getLongestHighSpeedSection(state.line, section),
+      };
+    }
+
+    case "setArrival": {
+      const section = [state.section[0], action.payload] as const;
+      return {
+        ...state,
+        section,
+        highSpeedSection: getLongestHighSpeedSection(state.line, section),
+      };
+    }
+
+    case "setHighSpeed":
+      return {
+        ...state,
+        highSpeedSection: action.payload,
+      };
+  }
+};
+
+const init = (): State => {
+  const line = line0;
+  const section = [line[0]!, line.slice(-1)[0]!] as const;
+  const highSpeedSection = getLongestHighSpeedSection(line, section);
+  return { line, section, highSpeedSection };
+};
+
 const App: React.VFC = () => {
-  const [line, setLine] = useState<Line>(line0);
-  const [departure, setDeparture] = useState<Station>(line[0]!);
-  const [arrival, setArrival] = useState<Station>(line[line.length - 1]!);
-  const [highSpeedDeparture, setHighSpeedDeparture] = useState<Station>();
-  const [highSpeedArrival, setHighSpeedArrival] = useState<Station>();
+  const [state, dispatch] = useReducer(reducer, undefined, init);
 
-  const handleLineChange = useCallback(
-    (line: Line) => {
-      if (!line.includes(departure)) {
-        setDeparture(line[0]! === arrival ? line[line.length - 1]! : line[0]!);
-      }
-      if (!line.includes(arrival)) {
-        setArrival(
-          line[line.length - 1]! === departure
-            ? line[0]!
-            : line[line.length - 1]!
-        );
-      }
-      setLine(line);
-    },
-    [departure, arrival]
-  );
-
-  const handleDepartureChange = useCallback(
-    (departure: Station) => {
-      const [nextHighSpeedDeparture, nextHighSpeedArrival] =
-        getFirstAndLastHighSpeedAvailableStation(line, departure, arrival);
-      setDeparture(departure);
-      setHighSpeedDeparture(nextHighSpeedDeparture);
-      setHighSpeedArrival(nextHighSpeedArrival);
-    },
-    [arrival, line]
-  );
-
-  const handleArrivalChange = useCallback(
-    (arrival: Station) => {
-      const [nextHighSpeedDeparture, nextHighSpeedArrival] =
-        getFirstAndLastHighSpeedAvailableStation(line, departure, arrival);
-      setArrival(arrival);
-      setHighSpeedDeparture(nextHighSpeedDeparture);
-      setHighSpeedArrival(nextHighSpeedArrival);
-    },
-    [departure, line]
-  );
+  const { line, section, highSpeedSection } = state;
+  const [departure, arrival] = section;
 
   const highSpeedAvailable =
     departure.index < arrival.index
@@ -637,7 +700,10 @@ const App: React.VFC = () => {
                 <Form.Select
                   aria-label="Floating label select example"
                   onChange={(e) =>
-                    handleLineChange(lines.get(e.currentTarget.value)!)
+                    dispatch({
+                      type: "setLine",
+                      payload: lines.get(e.currentTarget.value)!,
+                    })
                   }
                 >
                   <option>東北新幹線</option>
@@ -653,7 +719,9 @@ const App: React.VFC = () => {
             <Col>
               <StationDropdown
                 value={departure}
-                onChange={handleDepartureChange}
+                onChange={(station) =>
+                  dispatch({ type: "setDeparture", payload: station })
+                }
                 header="出発駅"
                 items={line.map((station) => ({
                   station,
@@ -668,7 +736,9 @@ const App: React.VFC = () => {
             <Col>
               <StationDropdown
                 value={arrival}
-                onChange={handleArrivalChange}
+                onChange={(station) =>
+                  dispatch({ type: "setArrival", payload: station })
+                }
                 header="到着駅"
                 items={line.map((station) => ({
                   station,
@@ -679,7 +749,7 @@ const App: React.VFC = () => {
             </Col>
           </Row>
         </Card>
-        {highSpeedAvailable && highSpeedDeparture && highSpeedArrival ? (
+        {highSpeedAvailable && highSpeedSection ? (
           <Accordion className="mb-3">
             <ContextAwareItem
               eventKey="0"
@@ -687,10 +757,20 @@ const App: React.VFC = () => {
               departure={departure}
               arrival={arrival}
               train="はやぶさ"
-              highSpeedDeparture={highSpeedDeparture}
-              highSpeedArrival={highSpeedArrival}
-              onDepartureChange={setHighSpeedDeparture}
-              onArrivalChange={setHighSpeedArrival}
+              highSpeedDeparture={highSpeedSection[0]}
+              highSpeedArrival={highSpeedSection[1]}
+              onDepartureChange={(station) =>
+                dispatch({
+                  type: "setHighSpeed",
+                  payload: [station, highSpeedSection[1]],
+                })
+              }
+              onArrivalChange={(station) =>
+                dispatch({
+                  type: "setHighSpeed",
+                  payload: [highSpeedSection[0], station],
+                })
+              }
             />
           </Accordion>
         ) : (
