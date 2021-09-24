@@ -513,7 +513,7 @@ const ContextAwareItem: React.VFC<{
       station.index >= line0.findIndex((station) => station.name === "盛岡"),
   }));
 
-  const longestHighSpeedSection = getLongestHighSpeedSection(line, section);
+  const longestHighSpeedSection = getLongestHighSpeedSection(line, section)!;
 
   return (
     <Accordion.Item eventKey={eventKey}>
@@ -542,7 +542,7 @@ const ContextAwareItem: React.VFC<{
               items={items.map(({ station, disabled }) => ({
                 station,
                 disabled:
-                  station === section[1] ||
+                  station === longestHighSpeedSection[1] ||
                   (disabled && station !== section[0]),
                 active: station === highSpeedSection[0],
               }))}
@@ -559,7 +559,7 @@ const ContextAwareItem: React.VFC<{
               items={items.map(({ station, disabled }) => ({
                 station,
                 disabled:
-                  station === section[0] ||
+                  station === longestHighSpeedSection[0] ||
                   (disabled && station !== section[1]),
                 active: station === highSpeedSection[1],
               }))}
@@ -576,7 +576,7 @@ const ContextAwareItem: React.VFC<{
             <div className="d-grid mt-3">
               <Button
                 variant="outline-secondary"
-                onClick={() => onChange(longestHighSpeedSection!)}
+                onClick={() => onChange(longestHighSpeedSection)}
               >
                 デフォルトに戻す
               </Button>
