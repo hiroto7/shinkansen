@@ -31,11 +31,8 @@ interface Station {
 
 type Line = readonly Station[];
 
-const joinIndex = <T,>(array: readonly T[]) =>
-  array.map((value, index) => ({ ...value, index }));
-
 // (\d+(?:\.\d)?)\t(.+)
-const line0: Line = joinIndex([
+const line0: Line = [
   { name: "東京", distance: 0 },
   { name: "上野", distance: 3.6 },
   { name: "大宮", distance: 30.3 },
@@ -59,14 +56,14 @@ const line0: Line = joinIndex([
   { name: "八戸", distance: 631.9 },
   { name: "七戸十和田", distance: 668 },
   { name: "新青森", distance: 713.7 },
-]);
+].map((value, index) => ({ ...value, index }));
 
 const line1: Line = [
   ...line0.slice(
     line0.findIndex((station) => station.name === "東京"),
     line0.findIndex((station) => station.name === "大宮") + 1
   ),
-  ...joinIndex([
+  ...[
     { name: "熊谷", distance: 64.7 },
     { name: "本庄早稲田", distance: 86 },
     { name: "高崎", distance: 105 },
@@ -76,7 +73,10 @@ const line1: Line = [
     { name: "長岡", distance: 270.6 },
     { name: "燕三条", distance: 293.8 },
     { name: "新潟", distance: 333.9 },
-  ]),
+  ].map((value, index) => ({
+    ...value,
+    index: index + line0.findIndex((station) => station.name === "大宮") + 1,
+  })),
 ];
 
 const line2: Line = [
@@ -88,7 +88,7 @@ const line2: Line = [
     line1.findIndex((station) => station.name === "熊谷"),
     line1.findIndex((station) => station.name === "高崎") + 1
   ),
-  ...joinIndex([
+  ...[
     { name: "安中榛名", distance: 123.5 },
     { name: "軽井沢", distance: 146.8 },
     { name: "佐久平", distance: 164.4 },
@@ -101,7 +101,10 @@ const line2: Line = [
     // { name: "富山", distance: 391.9 },
     // { name: "新高岡", distance: 410.8 },
     // { name: "金沢", distance: 450.5 },
-  ]),
+  ].map((value, index) => ({
+    ...value,
+    index: index + line1.findIndex((station) => station.name === "高崎") + 1,
+  })),
 ];
 
 const lines: ReadonlyMap<string, Line> = new Map([
@@ -311,7 +314,7 @@ const C2: React.VFC<{
   ).find((row: any) => row["駅名"] === stationB.name)[stationA.name];
 
   const highSpeedExpressFare =
-    highSpeedStationA === departure && highSpeedStationB === arrival
+    highSpeedStationA === stationA && highSpeedStationB === stationB
       ? +tables[1].find((row: any) => row["駅名"] === stationB.name)[
           stationA.name
         ]
@@ -594,38 +597,55 @@ const isHighSpeedAvailableStation = (station: Station) =>
   station.index <= line0.findIndex((station) => station.name === "大宮") ||
   station.index >= line0.findIndex((station) => station.name === "仙台");
 
-const getLongestHighSpeedSection = (
+/**
+ * 全乗車区間のうち、はやぶさ号やこまち号が利用可能な最長区間を求める。
+ * @param line
+ * @param section 全乗車区間。 `section[1]` は `section[0]` より終点に近い駅である必要がある。
+ * @returns はやぶさ号やこまち号が利用可能な最長区間。 `undefined` の場合は利用可能な区間がない。
+ */
+const getLongestHighSpeedSection0 = (
   line: Line,
-  [departure, arrival]: Section
-): readonly [departure: Station, arrival: Station] | undefined => {
-  const highSpeedAvailableStations = (
-    departure.index < arrival.index
-      ? line.slice(departure.index, arrival.index + 1)
-      : line.slice(arrival.index, departure.index + 1)
-  ).filter(isHighSpeedAvailableStation);
+  section: Section
+): Section | undefined => {
+  const [a, b] = section;
+  const highSpeedAvailableStations = line
+    .slice(a.index, b.index + 1)
+    .filter(isHighSpeedAvailableStation);
 
-  const [highSpeedDeparture, highSpeedArrival] =
-    departure.index < arrival.index
-      ? [
-          highSpeedAvailableStations.find(
-            ({ index }) => index >= departure.index
-          ),
-          highSpeedAvailableStations
-            .filter(({ index }) => index <= arrival.index)
-            .slice(-1)[0],
-        ]
-      : [
-          highSpeedAvailableStations
-            .filter(({ index }) => index <= departure.index)
-            .slice(-1)[0],
-          highSpeedAvailableStations.find(
-            ({ index }) => index >= arrival.index
-          ),
-        ];
+  const [highSpeedDeparture, highSpeedArrival] = [
+    highSpeedAvailableStations.find(({ index }) => index >= a.index),
+    highSpeedAvailableStations
+      .filter(({ index }) => index <= b.index)
+      .slice(-1)[0],
+  ];
 
   return highSpeedDeparture && highSpeedArrival
     ? [highSpeedDeparture, highSpeedArrival]
     : undefined;
+};
+
+/**
+ * 全乗車区間のうち、はやぶさ号やこまち号が利用可能な最長区間を求める。
+ * @param line
+ * @param section 全乗車区間。 `section[0]` と `section[1]` の順序は不問。
+ * @returns はやぶさ号やこまち号が利用可能な最長区間。 `undefined` の場合は利用可能な区間がない。
+ */
+const getLongestHighSpeedSection = (
+  line: Line,
+  section: Section
+): Section | undefined => {
+  const [departure, arrival] = section;
+  if (departure.index < arrival.index) {
+    return getLongestHighSpeedSection0(line, section);
+  } else {
+    const longestHighSpeedSection = getLongestHighSpeedSection0(line, [
+      arrival,
+      departure,
+    ]);
+    return longestHighSpeedSection
+      ? [longestHighSpeedSection[1], longestHighSpeedSection[0]]
+      : undefined;
+  }
 };
 
 /*
@@ -650,21 +670,26 @@ M              x xx
 */
 /**
  * はやぶさ号やこまち号が利用可能な区間かどうか調べる。
- * `stationB`は`stationA`より終点に近い駅である必要がある
  * @param line
- * @param stationA 起点方の駅
- * @param stationB 終点方の駅
+ * @param section
  * @returns はやぶさ号やこまち号が利用可能な区間ならtrue
  */
-const isHighSpeedAvailableSection = (
-  line: Line,
-  stationA: Station,
-  stationB: Station
-) =>
-  (stationA.index <= line0.findIndex((station) => station.name === "大宮") &&
-    stationB.index >= line0.findIndex((station) => station.name === "仙台")) ||
-  (stationA.index < line0.findIndex((station) => station.name === "盛岡") &&
-    stationB.index > line0.findIndex((station) => station.name === "仙台"));
+const isHighSpeedAvailableSection = (line: Line, section: Section) => {
+  const [departure, arrival] = section;
+  const [stationA, stationB] =
+    departure.index < arrival.index
+      ? [departure, arrival]
+      : [arrival, departure];
+
+  return (
+    line === line0 &&
+    ((stationA.index <= line0.findIndex((station) => station.name === "大宮") &&
+      stationB.index >=
+        line0.findIndex((station) => station.name === "仙台")) ||
+      (stationA.index < line0.findIndex((station) => station.name === "盛岡") &&
+        stationB.index > line0.findIndex((station) => station.name === "仙台")))
+  );
+};
 
 interface State {
   readonly line: Line;
@@ -691,7 +716,7 @@ type Action = Readonly<
     }
 >;
 
-type Section = readonly [departure: Station, arrival: Station];
+type Section = readonly [Station, Station];
 
 const reducer: Reducer<State, Action> = (state, action) => {
   switch (action.type) {
@@ -756,10 +781,7 @@ const App: React.VFC = () => {
   const { line, section, highSpeedSection } = state;
   const [departure, arrival] = section;
 
-  const highSpeedAvailable =
-    departure.index < arrival.index
-      ? isHighSpeedAvailableSection(line, departure, arrival)
-      : isHighSpeedAvailableSection(line, arrival, departure);
+  const highSpeedAvailable = isHighSpeedAvailableSection(line, section);
 
   return (
     <>
