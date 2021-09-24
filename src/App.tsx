@@ -2,15 +2,7 @@ import "bootstrap-icons/font/bootstrap-icons.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import parse from "csv-parse/lib/sync";
 import _ from "lodash";
-import React, {
-  Reducer,
-  ReducerAction,
-  SetStateAction,
-  useCallback,
-  useContext,
-  useReducer,
-  useState,
-} from "react";
+import React, { Reducer, useContext, useReducer } from "react";
 import {
   Accordion,
   AccordionContext,
@@ -143,6 +135,24 @@ const tables = [
 新青森,6810,6600,6070,6070,6070,5700,5700,5370,5370,5370,4830,4830,4060,4060,4060,4060,4060,3170,3170,3170,2400,2400
 `,
   `
+駅名,東京,上野,大宮,仙台,古川,くりこま高原,一ノ関,水沢江刺,北上,新花巻,盛岡,いわて沼宮内,二戸,八戸,七戸十和田
+上野,2400,,,,,,,,,,,,,,
+大宮,2610,2400,,,,,,,,,,,,,
+仙台,5360,5150,5150,,,,,,,,,,,,
+古川,5360,5150,5150,2500,,,,,,,,,,,
+くりこま高原,6000,5790,5250,2500,2500,,,,,,,,,,
+一ノ関,6000,5790,5790,2500,2500,2500,,,,,,,,,
+水沢江刺,6000,5790,5790,3380,2500,2500,2500,,,,,,,,
+北上,6000,5790,5790,3380,2500,2500,2500,2500,,,,,,,
+新花巻,6000,5790,5790,3380,3380,2500,2500,2500,2500,,,,,,
+盛岡,6430,6220,5890,3380,3380,3380,2500,2500,2500,2500,,,,,
+いわて沼宮内,6430,6220,6220,4270,3380,3380,3270,2500,2500,2500,2400,,,,
+二戸,6430,6220,6220,4270,4270,3380,3270,3270,3270,3270,2400,2400,,,
+八戸,6800,6590,6590,4270,4270,4270,3270,3270,3270,3270,2400,2400,2400,,
+七戸十和田,6800,6590,6590,5040,4270,4270,4160,3270,3270,3270,3170,3170,2400,2400,
+新青森,7330,7120,6590,5040,5040,4270,4160,4160,4160,4160,3170,3170,3170,2400,2400
+`,
+  `
 駅名,東京,上野,大宮,熊谷,本庄早稲田,高崎,上毛高原,越後湯沢,浦佐,長岡,燕三条
 上野,2400,,,,,,,,,,
 大宮,2610,2400,,,,,,,,,
@@ -216,9 +226,13 @@ const getDistance = (distance: number) =>
     ? Math.ceil(distance / 10) * 10 - 5
     : Math.ceil(distance / 5) * 5 - 2;
 
-// 幹線
-// 1-3: 150, 4-6: 190, 7-10: 200
+/**
+ * **幹線**内相互発着となる場合の大人片道普通旅客運賃を計算する
+ * @param distance 営業キロ
+ * @returns 運賃
+ */
 const getFare0 = (distance: number) => {
+  // 1-3: 150, 4-6: 190, 7-10: 200
   const distance1 = getDistance(distance);
   const fare0 =
     16.2 * Math.min(distance1, 300) +
@@ -237,9 +251,13 @@ const getFare0 = (distance: number) => {
     : 150;
 };
 
-// 東京附近における電車特定区間
-// 1-3: 140, 4-6: 160, 7-10: 170
+/**
+ * **東京附近における電車特定区間**内相互発着の場合の大人片道普通旅客運賃を計算する
+ * @param distance 営業キロ
+ * @returns 運賃
+ */
 const getFare1 = (distance: number) => {
+  // 1-3: 140, 4-6: 160, 7-10: 170
   const distance1 = getDistance(distance);
   const fare0 =
     15.3 * Math.min(distance1, 300) +
@@ -262,13 +280,19 @@ console.log(getFare1);
 
 const C2: React.VFC<{
   line: Line;
-  departure: Station;
-  arrival: Station;
-}> = ({ line, departure, arrival }) => {
+  section: Section;
+  highSpeedSection?: Section;
+}> = ({ line, section, highSpeedSection }) => {
+  const [departure, arrival] = section;
   const [stationA, stationB] =
     departure.index < arrival.index
       ? [departure, arrival]
       : [arrival, departure];
+  const [highSpeedStationA, highSpeedStationB] = highSpeedSection
+    ? departure.index < arrival.index
+      ? highSpeedSection
+      : [highSpeedSection[1], highSpeedSection[0]]
+    : [undefined, undefined];
 
   const distance = stationB.distance - stationA.distance;
   const points =
@@ -281,8 +305,23 @@ const C2: React.VFC<{
       : 2160;
 
   const reservedExpressFare = +(
-    line === line0 ? tables[0] : line === line1 ? tables[1] : tables[2]
+    line === line0 ? tables[0] : line === line1 ? tables[2] : tables[3]
   ).find((row: any) => row["駅名"] === stationB.name)[stationA.name];
+
+  const highSpeedExpressFare =
+    highSpeedStationA === departure && highSpeedStationB === arrival
+      ? +tables[1].find((row: any) => row["駅名"] === stationB.name)[
+          stationA.name
+        ]
+      : highSpeedStationA && highSpeedStationB
+      ? reservedExpressFare +
+        (tables[1].find((row: any) => row["駅名"] === highSpeedStationB.name)[
+          highSpeedStationA.name
+        ] -
+          tables[0].find((row: any) => row["駅名"] === highSpeedStationB.name)[
+            highSpeedStationA.name
+          ])
+      : undefined;
 
   const nonReservedAvailable =
     line !== line0 ||
@@ -310,18 +349,40 @@ const C2: React.VFC<{
   const nonReservedOrStandingOnlyFare =
     lowExpressFare ?? reservedExpressFare - 530;
 
-  const ths = (
-    <>
-      {nonReservedAvailable ? <th scope="col">自由席</th> : <></>}
-      {standingOnlyAvailable ? <th scope="col">立席</th> : <></>}
-      <th scope="col">指定席</th>
-    </>
-  );
-
   const fare =
     stationB.index <= line.findIndex((station) => station.name === "大宮")
       ? getFare1(distance)
       : getFare0(distance);
+
+  const thead = (
+    <thead>
+      {highSpeedExpressFare !== undefined ? (
+        <tr>
+          <th scope="row">はやぶさ号</th>
+          {nonReservedAvailable || standingOnlyAvailable ? (
+            <th scope="row">利用しない</th>
+          ) : (
+            <></>
+          )}
+          <th scope="row">利用しない</th>
+          <th scope="row">利用する</th>
+        </tr>
+      ) : (
+        <></>
+      )}
+      <tr>
+        <th scope="row">座席</th>
+        {nonReservedAvailable ? <th scope="col">自由席</th> : <></>}
+        {standingOnlyAvailable ? <th scope="col">立席</th> : <></>}
+        <th scope="col">指定席</th>
+        {highSpeedExpressFare !== undefined ? (
+          <th scope="col">指定席</th>
+        ) : (
+          <></>
+        )}
+      </tr>
+    </thead>
+  );
 
   return (
     <>
@@ -333,16 +394,17 @@ const C2: React.VFC<{
       </dl>
       <h5>所定の運賃・特急料金</h5>
       <Table striped bordered>
-        <thead>
-          <tr>
-            <td></td>
-            {ths}
-          </tr>
-        </thead>
+        {thead}
         <tbody>
           <tr>
             <th scope="row">運賃</th>
-            <td colSpan={nonReservedAvailable || standingOnlyAvailable ? 2 : 1}>
+            <td
+              colSpan={
+                +(highSpeedExpressFare !== undefined) +
+                +(nonReservedAvailable || standingOnlyAvailable) +
+                1
+              }
+            >
               {fare}円
             </td>
           </tr>
@@ -351,9 +413,7 @@ const C2: React.VFC<{
             {nonReservedAvailable || standingOnlyAvailable ? (
               <td>
                 {nonReservedOrStandingOnlyFare}円{" "}
-                {lowExpressFare !== undefined ? (
-                  <Badge>特定</Badge>
-                ) : standingOnlyAvailable ? (
+                {lowExpressFare !== undefined || standingOnlyAvailable ? (
                   <Badge bg="secondary">特定</Badge>
                 ) : (
                   <></>
@@ -363,11 +423,17 @@ const C2: React.VFC<{
               <></>
             )}
             <td>{reservedExpressFare}円</td>
+            {highSpeedExpressFare !== undefined ? (
+              <td>{highSpeedExpressFare}円</td>
+            ) : (
+              <></>
+            )}
           </tr>
           <tr>
             <th scope="row">割引</th>
             {nonReservedAvailable || standingOnlyAvailable ? <td>-</td> : <></>}
             <td>-200円</td>
+            {highSpeedExpressFare !== undefined ? <td>-200円</td> : <></>}
           </tr>
         </tbody>
         <tfoot>
@@ -379,28 +445,38 @@ const C2: React.VFC<{
               <></>
             )}
             <td>{reservedExpressFare + fare - 200}円</td>
+            {highSpeedExpressFare !== undefined ? (
+              <td>{highSpeedExpressFare + fare - 200}円</td>
+            ) : (
+              <></>
+            )}
           </tr>
         </tfoot>
       </Table>
       <h5>JRE POINTのレート</h5>
+      <p>
+        所定の運賃・特急料金を交換ポイントで割った値です。指定列車に乗り遅れた場合を除き、自由席・立席は利用できません。
+      </p>
       <Table striped bordered>
-        <thead>
-          <tr>{ths}</tr>
-        </thead>
+        {thead}
         <tbody>
           <tr>
+            <th scope="row">レート</th>
             {nonReservedAvailable || standingOnlyAvailable ? (
               <td>
                 {((nonReservedOrStandingOnlyFare + fare) / points).toFixed(2)}
-                円/ポイント
               </td>
             ) : (
               <></>
             )}
-            <td>
-              {((reservedExpressFare + fare - 200) / points).toFixed(2)}
-              円/ポイント
-            </td>
+            <td>{((reservedExpressFare + fare - 200) / points).toFixed(2)}</td>
+            {highSpeedExpressFare !== undefined ? (
+              <td>
+                {((highSpeedExpressFare + fare - 200) / points).toFixed(2)}
+              </td>
+            ) : (
+              <></>
+            )}
           </tr>
         </tbody>
       </Table>
@@ -776,7 +852,11 @@ const App: React.VFC = () => {
         ) : (
           <></>
         )}
-        <C2 line={line} departure={departure} arrival={arrival} />
+        <C2
+          line={line}
+          section={section}
+          highSpeedSection={highSpeedAvailable ? highSpeedSection : undefined}
+        />
       </Container>
     </>
   );
