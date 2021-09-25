@@ -6,7 +6,6 @@ import React, { Reducer, useContext, useReducer } from "react";
 import {
   Accordion,
   AccordionContext,
-  Badge,
   Button,
   Card,
   Col,
@@ -26,6 +25,9 @@ import "./App.css";
 interface Station {
   readonly index: number;
   readonly name: string;
+  /**
+   * 起点からの営業キロ
+   */
   readonly distance: number;
 }
 
@@ -62,6 +64,29 @@ const line0: Line = {
     { name: "七戸十和田", distance: 668 },
     { name: "新青森", distance: 713.7 },
   ].map((value, index) => ({ ...value, index })),
+};
+
+const line1: Line = {
+  name: "秋田新幹線",
+  stations: [
+    ...line0.stations.slice(
+      line0.stations.findIndex((station) => station.name === "東京"),
+      line0.stations.findIndex((station) => station.name === "盛岡") + 1
+    ),
+    ...[
+      { name: "雫石", distance: 551.3 },
+      { name: "田沢湖", distance: 575.4 },
+      { name: "角館", distance: 594.1 },
+      { name: "大曲", distance: 610.9 },
+      { name: "秋田", distance: 662.6 },
+    ].map((value, index) => ({
+      ...value,
+      index:
+        index +
+        line0.stations.findIndex((station) => station.name === "盛岡") +
+        1,
+    })),
+  ],
 };
 
 const line2: Line = {
@@ -155,9 +180,25 @@ const line4: Line = {
 
 const lines: ReadonlyMap<string, Line> = new Map([
   [line0.name, line0],
+  [line1.name, line1],
   [line2.name, line2],
   [line3.name, line3],
   [line4.name, line4],
+]);
+
+/**
+ * 盛岡駅
+ */
+const junction1 = line1.stations.find(({ name }) => name === "盛岡")!;
+
+/**
+ * 福島駅
+ */
+const junction2 = line2.stations.find(({ name }) => name === "福島")!;
+
+const highSpeedTrains: ReadonlyMap<Line, string> = new Map([
+  [line0, "はやぶさ"],
+  [line1, "こまち"],
 ]);
 
 type FareTable = readonly { readonly [column: string]: string }[];
@@ -378,6 +419,28 @@ const getLimitedExpressFare0 = (distance: number) =>
 const getLimitedExpressFare1 = (distance: number) =>
   distance > 100 ? 1680 : distance > 100 ? 1230 : 910;
 
+interface LimitedExpressFareSystem {
+  /**
+   * 指定席特急料金を計算する
+   * @param distance 営業キロ
+   * @returns 指定席特急料金
+   */
+  getLimitedExpressFare: (distance: number) => number;
+  /**
+   * 立席特急料金及び自由席特急料金を計算するために指定席特急料金から低減する額
+   */
+  subtrahend: number;
+}
+
+const limitedExpressFareSystem0: LimitedExpressFareSystem = {
+  getLimitedExpressFare: getLimitedExpressFare0,
+  subtrahend: 530,
+};
+const limitedExpressFareSystem1: LimitedExpressFareSystem = {
+  getLimitedExpressFare: getLimitedExpressFare1,
+  subtrahend: 380,
+};
+
 /**
  * 新幹線の指定席特急料金を計算する
  * @param line 東北新幹線、上越新幹線、北陸新幹線のいずれか
@@ -450,6 +513,38 @@ const getSuperExpressFares = (
   };
 };
 
+/**
+ *
+ * @param line 秋田新幹線または山形新幹線
+ * @param section
+ * @param getLimitedExpressFare `getLimitedExpressFares0` または `getLimitedExpressFares1`
+ */
+const getLimitedExpressFares = (
+  line: Line,
+  section: Section,
+  limitedExpressFareSystem: LimitedExpressFareSystem
+) => {
+  const [stationA, stationB] = section;
+
+  const reserved = limitedExpressFareSystem.getLimitedExpressFare(
+    stationB.distance - stationA.distance
+  );
+  const nonReservedOrStandingOnly =
+    reserved - limitedExpressFareSystem.subtrahend;
+
+  const nonReservedAvailable = line === line2;
+  const standingOnlyAvailable = line === line1;
+
+  return {
+    reserved,
+    nonReserved: nonReservedAvailable ? nonReservedOrStandingOnly : undefined,
+    standingOnly: standingOnlyAvailable ? nonReservedOrStandingOnly : undefined,
+    nonReservedOrStandingOnly,
+    nonReservedAvailable,
+    standingOnlyAvailable,
+  };
+};
+
 const C2: React.VFC<{
   line: Line;
   section: Section;
@@ -477,11 +572,25 @@ const C2: React.VFC<{
       : 2160;
 
   const superExpressFares =
-    line === line2
-      ? stationA.index < line2.stations.findIndex(({ name }) => name === "福島")
+    line === line1
+      ? stationA.index < junction1.index
         ? getSuperExpressFares(
             line0,
-            [stationA, line0.stations.find(({ name }) => name === "福島")!],
+            [stationA, junction1],
+            highSpeedStationA &&
+              highSpeedStationB && [
+                highSpeedStationA,
+                highSpeedStationB.index < junction1.index
+                  ? highSpeedStationB
+                  : junction1,
+              ]
+          )
+        : undefined
+      : line === line2
+      ? stationA.index < junction2.index
+        ? getSuperExpressFares(
+            line0,
+            [stationA, junction2],
             highSpeedStationA &&
               highSpeedStationB && [highSpeedStationA, highSpeedStationB]
           )
@@ -493,24 +602,24 @@ const C2: React.VFC<{
             highSpeedStationB && [highSpeedStationA, highSpeedStationB]
         );
 
-  const [limitedExpressFare, nonReservedOrStandingOnlyLimitedExpressFare] =
-    line === line2 &&
-    stationB.index > line2.stations.findIndex(({ name }) => name === "福島")
-      ? stationA.index >=
-        line2.stations.findIndex(({ name }) => name === "福島")
-        ? [
-            getLimitedExpressFare0(distance),
-            getLimitedExpressFare0(distance) - 530,
-          ]
-        : [
-            getLimitedExpressFare1(distance),
-            getLimitedExpressFare1(distance) - 380,
-          ]
-      : [undefined, undefined];
-
-  const nonReservedAvailable =
-    stationA.index >= line2.stations.findIndex(({ name }) => name === "福島") ||
-    undefined;
+  const limitedExpressFares =
+    line === line1 && stationB.index > junction1.index
+      ? stationA.index >= junction1.index
+        ? getLimitedExpressFares(line, section, limitedExpressFareSystem0)
+        : getLimitedExpressFares(
+            line,
+            [junction1, stationB],
+            limitedExpressFareSystem1
+          )
+      : line === line2 && stationB.index > junction2.index
+      ? stationA.index >= junction2.index
+        ? getLimitedExpressFares(line, section, limitedExpressFareSystem0)
+        : getLimitedExpressFares(
+            line,
+            [junction2, stationB],
+            limitedExpressFareSystem1
+          )
+      : undefined;
 
   const basicFare =
     stationB.index <=
@@ -520,7 +629,7 @@ const C2: React.VFC<{
 
   const nonReservedOrStandingOnlyExpressFare =
     (superExpressFares?.nonReservedOrStandingOnly ?? 0) +
-    (nonReservedOrStandingOnlyLimitedExpressFare ?? 0);
+    (limitedExpressFares?.nonReservedOrStandingOnly ?? 0);
 
   const nonReservedOrStandingOnlyAvailable =
     !superExpressFares ||
@@ -528,21 +637,27 @@ const C2: React.VFC<{
     superExpressFares.standingOnlyAvailable;
 
   const reservedExpressFare =
-    (superExpressFares?.reserved ?? 0) + (limitedExpressFare ?? 0);
+    (superExpressFares?.reserved ?? 0) + (limitedExpressFares?.reserved ?? 0);
+
+  const highSpeedReservedExpressFare =
+    superExpressFares?.highSpeedReserved !== undefined
+      ? (superExpressFares.highSpeedReserved ?? 0) +
+        (limitedExpressFares?.reserved ?? 0)
+      : undefined;
 
   const nonReservedOrStandingOnlyTotal =
     basicFare + nonReservedOrStandingOnlyExpressFare;
   const reservedTotal = basicFare + reservedExpressFare - 200;
   const highSpeedReservedTotal =
-    superExpressFares?.highSpeedReserved !== undefined
-      ? basicFare + superExpressFares?.highSpeedReserved - 200
+    highSpeedReservedExpressFare !== undefined
+      ? basicFare + highSpeedReservedExpressFare - 200
       : undefined;
 
   const thead = (
     <thead>
       {superExpressFares?.highSpeedReserved && (
         <tr>
-          <th scope="row">はやぶさ号</th>
+          <th scope="row">{highSpeedTrains.get(line)!}号</th>
           {nonReservedOrStandingOnlyAvailable ? (
             <th scope="row">利用しない</th>
           ) : (
@@ -554,9 +669,13 @@ const C2: React.VFC<{
       )}
       <tr>
         <th scope="row">座席</th>
-        {limitedExpressFare !== undefined ? (
+        {limitedExpressFares !== undefined ? (
           <th scope="col">
-            {true ? "自由席" : superExpressFares ? "自由席・立席" : "立席"}
+            {limitedExpressFares.nonReservedAvailable
+              ? "自由席"
+              : superExpressFares
+              ? "自由席・立席"
+              : "立席"}
           </th>
         ) : superExpressFares!.nonReservedAvailable ? (
           <th scope="col">自由席</th>
@@ -672,11 +791,10 @@ const C2: React.VFC<{
 const ContextAwareItem: React.VFC<{
   eventKey: string;
   line: Line;
-  train: string;
   section: Section;
   highSpeedSection: Section;
   onChange: (highSpeedSection: Section) => void;
-}> = ({ eventKey, line, train, section, highSpeedSection, onChange }) => {
+}> = ({ eventKey, line, section, highSpeedSection, onChange }) => {
   const { activeEventKey } = useContext(AccordionContext);
 
   const isCurrentEventKey = activeEventKey === eventKey;
@@ -696,11 +814,13 @@ const ContextAwareItem: React.VFC<{
 
   const longestHighSpeedSection = getLongestHighSpeedSection(line, section)!;
 
+  const train = highSpeedTrains.get(line)!;
+
   return (
     <Accordion.Item eventKey={eventKey}>
       <Accordion.Header>
         <div className="d-flex justify-content-between flex-grow-1 overflow-hidden">
-          <span className="flex-shrink-0">{train}号 利用区間</span>
+          <span className="flex-shrink-0">{train}号の利用区間</span>
           <Fade in={!isCurrentEventKey}>
             <span
               className="ms-4 me-2 overflow-hidden text-nowrap"
@@ -719,7 +839,7 @@ const ContextAwareItem: React.VFC<{
             <StationDropdown
               value={highSpeedSection[0]}
               onChange={(station) => onChange([station, highSpeedSection[1]])}
-              header="乗車駅"
+              header={`${train}号の乗車駅`}
               items={items.map(({ station, disabled }) => ({
                 station,
                 disabled:
@@ -736,7 +856,7 @@ const ContextAwareItem: React.VFC<{
             <StationDropdown
               value={highSpeedSection[1]}
               onChange={(station) => onChange([highSpeedSection[0], station])}
-              header="降車駅"
+              header={`${train}号の降車駅`}
               items={items.map(({ station, disabled }) => ({
                 station,
                 disabled:
@@ -791,7 +911,7 @@ const getLongestHighSpeedSection0 = (
   section: Section
 ): Section | undefined => {
   const [a, b] = section;
-  const highSpeedAvailableStations = line0.stations
+  const highSpeedAvailableStations = line.stations
     .slice(a.index, b.index + 1)
     .filter(isHighSpeedAvailableStation);
 
@@ -865,7 +985,7 @@ const isHighSpeedAvailableSection = (line: Line, section: Section) => {
       : [arrival, departure];
 
   return (
-    line === line0 &&
+    (line === line0 || line === line1) &&
     ((stationA.index <=
       line0.stations.findIndex((station) => station.name === "大宮") &&
       stationB.index >=
@@ -1001,7 +1121,7 @@ const App: React.VFC = () => {
                   }
                 >
                   <option>東北新幹線</option>
-                  <option disabled>秋田新幹線</option>
+                  <option>秋田新幹線</option>
                   <option>山形新幹線</option>
                   <option>上越新幹線</option>
                   <option>北陸新幹線</option>
@@ -1049,7 +1169,6 @@ const App: React.VFC = () => {
               eventKey="0"
               line={line}
               section={section}
-              train="はやぶさ"
               highSpeedSection={highSpeedSection}
               onChange={(highSpeedSection) =>
                 dispatch({
