@@ -17,8 +17,10 @@ import {
   FloatingLabel,
   Form,
   Navbar,
+  OverlayTrigger,
   Row,
   Table,
+  Tooltip,
 } from "react-bootstrap";
 import "./App.css";
 
@@ -199,6 +201,11 @@ const junction2 = line2.stations.find(({ name }) => name === "福島")!;
 const highSpeedTrains: ReadonlyMap<Line, string> = new Map([
   [line0, "はやぶさ"],
   [line1, "こまち"],
+]);
+
+const junctions: ReadonlyMap<Line, Station> = new Map([
+  [line1, junction1],
+  [line2, junction2],
 ]);
 
 type FareTable = readonly { readonly [column: string]: string }[];
@@ -548,6 +555,45 @@ const getLimitedExpressFares = (
   };
 };
 
+const Td1: React.VFC<{
+  items?: readonly {
+    readonly section: Section;
+    readonly fare: number;
+  }[];
+  total: number;
+}> = ({ items, total }) => (
+  <td>
+    {items ? (
+      <OverlayTrigger
+        overlay={
+          <Tooltip>
+            {items.map(({ section, fare }) => (
+              <div
+                className="d-flex justify-content-between"
+                key={`${section[0].name}-${section[1].name}`}
+              >
+                <span>
+                  {section[0].name} <i className="bi bi-arrow-right"></i>{" "}
+                  {section[1].name}
+                </span>
+                <span className="ms-4">{fare}円</span>
+              </div>
+            ))}
+          </Tooltip>
+        }
+      >
+        <span
+          style={{ textDecoration: "underline dotted var(--bs-secondary)" }}
+        >
+          {total}円
+        </span>
+      </OverlayTrigger>
+    ) : (
+      `${total}円`
+    )}
+  </td>
+);
+
 const C2: React.VFC<{
   line: Line;
   section: Section;
@@ -605,21 +651,15 @@ const C2: React.VFC<{
             highSpeedStationB && [highSpeedStationA, highSpeedStationB]
         );
 
+  const junction = junctions.get(line);
+
   const limitedExpressFares =
-    line === line1 && stationB.index > junction1.index
-      ? stationA.index >= junction1.index
+    junction && stationB.index > junction.index
+      ? stationA.index >= junction.index
         ? getLimitedExpressFares(line, section, getLimitedExpressFares0)
         : getLimitedExpressFares(
             line,
-            [junction1, stationB],
-            getLimitedExpressFares1
-          )
-      : line === line2 && stationB.index > junction2.index
-      ? stationA.index >= junction2.index
-        ? getLimitedExpressFares(line, section, getLimitedExpressFares0)
-        : getLimitedExpressFares(
-            line,
-            [junction2, stationB],
+            [junction, stationB],
             getLimitedExpressFares1
           )
       : undefined;
@@ -635,9 +675,12 @@ const C2: React.VFC<{
     (limitedExpressFares?.nonReservedOrStandingOnly ?? 0);
 
   const nonReservedOrStandingOnlyAvailable =
-    !superExpressFares ||
-    superExpressFares.nonReservedAvailable ||
-    superExpressFares.standingOnlyAvailable;
+    (!superExpressFares ||
+      superExpressFares.nonReservedAvailable ||
+      superExpressFares.standingOnlyAvailable) &&
+    (!limitedExpressFares ||
+      limitedExpressFares.nonReservedAvailable ||
+      limitedExpressFares.standingOnlyAvailable);
 
   const reservedExpressFare =
     (superExpressFares?.reserved ?? 0) + (limitedExpressFares?.reserved ?? 0);
@@ -697,6 +740,19 @@ const C2: React.VFC<{
     </thead>
   );
 
+  const items =
+    junction && superExpressFares && limitedExpressFares
+      ? departure.index < arrival.index
+        ? ([
+            { section: [departure, junction], fares: superExpressFares },
+            { section: [junction, arrival], fares: limitedExpressFares },
+          ] as const)
+        : ([
+            { section: [departure, junction], fares: limitedExpressFares },
+            { section: [junction, arrival], fares: superExpressFares },
+          ] as const)
+      : undefined;
+
   return (
     <>
       <dl>
@@ -724,13 +780,34 @@ const C2: React.VFC<{
           <tr>
             <th scope="row">特急料金</th>
             {nonReservedOrStandingOnlyAvailable ? (
-              <td>{nonReservedOrStandingOnlyExpressFare}円</td>
+              <Td1
+                items={items?.map(({ section, fares }) => ({
+                  section,
+                  fare: fares.nonReservedOrStandingOnly,
+                }))}
+                total={nonReservedOrStandingOnlyExpressFare}
+              />
             ) : (
               <></>
             )}
-            <td>{reservedExpressFare}円</td>
+            <Td1
+              items={items?.map(({ section, fares }) => ({
+                section,
+                fare: fares.reserved,
+              }))}
+              total={reservedExpressFare}
+            />
             {highSpeedReservedExpressFare !== undefined ? (
-              <td>{highSpeedReservedExpressFare}円</td>
+              <Td1
+                items={items?.map(({ section, fares }) => ({
+                  section,
+                  fare:
+                    "highSpeedReserved" in fares
+                      ? fares.highSpeedReserved!
+                      : fares.reserved,
+                }))}
+                total={highSpeedReservedExpressFare}
+              />
             ) : (
               <></>
             )}
