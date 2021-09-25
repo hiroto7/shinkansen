@@ -1191,7 +1191,7 @@ const App: React.VFC = () => {
           が、割引なしのきっぷと比べてどのくらい割がいいのか計算します。
         </p>
         <Card body className="my-3">
-          <Row>
+          <Row className="mb-3">
             <Col>
               <FloatingLabel controlId="floatingSelect" label="路線">
                 <Form.Select
@@ -1212,7 +1212,18 @@ const App: React.VFC = () => {
               </FloatingLabel>
             </Col>
           </Row>
-          <Row className="mt-2 gy-2 gx-3">
+          {line === line1 ? (
+            <p className="text-danger">
+              区間に
+              <b>
+                盛岡 <i className="bi bi-arrow-left-right"></i> 大曲
+              </b>
+              を含む場合、 現在のところ<b>運賃</b>は正しく計算されません。
+            </p>
+          ) : (
+            <></>
+          )}
+          <Row className="gy-2 gx-3">
             <Col>
               <StationDropdown
                 value={departure}
