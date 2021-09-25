@@ -389,77 +389,20 @@ const getSuperExpressFare = (line: Line, section: Section) =>
     section[0].name
   ]!;
 
-const C2: React.VFC<{
-  line: Line;
-  section: Section;
-  highSpeedSection?: Section;
-}> = ({ line, section, highSpeedSection }) => {
-  const [departure, arrival] = section;
-  const [stationA, stationB] =
-    departure.index < arrival.index
-      ? [departure, arrival]
-      : [arrival, departure];
-  const [highSpeedStationA, highSpeedStationB] = highSpeedSection
-    ? departure.index < arrival.index
-      ? highSpeedSection
-      : [highSpeedSection[1], highSpeedSection[0]]
-    : [undefined, undefined];
+/**
+ * 新幹線の特急料金を計算する
+ * @param line 東北新幹線、上越新幹線、北陸新幹線のいずれか
+ * @param section 区間。 `section[1]` は `section[0]` より終点に近い駅である必要がある。
+ * @returns 自由席特急料金、特定特急料金、指定席特急料金
+ */
+const getSuperExpressFares = (
+  line: Line,
+  section: Section,
+  highSpeed: Section | undefined
+) => {
+  const [stationA, stationB] = section;
 
-  const distance = stationB.distance - stationA.distance;
-  const points =
-    distance > 400
-      ? 12110
-      : distance > 200
-      ? 7940
-      : distance > 100
-      ? 4620
-      : 2160;
-
-  const superExpressFare =
-    line === line2
-      ? stationA.index < line2.stations.findIndex(({ name }) => name === "福島")
-        ? getSuperExpressFare(line0, [
-            stationA,
-            line0.stations.find(({ name }) => name === "福島")!,
-          ])
-        : undefined
-      : getSuperExpressFare(line, [stationA, stationB]);
-
-  const [limitedExpressFare, nonReservedOrStandingOnlyLimitedExpressFare] =
-    line === line2 &&
-    stationB.index > line2.stations.findIndex(({ name }) => name === "福島")
-      ? stationA.index >=
-        line2.stations.findIndex(({ name }) => name === "福島")
-        ? [
-            getLimitedExpressFare0(distance),
-            getLimitedExpressFare0(distance) - 530,
-          ]
-        : [
-            getLimitedExpressFare1(distance),
-            getLimitedExpressFare1(distance) - 380,
-          ]
-      : [undefined, undefined];
-
-  const highSpeedExpressFare =
-    highSpeedStationA === stationA && highSpeedStationB === stationB
-      ? +table.find((row) => row["駅名"] === stationB.name)![stationA.name]!
-      : highSpeedStationA && highSpeedStationB
-      ? superExpressFare! +
-        +table.find((row) => row["駅名"] === highSpeedStationB.name)![
-          highSpeedStationA.name
-        ]! -
-        getSuperExpressFare(line, [highSpeedStationA, highSpeedStationB])!
-      : undefined;
-
-  const nonReservedAvailable =
-    line !== line0 ||
-    stationB.index <=
-      line.stations.findIndex((station) => station.name === "盛岡");
-
-  const standingOnlyAvailable =
-    line === line0 &&
-    stationA.index >=
-      line.stations.findIndex((station) => station.name === "盛岡");
+  const reserved = getSuperExpressFare(line, section);
 
   const lowExpressFare =
     stationA.name === "東京" && stationB.name === "大宮"
@@ -476,9 +419,98 @@ const C2: React.VFC<{
         : 880
       : undefined;
 
-  const nonReservedOrStandingOnlySuperExpressFare =
-    lowExpressFare ??
-    (superExpressFare !== undefined ? superExpressFare - 530 : undefined);
+  const nonReservedOrStandingOnly = lowExpressFare ?? reserved - 530;
+  const nonReservedAvailable =
+    line !== line0 ||
+    stationB.index <=
+      line.stations.findIndex((station) => station.name === "盛岡");
+  const standingOnlyAvailable =
+    line === line0 &&
+    stationA.index >=
+      line.stations.findIndex((station) => station.name === "盛岡");
+
+  const highSpeedReserved =
+    highSpeed &&
+    (highSpeed[0] === stationA && highSpeed[1] === stationB
+      ? +table.find((row) => row["駅名"] === stationB.name)![stationA.name]!
+      : reserved +
+        +table.find((row) => row["駅名"] === highSpeed[1].name)![
+          highSpeed[0].name
+        ]! -
+        getSuperExpressFare(line, highSpeed));
+
+  return {
+    reserved,
+    highSpeedReserved,
+    nonReserved: nonReservedAvailable ? nonReservedOrStandingOnly : undefined,
+    standingOnly: standingOnlyAvailable ? nonReservedOrStandingOnly : undefined,
+    nonReservedOrStandingOnly,
+    nonReservedAvailable,
+    standingOnlyAvailable,
+  };
+};
+
+const C2: React.VFC<{
+  line: Line;
+  section: Section;
+  highSpeedSection?: Section;
+}> = ({ line, section, highSpeedSection }) => {
+  const [departure, arrival] = section;
+  const [stationA, stationB] =
+    departure.index < arrival.index
+      ? [departure, arrival]
+      : [arrival, departure];
+  const [highSpeedStationA, highSpeedStationB] = highSpeedSection
+    ? departure.index < arrival.index
+      ? highSpeedSection
+      : [highSpeedSection[1], highSpeedSection[0]]
+    : [];
+
+  const distance = stationB.distance - stationA.distance;
+  const points =
+    distance > 400
+      ? 12110
+      : distance > 200
+      ? 7940
+      : distance > 100
+      ? 4620
+      : 2160;
+
+  const superExpressFares =
+    line === line2
+      ? stationA.index < line2.stations.findIndex(({ name }) => name === "福島")
+        ? getSuperExpressFares(
+            line0,
+            [stationA, line0.stations.find(({ name }) => name === "福島")!],
+            highSpeedStationA &&
+              highSpeedStationB && [highSpeedStationA, highSpeedStationB]
+          )
+        : undefined
+      : getSuperExpressFares(
+          line,
+          [stationA, stationB],
+          highSpeedStationA &&
+            highSpeedStationB && [highSpeedStationA, highSpeedStationB]
+        );
+
+  const [limitedExpressFare, nonReservedOrStandingOnlyLimitedExpressFare] =
+    line === line2 &&
+    stationB.index > line2.stations.findIndex(({ name }) => name === "福島")
+      ? stationA.index >=
+        line2.stations.findIndex(({ name }) => name === "福島")
+        ? [
+            getLimitedExpressFare0(distance),
+            getLimitedExpressFare0(distance) - 530,
+          ]
+        : [
+            getLimitedExpressFare1(distance),
+            getLimitedExpressFare1(distance) - 380,
+          ]
+      : [undefined, undefined];
+
+  const nonReservedAvailable =
+    stationA.index >= line2.stations.findIndex(({ name }) => name === "福島") ||
+    undefined;
 
   const basicFare =
     stationB.index <=
@@ -487,17 +519,31 @@ const C2: React.VFC<{
       : getBasicFare0(distance);
 
   const nonReservedOrStandingOnlyExpressFare =
-    (nonReservedOrStandingOnlySuperExpressFare ?? 0) +
+    (superExpressFares?.nonReservedOrStandingOnly ?? 0) +
     (nonReservedOrStandingOnlyLimitedExpressFare ?? 0);
 
-  const expressFare = (superExpressFare ?? 0) + (limitedExpressFare ?? 0);
+  const nonReservedOrStandingOnlyAvailable =
+    !superExpressFares ||
+    superExpressFares.nonReservedAvailable ||
+    superExpressFares.standingOnlyAvailable;
+
+  const reservedExpressFare =
+    (superExpressFares?.reserved ?? 0) + (limitedExpressFare ?? 0);
+
+  const nonReservedOrStandingOnlyTotal =
+    basicFare + nonReservedOrStandingOnlyExpressFare;
+  const reservedTotal = basicFare + reservedExpressFare - 200;
+  const highSpeedReservedTotal =
+    superExpressFares?.highSpeedReserved !== undefined
+      ? basicFare + superExpressFares?.highSpeedReserved - 200
+      : undefined;
 
   const thead = (
     <thead>
-      {highSpeedExpressFare !== undefined ? (
+      {superExpressFares?.highSpeedReserved && (
         <tr>
           <th scope="row">はやぶさ号</th>
-          {nonReservedAvailable || standingOnlyAvailable ? (
+          {nonReservedOrStandingOnlyAvailable ? (
             <th scope="row">利用しない</th>
           ) : (
             <></>
@@ -505,15 +551,22 @@ const C2: React.VFC<{
           <th scope="row">利用しない</th>
           <th scope="row">利用する</th>
         </tr>
-      ) : (
-        <></>
       )}
       <tr>
         <th scope="row">座席</th>
-        {nonReservedAvailable ? <th scope="col">自由席</th> : <></>}
-        {standingOnlyAvailable ? <th scope="col">立席</th> : <></>}
+        {limitedExpressFare !== undefined ? (
+          <th scope="col">
+            {true ? "自由席" : superExpressFares ? "自由席・立席" : "立席"}
+          </th>
+        ) : superExpressFares!.nonReservedAvailable ? (
+          <th scope="col">自由席</th>
+        ) : superExpressFares!.standingOnlyAvailable ? (
+          <th scope="col">立席</th>
+        ) : (
+          <></>
+        )}
         <th scope="col">指定席</th>
-        {highSpeedExpressFare !== undefined ? (
+        {superExpressFares?.highSpeedReserved !== undefined ? (
           <th scope="col">指定席</th>
         ) : (
           <></>
@@ -538,8 +591,8 @@ const C2: React.VFC<{
             <th scope="row">運賃</th>
             <td
               colSpan={
-                +(highSpeedExpressFare !== undefined) +
-                +(nonReservedAvailable || standingOnlyAvailable) +
+                +(superExpressFares?.highSpeedReserved !== undefined) +
+                +nonReservedOrStandingOnlyAvailable +
                 1
               }
             >
@@ -548,43 +601,40 @@ const C2: React.VFC<{
           </tr>
           <tr>
             <th scope="row">特急料金</th>
-            {nonReservedAvailable || standingOnlyAvailable ? (
-              <td>
-                {nonReservedOrStandingOnlyExpressFare}円{" "}
-                {lowExpressFare !== undefined || standingOnlyAvailable ? (
-                  <Badge bg="secondary">特定</Badge>
-                ) : (
-                  <></>
-                )}
-              </td>
+            {nonReservedOrStandingOnlyAvailable ? (
+              <td>{nonReservedOrStandingOnlyExpressFare}円</td>
             ) : (
               <></>
             )}
-            <td>{expressFare}円</td>
-            {highSpeedExpressFare !== undefined ? (
-              <td>{highSpeedExpressFare}円</td>
+            <td>{reservedExpressFare}円</td>
+            {superExpressFares?.highSpeedReserved !== undefined ? (
+              <td>{superExpressFares?.highSpeedReserved}円</td>
             ) : (
               <></>
             )}
           </tr>
           <tr>
             <th scope="row">割引</th>
-            {nonReservedAvailable || standingOnlyAvailable ? <td>-</td> : <></>}
+            {nonReservedOrStandingOnlyAvailable ? <td>-</td> : <></>}
             <td>-200円</td>
-            {highSpeedExpressFare !== undefined ? <td>-200円</td> : <></>}
+            {superExpressFares?.highSpeedReserved !== undefined ? (
+              <td>-200円</td>
+            ) : (
+              <></>
+            )}
           </tr>
         </tbody>
         <tfoot>
           <tr>
             <th scope="row">計</th>
-            {nonReservedAvailable || standingOnlyAvailable ? (
-              <td>{nonReservedOrStandingOnlyExpressFare + basicFare}円</td>
+            {nonReservedOrStandingOnlyAvailable ? (
+              <td>{nonReservedOrStandingOnlyTotal}円</td>
             ) : (
               <></>
             )}
-            <td>{expressFare + basicFare - 200}円</td>
-            {highSpeedExpressFare !== undefined ? (
-              <td>{highSpeedExpressFare + basicFare - 200}円</td>
+            <td>{reservedTotal}円</td>
+            {highSpeedReservedTotal !== undefined ? (
+              <td>{highSpeedReservedTotal}円</td>
             ) : (
               <></>
             )}
@@ -601,21 +651,14 @@ const C2: React.VFC<{
         <tbody>
           <tr>
             <th scope="row">レート</th>
-            {nonReservedAvailable || standingOnlyAvailable ? (
-              <td>
-                {(
-                  (nonReservedOrStandingOnlyExpressFare + basicFare) /
-                  points
-                ).toFixed(2)}
-              </td>
+            {nonReservedOrStandingOnlyAvailable ? (
+              <td>{(nonReservedOrStandingOnlyTotal / points).toFixed(2)}</td>
             ) : (
               <></>
             )}
-            <td>{((expressFare + basicFare - 200) / points).toFixed(2)}</td>
-            {highSpeedExpressFare !== undefined ? (
-              <td>
-                {((highSpeedExpressFare + basicFare - 200) / points).toFixed(2)}
-              </td>
+            <td>{(reservedTotal / points).toFixed(2)}</td>
+            {highSpeedReservedTotal !== undefined ? (
+              <td>{(highSpeedReservedTotal / points).toFixed(2)}</td>
             ) : (
               <></>
             )}
