@@ -18,9 +18,9 @@ import {
   Form,
   Navbar,
   OverlayTrigger,
+  Popover,
   Row,
   Table,
-  Tooltip,
 } from "react-bootstrap";
 import "./App.css";
 
@@ -566,20 +566,22 @@ const Td1: React.VFC<{
     {items ? (
       <OverlayTrigger
         overlay={
-          <Tooltip>
-            {items.map(({ section, fare }) => (
-              <div
-                className="d-flex justify-content-between"
-                key={`${section[0].name}-${section[1].name}`}
-              >
-                <span>
-                  {section[0].name} <i className="bi bi-arrow-right"></i>{" "}
-                  {section[1].name}
-                </span>
-                <span className="ms-4">{fare}円</span>
-              </div>
-            ))}
-          </Tooltip>
+          <Popover>
+            <Popover.Body>
+              {items.map(({ section, fare }) => (
+                <div
+                  className="d-flex justify-content-between"
+                  key={`${section[0].name}-${section[1].name}`}
+                >
+                  <span>
+                    {section[0].name} <i className="bi bi-arrow-right"></i>{" "}
+                    {section[1].name}
+                  </span>
+                  <span className="ms-4">{fare}円</span>
+                </div>
+              ))}
+            </Popover.Body>
+          </Popover>
         }
       >
         <span
