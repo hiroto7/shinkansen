@@ -165,11 +165,11 @@ const line4: Line = {
       { name: "長野", distance: 222.4 },
       { name: "飯山", distance: 252.3 },
       { name: "上越妙高", distance: 281.9 },
-      { name: "糸魚川", distance: 318.9 },
-      { name: "黒部宇奈月温泉", distance: 358.1 },
-      { name: "富山", distance: 391.9 },
-      { name: "新高岡", distance: 410.8 },
-      { name: "金沢", distance: 450.5 },
+      // { name: "糸魚川", distance: 318.9 },
+      // { name: "黒部宇奈月温泉", distance: 358.1 },
+      // { name: "富山", distance: 391.9 },
+      // { name: "新高岡", distance: 410.8 },
+      // { name: "金沢", distance: 450.5 },
     ].map((value, index) => ({
       ...value,
       index:
