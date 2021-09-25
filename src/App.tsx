@@ -567,6 +567,7 @@ const Td1: React.VFC<{
       <OverlayTrigger
         overlay={
           <Popover>
+            <Popover.Header>内訳</Popover.Header>
             <Popover.Body>
               {items.map(({ section, fare }) => (
                 <div
