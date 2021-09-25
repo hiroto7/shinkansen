@@ -597,6 +597,60 @@ const Td1: React.VFC<{
   </td>
 );
 
+const BothOfNonReservedAndStandingOnlyLabel: React.VFC<{
+  items: readonly {
+    section: Section;
+    fares: {
+      readonly nonReservedAvailable: boolean;
+      readonly standingOnlyAvailable: boolean;
+    };
+  }[];
+}> = ({ items }) => {
+  return (
+    <OverlayTrigger
+      overlay={
+        <Popover>
+          <Popover.Body>
+            <p>
+              {items
+                .slice(0, -1)
+                .map(({ section }) => `${section[1].name}駅`)
+                .join("、")}
+              で<b>乗り換え</b>が必要です。
+            </p>
+            {items.map(({ section, fares }) => (
+              <div
+                className="d-flex justify-content-between"
+                key={`${section[0].name}-${section[1].name}`}
+              >
+                <span>
+                  {section[0].name} <i className="bi bi-arrow-right"></i>{" "}
+                  {section[1].name}
+                </span>
+                <span className="ms-4">
+                  {fares.nonReservedAvailable ? "自由席" : "立席"}
+                </span>
+              </div>
+            ))}
+          </Popover.Body>
+        </Popover>
+      }
+    >
+      <span
+        style={{
+          textDecoration: "underline dotted var(--bs-secondary)",
+        }}
+      >
+        {items
+          .map(({ section, fares }) =>
+            fares.nonReservedAvailable ? "自由席" : "立席"
+          )
+          .join("・")}
+      </span>
+    </OverlayTrigger>
+  );
+};
+
 const C2: React.VFC<{
   line: Line;
   section: Section;
@@ -702,47 +756,6 @@ const C2: React.VFC<{
       ? basicFare + highSpeedReservedExpressFare - 200
       : undefined;
 
-  const thead = (
-    <thead>
-      {superExpressFares?.highSpeedReserved && (
-        <tr>
-          <th scope="row">{highSpeedTrains.get(line)!}号</th>
-          {nonReservedOrStandingOnlyAvailable ? (
-            <th scope="row">利用しない</th>
-          ) : (
-            <></>
-          )}
-          <th scope="row">利用しない</th>
-          <th scope="row">利用する</th>
-        </tr>
-      )}
-      <tr>
-        <th scope="row">座席</th>
-        {limitedExpressFares !== undefined ? (
-          <th scope="col">
-            {limitedExpressFares.nonReservedAvailable
-              ? "自由席"
-              : superExpressFares
-              ? "自由席・立席"
-              : "立席"}
-          </th>
-        ) : superExpressFares!.nonReservedAvailable ? (
-          <th scope="col">自由席</th>
-        ) : superExpressFares!.standingOnlyAvailable ? (
-          <th scope="col">立席</th>
-        ) : (
-          <></>
-        )}
-        <th scope="col">指定席</th>
-        {superExpressFares?.highSpeedReserved !== undefined ? (
-          <th scope="col">指定席</th>
-        ) : (
-          <></>
-        )}
-      </tr>
-    </thead>
-  );
-
   const items =
     junction && superExpressFares && limitedExpressFares
       ? departure.index < arrival.index
@@ -756,6 +769,34 @@ const C2: React.VFC<{
           ] as const)
       : undefined;
 
+  const cells0 = (
+    <>
+      {limitedExpressFares !== undefined ? (
+        <th scope="col">
+          {limitedExpressFares.nonReservedAvailable ? (
+            "自由席"
+          ) : superExpressFares ? (
+            <BothOfNonReservedAndStandingOnlyLabel items={items!} />
+          ) : (
+            "立席"
+          )}
+        </th>
+      ) : superExpressFares!.nonReservedAvailable ? (
+        <th scope="col">自由席</th>
+      ) : superExpressFares!.standingOnlyAvailable ? (
+        <th scope="col">立席</th>
+      ) : (
+        <></>
+      )}
+      <th scope="col">指定席</th>
+      {superExpressFares?.highSpeedReserved !== undefined ? (
+        <th scope="col">{highSpeedTrains.get(line)!}号 指定席</th>
+      ) : (
+        <></>
+      )}
+    </>
+  );
+
   return (
     <>
       <dl>
@@ -766,7 +807,12 @@ const C2: React.VFC<{
       </dl>
       <h5>所定の運賃・特急料金</h5>
       <Table bordered>
-        {thead}
+        <thead>
+          <tr>
+            <td></td>
+            {cells0}
+          </tr>
+        </thead>
         <tbody>
           <tr>
             <th scope="row">運賃</th>
@@ -817,7 +863,7 @@ const C2: React.VFC<{
           </tr>
           <tr>
             <th scope="row">割引</th>
-            {nonReservedOrStandingOnlyAvailable ? <td>-</td> : <></>}
+            {nonReservedOrStandingOnlyAvailable ? <td></td> : <></>}
             <td>-200円</td>
             {superExpressFares?.highSpeedReserved !== undefined ? (
               <td>-200円</td>
@@ -849,10 +895,11 @@ const C2: React.VFC<{
         JRE POINT特典チケットで自由席・立席は利用できません。
       </p>
       <Table bordered>
-        {thead}
+        <thead>
+          <tr>{cells0}</tr>
+        </thead>
         <tbody>
           <tr>
-            <th scope="row">レート</th>
             {nonReservedOrStandingOnlyAvailable ? (
               <td>{(nonReservedOrStandingOnlyTotal / points).toFixed(2)}</td>
             ) : (
