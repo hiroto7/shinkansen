@@ -419,26 +419,30 @@ const getLimitedExpressFare0 = (distance: number) =>
 const getLimitedExpressFare1 = (distance: number) =>
   distance > 100 ? 1680 : distance > 100 ? 1230 : 910;
 
-interface LimitedExpressFareSystem {
-  /**
-   * 指定席特急料金を計算する
-   * @param distance 営業キロ
-   * @returns 指定席特急料金
-   */
-  getLimitedExpressFare: (distance: number) => number;
-  /**
-   * 立席特急料金及び自由席特急料金を計算するために指定席特急料金から低減する額
-   */
-  subtrahend: number;
-}
-
-const limitedExpressFareSystem0: LimitedExpressFareSystem = {
-  getLimitedExpressFare: getLimitedExpressFare0,
-  subtrahend: 530,
+/**
+ * 新幹線以外の線区の特急料金（A特急料金）を計算する
+ * @param distance 営業キロ
+ * @returns 指定席特急料金、立席特急料金及び自由席特急料金
+ */
+const getLimitedExpressFares0 = (distance: number) => {
+  const reserved = getLimitedExpressFare0(distance);
+  return {
+    reserved,
+    nonReservedOrStandingOnly: reserved - 530,
+  };
 };
-const limitedExpressFareSystem1: LimitedExpressFareSystem = {
-  getLimitedExpressFare: getLimitedExpressFare1,
-  subtrahend: 380,
+
+/**
+ * 奥羽本線中福島・新庄間並びに田沢湖線及び奥羽本線中大曲・秋田間を、東北新幹線にまたがって利用する場合の特急料金を計算する
+ * @param distance 営業キロ
+ * @returns 指定席特急料金・立席特急料金及び自由席特急料金
+ */
+const getLimitedExpressFares1 = (distance: number) => {
+  const reserved = getLimitedExpressFare1(distance);
+  return {
+    reserved,
+    nonReservedOrStandingOnly: reserved - 380,
+  };
 };
 
 /**
@@ -453,9 +457,9 @@ const getSuperExpressFare = (line: Line, section: Section) =>
   ]!;
 
 /**
- * 新幹線の特急料金を計算する
+ * 新幹線の指定した区間の特急料金を計算する
  * @param line 東北新幹線、上越新幹線、北陸新幹線のいずれか
- * @param section 区間。 `section[1]` は `section[0]` より終点に近い駅である必要がある。
+ * @param section 特急料金を計算する区間。 `section[1]` は `section[0]` より終点に近い駅である必要がある。
  * @returns 自由席特急料金、特定特急料金、指定席特急料金
  */
 const getSuperExpressFares = (
@@ -514,23 +518,22 @@ const getSuperExpressFares = (
 };
 
 /**
- *
+ * 新幹線以外の線区の指定した区間の特急料金を計算する
  * @param line 秋田新幹線または山形新幹線
- * @param section
- * @param getLimitedExpressFare `getLimitedExpressFares0` または `getLimitedExpressFares1`
+ * @param section 特急料金を計算する区間。 `section[1]` は `section[0]` より終点に近い駅である必要がある。
+ * @param getLimitedExpressFares `getLimitedExpressFares0` または `getLimitedExpressFares1`
  */
 const getLimitedExpressFares = (
   line: Line,
   section: Section,
-  limitedExpressFareSystem: LimitedExpressFareSystem
+  getLimitedExpressFares0: (distance: number) => {
+    readonly reserved: number;
+    readonly nonReservedOrStandingOnly: number;
+  }
 ) => {
-  const [stationA, stationB] = section;
-
-  const reserved = limitedExpressFareSystem.getLimitedExpressFare(
-    stationB.distance - stationA.distance
+  const { reserved, nonReservedOrStandingOnly } = getLimitedExpressFares0(
+    section[1].distance - section[0].distance
   );
-  const nonReservedOrStandingOnly =
-    reserved - limitedExpressFareSystem.subtrahend;
 
   const nonReservedAvailable = line === line2;
   const standingOnlyAvailable = line === line1;
@@ -605,19 +608,19 @@ const C2: React.VFC<{
   const limitedExpressFares =
     line === line1 && stationB.index > junction1.index
       ? stationA.index >= junction1.index
-        ? getLimitedExpressFares(line, section, limitedExpressFareSystem0)
+        ? getLimitedExpressFares(line, section, getLimitedExpressFares0)
         : getLimitedExpressFares(
             line,
             [junction1, stationB],
-            limitedExpressFareSystem1
+            getLimitedExpressFares1
           )
       : line === line2 && stationB.index > junction2.index
       ? stationA.index >= junction2.index
-        ? getLimitedExpressFares(line, section, limitedExpressFareSystem0)
+        ? getLimitedExpressFares(line, section, getLimitedExpressFares0)
         : getLimitedExpressFares(
             line,
             [junction2, stationB],
-            limitedExpressFareSystem1
+            getLimitedExpressFares1
           )
       : undefined;
 
@@ -726,8 +729,8 @@ const C2: React.VFC<{
               <></>
             )}
             <td>{reservedExpressFare}円</td>
-            {superExpressFares?.highSpeedReserved !== undefined ? (
-              <td>{superExpressFares?.highSpeedReserved}円</td>
+            {highSpeedReservedExpressFare !== undefined ? (
+              <td>{highSpeedReservedExpressFare}円</td>
             ) : (
               <></>
             )}
