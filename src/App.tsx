@@ -647,15 +647,17 @@ const C2: React.VFC<{
   highSpeedSection?: Section;
 }> = ({ line, section, highSpeedSection }) => {
   const [departure, arrival] = section;
-  const [stationA, stationB] =
-    departure.index < arrival.index
-      ? [departure, arrival]
-      : [arrival, departure];
-  const [highSpeedStationA, highSpeedStationB] = highSpeedSection
+
+  const sortedSection: Section =
+    departure.index < arrival.index ? section : [arrival, departure];
+
+  const sortedHighSpeedSection: Section | undefined = highSpeedSection
     ? departure.index < arrival.index
       ? highSpeedSection
       : [highSpeedSection[1], highSpeedSection[0]]
-    : [];
+    : undefined;
+
+  const [stationA, stationB] = sortedSection;
 
   const distance = stationB.distance - stationA.distance;
   const points =
@@ -667,43 +669,28 @@ const C2: React.VFC<{
       ? 4620
       : 2160;
 
-  const superExpressFares =
-    line === line1
-      ? stationA.index < junction1.index
-        ? getSuperExpressFares(
-            line0,
-            [stationA, junction1],
-            highSpeedStationA &&
-              highSpeedStationB && [
-                highSpeedStationA,
-                highSpeedStationB.index < junction1.index
-                  ? highSpeedStationB
-                  : junction1,
-              ]
-          )
-        : undefined
-      : line === line2
-      ? stationA.index < junction2.index
-        ? getSuperExpressFares(
-            line0,
-            [stationA, junction2],
-            highSpeedStationA &&
-              highSpeedStationB && [highSpeedStationA, highSpeedStationB]
-          )
-        : undefined
-      : getSuperExpressFares(
-          line,
-          [stationA, stationB],
-          highSpeedStationA &&
-            highSpeedStationB && [highSpeedStationA, highSpeedStationB]
-        );
-
   const junction = junctions.get(line);
+
+  const superExpressFares =
+    (line === line1 || line === line2) && junction
+      ? stationA.index < junction.index
+        ? getSuperExpressFares(
+            line0,
+            junction.index < stationB.index
+              ? [stationA, junction]
+              : sortedSection,
+            sortedHighSpeedSection &&
+              (junction.index < sortedHighSpeedSection[1].index
+                ? [sortedHighSpeedSection[0], junction]
+                : sortedHighSpeedSection)
+          )
+        : undefined
+      : getSuperExpressFares(line, sortedSection, sortedHighSpeedSection);
 
   const limitedExpressFares =
     junction && stationB.index > junction.index
       ? stationA.index >= junction.index
-        ? getLimitedExpressFares(line, section, getLimitedExpressFares0)
+        ? getLimitedExpressFares(line, sortedSection, getLimitedExpressFares0)
         : getLimitedExpressFares(
             line,
             [junction, stationB],
