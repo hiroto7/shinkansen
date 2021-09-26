@@ -2,7 +2,7 @@ import "bootstrap-icons/font/bootstrap-icons.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import parse from "csv-parse/lib/sync";
 import { ceil, round } from "lodash";
-import React, { Reducer, useContext, useReducer } from "react";
+import React, { Reducer, useContext, useReducer, useState } from "react";
 import {
   Accordion,
   AccordionContext,
@@ -701,10 +701,6 @@ const getFares = (
       ? getBasicFare1(distance)
       : getBasicFare0(distance);
 
-  const nonReservedOrStandingOnlyExpressFare =
-    (superExpressFares?.nonReservedOrStandingOnly ?? 0) +
-    (limitedExpressFares?.nonReservedOrStandingOnly ?? 0);
-
   const nonReservedOrStandingOnlyAvailable =
     (!superExpressFares ||
       superExpressFares.nonReserved !== undefined ||
@@ -712,6 +708,12 @@ const getFares = (
     (!limitedExpressFares ||
       limitedExpressFares.nonReserved !== undefined ||
       limitedExpressFares.standingOnly !== undefined);
+
+  const nonReservedOrStandingOnlyExpressFare =
+    nonReservedOrStandingOnlyAvailable
+      ? (superExpressFares?.nonReservedOrStandingOnly ?? 0) +
+        (limitedExpressFares?.nonReservedOrStandingOnly ?? 0)
+      : undefined;
 
   const reservedExpressFare =
     (superExpressFares?.reserved ?? 0) + (limitedExpressFares?.reserved ?? 0);
@@ -723,7 +725,9 @@ const getFares = (
       : undefined;
 
   const nonReservedOrStandingOnlyTotal =
-    basicFare + nonReservedOrStandingOnlyExpressFare;
+    nonReservedOrStandingOnlyExpressFare !== undefined
+      ? basicFare + nonReservedOrStandingOnlyExpressFare
+      : undefined;
   const reservedTotal = basicFare + reservedExpressFare - 200;
   const highSpeedReservedTotal =
     highSpeedReservedExpressFare !== undefined
@@ -734,14 +738,17 @@ const getFares = (
     distance,
     superExpressFares,
     limitedExpressFares,
-    nonReservedOrStandingOnlyExpressFare,
-    reservedExpressFare,
-    highSpeedReservedExpressFare,
+    expressFares: {
+      nonReservedOrStandingOnly: nonReservedOrStandingOnlyExpressFare,
+      reserved: reservedExpressFare,
+      highSpeedReserved: highSpeedReservedExpressFare,
+    },
+    total: {
+      nonReservedOrStandingOnly: nonReservedOrStandingOnlyTotal,
+      reserved: reservedTotal,
+      highSpeedReserved: highSpeedReservedTotal,
+    },
     basicFare,
-    nonReservedOrStandingOnlyAvailable,
-    nonReservedOrStandingOnlyTotal,
-    reservedTotal,
-    highSpeedReservedTotal,
     points,
   };
 };
@@ -769,13 +776,8 @@ const C2: React.VFC<{
     superExpressFares,
     limitedExpressFares,
     basicFare,
-    nonReservedOrStandingOnlyExpressFare,
-    reservedExpressFare,
-    highSpeedReservedExpressFare,
-    nonReservedOrStandingOnlyAvailable,
-    nonReservedOrStandingOnlyTotal,
-    reservedTotal,
-    highSpeedReservedTotal,
+    expressFares,
+    total,
     points,
   } = getFares(line, sortedSection, sortedHighSpeed);
 
@@ -846,8 +848,8 @@ const C2: React.VFC<{
             <th scope="row">運賃</th>
             <td
               colSpan={
-                +(superExpressFares?.highSpeedReserved !== undefined) +
-                +nonReservedOrStandingOnlyAvailable +
+                +(expressFares.highSpeedReserved !== undefined) +
+                +(expressFares.nonReservedOrStandingOnly !== undefined) +
                 1
               }
             >
@@ -856,13 +858,13 @@ const C2: React.VFC<{
           </tr>
           <tr>
             <th scope="row">特急料金</th>
-            {nonReservedOrStandingOnlyAvailable ? (
+            {expressFares.nonReservedOrStandingOnly !== undefined ? (
               <Td1
                 items={items?.map(({ section, fares }) => ({
                   section,
                   fare: fares.nonReservedOrStandingOnly,
                 }))}
-                total={nonReservedOrStandingOnlyExpressFare}
+                total={expressFares.nonReservedOrStandingOnly}
               />
             ) : (
               <></>
@@ -872,9 +874,9 @@ const C2: React.VFC<{
                 section,
                 fare: fares.reserved,
               }))}
-              total={reservedExpressFare}
+              total={expressFares.reserved}
             />
-            {highSpeedReservedExpressFare !== undefined ? (
+            {expressFares.highSpeedReserved !== undefined ? (
               <Td1
                 items={items?.map(({ section, fares }) => ({
                   section,
@@ -883,7 +885,7 @@ const C2: React.VFC<{
                       ? fares.highSpeedReserved!
                       : fares.reserved,
                 }))}
-                total={highSpeedReservedExpressFare}
+                total={expressFares.highSpeedReserved}
               />
             ) : (
               <></>
@@ -891,9 +893,13 @@ const C2: React.VFC<{
           </tr>
           <tr>
             <th scope="row">割引</th>
-            {nonReservedOrStandingOnlyAvailable ? <td></td> : <></>}
+            {expressFares.nonReservedOrStandingOnly !== undefined ? (
+              <td></td>
+            ) : (
+              <></>
+            )}
             <td>-200円</td>
-            {superExpressFares?.highSpeedReserved !== undefined ? (
+            {expressFares.highSpeedReserved !== undefined ? (
               <td>-200円</td>
             ) : (
               <></>
@@ -903,14 +909,14 @@ const C2: React.VFC<{
         <tfoot>
           <tr>
             <th scope="row">計</th>
-            {nonReservedOrStandingOnlyAvailable ? (
-              <td>{nonReservedOrStandingOnlyTotal}円</td>
+            {total.nonReservedOrStandingOnly ? (
+              <td>{total.nonReservedOrStandingOnly}円</td>
             ) : (
               <></>
             )}
-            <td>{reservedTotal}円</td>
-            {highSpeedReservedTotal !== undefined ? (
-              <td>{highSpeedReservedTotal}円</td>
+            <td>{total.reserved}円</td>
+            {total.highSpeedReserved !== undefined ? (
+              <td>{total.highSpeedReserved}円</td>
             ) : (
               <></>
             )}
@@ -919,7 +925,7 @@ const C2: React.VFC<{
       </Table>
       <h5>JRE POINTのレート</h5>
       <p>
-        所定の運賃・特急料金（合計額）のそれぞれを交換ポイントで割った値です。
+        所定額（運賃・特急料金・割引の合計）のそれぞれを交換ポイントで割った値です。
       </p>
       <Table bordered>
         <thead>
@@ -927,14 +933,14 @@ const C2: React.VFC<{
         </thead>
         <tbody>
           <tr>
-            {nonReservedOrStandingOnlyAvailable ? (
-              <td>{(nonReservedOrStandingOnlyTotal / points).toFixed(2)}</td>
+            {total.nonReservedOrStandingOnly ? (
+              <td>{(total.nonReservedOrStandingOnly / points).toFixed(2)}</td>
             ) : (
               <></>
             )}
-            <td>{(reservedTotal / points).toFixed(2)}</td>
-            {highSpeedReservedTotal !== undefined ? (
-              <td>{(highSpeedReservedTotal / points).toFixed(2)}</td>
+            <td>{(total.reserved / points).toFixed(2)}</td>
+            {total.highSpeedReserved !== undefined ? (
+              <td>{(total.highSpeedReserved / points).toFixed(2)}</td>
             ) : (
               <></>
             )}
@@ -1260,27 +1266,23 @@ const App1: React.VFC = () => {
         が、割引なしのきっぷと比べてどのくらい割がいいのか計算します。
       </p>
       <Card body className="my-3">
-        <Row className="mb-3">
-          <Col>
-            <FloatingLabel controlId="floatingSelect" label="路線">
-              <Form.Select
-                aria-label="Floating label select example"
-                onChange={(e) =>
-                  dispatch({
-                    type: "setLine",
-                    payload: lines.get(e.currentTarget.value)!,
-                  })
-                }
-              >
-                <option>東北新幹線</option>
-                <option>秋田新幹線</option>
-                <option>山形新幹線</option>
-                <option>上越新幹線</option>
-                <option>北陸新幹線</option>
-              </Form.Select>
-            </FloatingLabel>
-          </Col>
-        </Row>
+        <FloatingLabel controlId="floatingSelect" label="路線" className="mb-3">
+          <Form.Select
+            aria-label="Floating label select example"
+            onChange={(e) =>
+              dispatch({
+                type: "setLine",
+                payload: lines.get(e.currentTarget.value)!,
+              })
+            }
+          >
+            <option>東北新幹線</option>
+            <option>秋田新幹線</option>
+            <option>山形新幹線</option>
+            <option>上越新幹線</option>
+            <option>北陸新幹線</option>
+          </Form.Select>
+        </FloatingLabel>
         {line === line1 ? (
           <p className="text-danger">
             <Notes1 />
@@ -1346,27 +1348,67 @@ const App1: React.VFC = () => {
   );
 };
 
+const faresForEachSection = [...lines.values()].flatMap((line) => {
+  const junction = junctions.get(line);
+  return line.stations.flatMap((stationA, index, stations) =>
+    stations
+      .slice(Math.max(index, junction?.index ?? 0) + 1)
+      .map((stationB) => {
+        const section: Section = [stationA, stationB];
+        const highSpeed = getLongestHighSpeedSection0(line, section);
+        return {
+          section,
+          fares: getFares(line, section, highSpeed),
+        };
+      })
+  );
+});
+
 const App2: React.VFC = () => {
-  const sections = [...lines.values()].flatMap((line) => {
-    const junction = junctions.get(line);
-    return line.stations.flatMap((stationA, index, stations) =>
-      stations
-        .slice(Math.max(index, junction?.index ?? 0) + 1)
-        .map((stationB): Section => [stationA, stationB])
-    );
-  });
+  const [seat, setSeat] = useState<
+    "nonReservedOrStandingOnly" | "reserved" | "highSpeedReserved"
+  >("nonReservedOrStandingOnly");
+  const [small, setSmall] = useState(false);
 
   return (
     <>
       <Alert variant="danger" className="mt-3">
         <Notes1 />
       </Alert>
+      <Form.Group className="mb-3" controlId="SmallTableCheckbox">
+        <Form.Check
+          type="checkbox"
+          label="小さく表示する"
+          checked={small}
+          onChange={(e) => setSmall(e.currentTarget.checked)}
+        />
+      </Form.Group>
+      <FloatingLabel
+        label="次の所定額に対するレートで並び替える"
+        className="mb-3"
+      >
+        <Form.Select
+          value={seat}
+          onChange={(e) =>
+            setSeat(
+              e.currentTarget.value as
+                | "nonReservedOrStandingOnly"
+                | "reserved"
+                | "highSpeedReserved"
+            )
+          }
+        >
+          <option value="nonReservedOrStandingOnly">自由席・立席</option>
+          <option value="reserved">指定席</option>
+          <option value="highSpeedReserved">はやぶさ・こまち号 指定席</option>
+        </Form.Select>
+      </FloatingLabel>
       <Table
         striped
         bordered
         responsive
-        size="sm"
-        className="text-center text-nowrap"
+        size={small ? "sm" : undefined}
+        className="text-nowrap"
       >
         <thead>
           <tr>
@@ -1402,35 +1444,11 @@ const App2: React.VFC = () => {
           </tr>
         </thead>
         <tbody>
-          {[...lines.values()]
-            .flatMap((line) => {
-              const junction = junctions.get(line);
-              return line.stations.flatMap((stationA, index, stations) =>
-                stations
-                  .slice(Math.max(index, junction?.index ?? 0) + 1)
-                  .map((stationB) => {
-                    const section: Section = [stationA, stationB];
-                    const highSpeed = getLongestHighSpeedSection0(
-                      line,
-                      section
-                    );
-                    return {
-                      section,
-                      fares: getFares(line, section, highSpeed),
-                    };
-                  })
-              );
-            })
+          {faresForEachSection
             .sort(
               ({ fares: faresA }, { fares: faresB }) =>
-                (faresB.nonReservedOrStandingOnlyAvailable
-                  ? faresB.nonReservedOrStandingOnlyTotal
-                  : faresB.reservedTotal) /
-                  faresB.points -
-                (faresA.nonReservedOrStandingOnlyAvailable
-                  ? faresA.nonReservedOrStandingOnlyTotal
-                  : faresA.reservedTotal) /
-                  faresA.points
+                (faresB.total[seat] ?? faresB.total.reserved) / faresB.points -
+                (faresA.total[seat] ?? faresA.total.reserved) / faresA.points
             )
             .map(({ section, fares }, index) => {
               const {
@@ -1438,13 +1456,7 @@ const App2: React.VFC = () => {
                 superExpressFares,
                 limitedExpressFares,
                 basicFare,
-                nonReservedOrStandingOnlyExpressFare,
-                reservedExpressFare,
-                highSpeedReservedExpressFare,
-                nonReservedOrStandingOnlyAvailable,
-                nonReservedOrStandingOnlyTotal,
-                reservedTotal,
-                highSpeedReservedTotal,
+                total,
                 points,
               } = fares;
               return (
@@ -1454,29 +1466,42 @@ const App2: React.VFC = () => {
                   <th scope="row">{section[1].name}</th>
                   <td>{distance.toFixed(1)}</td>
                   <td>{points}</td>
+                  <td>{total.nonReservedOrStandingOnly}</td>
                   <td>
-                    {nonReservedOrStandingOnlyAvailable
-                      ? nonReservedOrStandingOnlyTotal
-                      : undefined}
-                  </td>
-                  <td>
-                    <strong>
+                    <strong
+                      className={
+                        seat === "nonReservedOrStandingOnly"
+                          ? "text-primary"
+                          : undefined
+                      }
+                    >
                       {(
-                        (nonReservedOrStandingOnlyAvailable
-                          ? nonReservedOrStandingOnlyTotal
-                          : reservedTotal) / points
+                        (total.nonReservedOrStandingOnly ?? total.reserved) /
+                        points
                       ).toFixed(2)}
                     </strong>
                   </td>
-                  <td>{reservedTotal}</td>
+                  <td>{total.reserved}</td>
                   <td>
-                    <strong>{(reservedTotal / points).toFixed(2)}</strong>
+                    <strong
+                      className={
+                        seat === "reserved" ? "text-primary" : undefined
+                      }
+                    >
+                      {(total.reserved / points).toFixed(2)}
+                    </strong>
                   </td>
-                  <td>{highSpeedReservedTotal}</td>
+                  <td>{total.highSpeedReserved}</td>
                   <td>
-                    <strong>
+                    <strong
+                      className={
+                        seat === "highSpeedReserved"
+                          ? "text-primary"
+                          : undefined
+                      }
+                    >
                       {(
-                        (highSpeedReservedTotal ?? reservedTotal) / points
+                        (total.highSpeedReserved ?? total.reserved) / points
                       ).toFixed(2)}
                     </strong>
                   </td>
