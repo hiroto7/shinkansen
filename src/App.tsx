@@ -1356,8 +1356,6 @@ const App2: React.VFC = () => {
     );
   });
 
-  console.log(sections);
-
   return (
     <>
       <Alert variant="danger" className="mt-3">
@@ -1450,7 +1448,7 @@ const App2: React.VFC = () => {
                 points,
               } = fares;
               return (
-                <tr>
+                <tr key={`${section[0].name}-${section[1].name}`}>
                   <th scope="row">{index + 1}</th>
                   <th scope="row">{section[0].name}</th>
                   <th scope="row">{section[1].name}</th>
