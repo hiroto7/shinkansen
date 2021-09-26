@@ -16,12 +16,14 @@ import {
   Fade,
   FloatingLabel,
   Form,
+  Nav,
   Navbar,
   OverlayTrigger,
   Popover,
   Row,
   Table,
 } from "react-bootstrap";
+import { HashRouter, Link, Route, Switch } from "react-router-dom";
 import "./App.css";
 
 interface Station {
@@ -467,6 +469,7 @@ const getSuperExpressFare = (line: Line, section: Section) =>
  * 新幹線の指定した区間の特急料金を計算する
  * @param line 東北新幹線、上越新幹線、北陸新幹線のいずれか
  * @param section 特急料金を計算する区間。 `section[1]` は `section[0]` より終点に近い駅である必要がある。
+ * @param highSpeed はやぶさ号やこまち号を利用する区間
  * @returns 自由席特急料金、特定特急料金、指定席特急料金
  */
 const getSuperExpressFares = (
@@ -519,8 +522,6 @@ const getSuperExpressFares = (
     nonReserved: nonReservedAvailable ? nonReservedOrStandingOnly : undefined,
     standingOnly: standingOnlyAvailable ? nonReservedOrStandingOnly : undefined,
     nonReservedOrStandingOnly,
-    nonReservedAvailable,
-    standingOnlyAvailable,
   };
 };
 
@@ -550,8 +551,6 @@ const getLimitedExpressFares = (
     nonReserved: nonReservedAvailable ? nonReservedOrStandingOnly : undefined,
     standingOnly: standingOnlyAvailable ? nonReservedOrStandingOnly : undefined,
     nonReservedOrStandingOnly,
-    nonReservedAvailable,
-    standingOnlyAvailable,
   };
 };
 
@@ -599,11 +598,8 @@ const Td1: React.VFC<{
 
 const BothOfNonReservedAndStandingOnlyLabel: React.VFC<{
   items: readonly {
-    section: Section;
-    fares: {
-      readonly nonReservedAvailable: boolean;
-      readonly standingOnlyAvailable: boolean;
-    };
+    readonly section: Section;
+    readonly seat: string;
   }[];
 }> = ({ items }) => {
   return (
@@ -618,7 +614,7 @@ const BothOfNonReservedAndStandingOnlyLabel: React.VFC<{
                 .join("、")}
               で<b>乗り換え</b>が必要です。
             </p>
-            {items.map(({ section, fares }) => (
+            {items.map(({ section, seat }) => (
               <div
                 className="d-flex justify-content-between"
                 key={`${section[0].name}-${section[1].name}`}
@@ -627,9 +623,7 @@ const BothOfNonReservedAndStandingOnlyLabel: React.VFC<{
                   {section[0].name} <i className="bi bi-arrow-right"></i>{" "}
                   {section[1].name}
                 </span>
-                <span className="ms-4">
-                  {fares.nonReservedAvailable ? "自由席" : "立席"}
-                </span>
+                <span className="ms-4">{seat}</span>
               </div>
             ))}
           </Popover.Body>
@@ -641,11 +635,7 @@ const BothOfNonReservedAndStandingOnlyLabel: React.VFC<{
           textDecoration: "underline dotted var(--bs-secondary)",
         }}
       >
-        {items
-          .map(({ section, fares }) =>
-            fares.nonReservedAvailable ? "自由席" : "立席"
-          )
-          .join("・")}
+        {items.map(({ seat }) => seat).join("・")}
       </span>
     </OverlayTrigger>
   );
@@ -733,11 +723,11 @@ const C2: React.VFC<{
 
   const nonReservedOrStandingOnlyAvailable =
     (!superExpressFares ||
-      superExpressFares.nonReservedAvailable ||
-      superExpressFares.standingOnlyAvailable) &&
+      superExpressFares.nonReserved !== undefined ||
+      superExpressFares.standingOnly !== undefined) &&
     (!limitedExpressFares ||
-      limitedExpressFares.nonReservedAvailable ||
-      limitedExpressFares.standingOnlyAvailable);
+      limitedExpressFares.nonReserved !== undefined ||
+      limitedExpressFares.standingOnly !== undefined);
 
   const reservedExpressFare =
     (superExpressFares?.reserved ?? 0) + (limitedExpressFares?.reserved ?? 0);
@@ -771,19 +761,24 @@ const C2: React.VFC<{
 
   const cells0 = (
     <>
-      {limitedExpressFares !== undefined ? (
+      {limitedExpressFares ? (
         <th scope="col">
-          {limitedExpressFares.nonReservedAvailable ? (
+          {limitedExpressFares.nonReserved ? (
             "自由席"
           ) : superExpressFares ? (
-            <BothOfNonReservedAndStandingOnlyLabel items={items!} />
+            <BothOfNonReservedAndStandingOnlyLabel
+              items={items!.map(({ section, fares }) => ({
+                section,
+                seat: fares.nonReserved ? "自由席" : "立席",
+              }))}
+            />
           ) : (
             "立席"
           )}
         </th>
-      ) : superExpressFares!.nonReservedAvailable ? (
+      ) : superExpressFares!.nonReserved ? (
         <th scope="col">自由席</th>
-      ) : superExpressFares!.standingOnlyAvailable ? (
+      ) : superExpressFares!.standingOnly ? (
         <th scope="col">立席</th>
       ) : (
         <></>
@@ -1211,7 +1206,7 @@ const init = (): State => {
   return { line, section, highSpeedSection };
 };
 
-const App: React.VFC = () => {
+const App1: React.VFC = () => {
   const [state, dispatch] = useReducer(reducer, undefined, init);
 
   const { line, section, highSpeedSection } = state;
@@ -1221,115 +1216,137 @@ const App: React.VFC = () => {
 
   return (
     <>
-      <Navbar variant="dark" bg="dark">
-        <Container>
-          <Navbar.Brand>JRE POINT特典チケットのレート計算</Navbar.Brand>
-        </Container>
-      </Navbar>
-      <Container>
-        <p className="my-3">
-          <a
-            href="https://www.eki-net.com/top/point/guide/tokuten_section.html#headerM2_01"
-            target="_blank"
-            rel="noreferrer"
-          >
-            えきねっとでJRE POINTと交換できる特典チケット
-          </a>
-          が、割引なしのきっぷと比べてどのくらい割がいいのか計算します。
-        </p>
-        <Card body className="my-3">
-          <Row className="mb-3">
-            <Col>
-              <FloatingLabel controlId="floatingSelect" label="路線">
-                <Form.Select
-                  aria-label="Floating label select example"
-                  onChange={(e) =>
-                    dispatch({
-                      type: "setLine",
-                      payload: lines.get(e.currentTarget.value)!,
-                    })
-                  }
-                >
-                  <option>東北新幹線</option>
-                  <option>秋田新幹線</option>
-                  <option>山形新幹線</option>
-                  <option>上越新幹線</option>
-                  <option>北陸新幹線</option>
-                </Form.Select>
-              </FloatingLabel>
-            </Col>
-          </Row>
-          {line === line1 ? (
-            <p className="text-danger">
-              区間に
-              <b>
-                盛岡 <i className="bi bi-arrow-left-right"></i> 大曲
-              </b>
-              を含む場合、 現在のところ<b>運賃</b>は正しく計算されません。
-            </p>
-          ) : (
-            <></>
-          )}
-          <Row className="gy-2 gx-3">
-            <Col>
-              <StationDropdown
-                value={departure}
-                onChange={(station) =>
-                  dispatch({ type: "setDeparture", payload: station })
+      <p className="my-3">
+        <a
+          href="https://www.eki-net.com/top/point/guide/tokuten_section.html#headerM2_01"
+          target="_blank"
+          rel="noreferrer"
+        >
+          えきねっとでJRE POINTと交換できる特典チケット
+        </a>
+        が、割引なしのきっぷと比べてどのくらい割がいいのか計算します。
+      </p>
+      <Card body className="my-3">
+        <Row className="mb-3">
+          <Col>
+            <FloatingLabel controlId="floatingSelect" label="路線">
+              <Form.Select
+                aria-label="Floating label select example"
+                onChange={(e) =>
+                  dispatch({
+                    type: "setLine",
+                    payload: lines.get(e.currentTarget.value)!,
+                  })
                 }
-                header="出発駅"
-                items={line.stations.map((station) => ({
-                  station,
-                  disabled: station === arrival,
-                  active: station === departure,
-                }))}
-              />
-            </Col>
-            <Col xs="auto" className="align-self-center">
-              <i className="bi bi-arrow-right"></i>
-            </Col>
-            <Col>
-              <StationDropdown
-                value={arrival}
-                onChange={(station) =>
-                  dispatch({ type: "setArrival", payload: station })
-                }
-                header="到着駅"
-                items={line.stations.map((station) => ({
-                  station,
-                  disabled: station === departure,
-                  active: station === arrival,
-                }))}
-              />
-            </Col>
-          </Row>
-        </Card>
-        {highSpeedAvailable && highSpeedSection ? (
-          <Accordion className="mb-3">
-            <ContextAwareItem
-              eventKey="0"
-              line={line}
-              section={section}
-              highSpeedSection={highSpeedSection}
-              onChange={(highSpeedSection) =>
-                dispatch({
-                  type: "setHighSpeedSection",
-                  payload: highSpeedSection,
-                })
-              }
-            />
-          </Accordion>
+              >
+                <option>東北新幹線</option>
+                <option>秋田新幹線</option>
+                <option>山形新幹線</option>
+                <option>上越新幹線</option>
+                <option>北陸新幹線</option>
+              </Form.Select>
+            </FloatingLabel>
+          </Col>
+        </Row>
+        {line === line1 ? (
+          <p className="text-danger">
+            区間に
+            <b>
+              盛岡 <i className="bi bi-arrow-left-right"></i> 大曲
+            </b>
+            を含む場合、 現在のところ<b>運賃</b>は正しく計算されません。
+          </p>
         ) : (
           <></>
         )}
-        <C2
-          line={line}
-          section={section}
-          highSpeedSection={highSpeedAvailable ? highSpeedSection : undefined}
-        />
-      </Container>
+        <Row className="gy-2 gx-3">
+          <Col>
+            <StationDropdown
+              value={departure}
+              onChange={(station) =>
+                dispatch({ type: "setDeparture", payload: station })
+              }
+              header="出発駅"
+              items={line.stations.map((station) => ({
+                station,
+                disabled: station === arrival,
+                active: station === departure,
+              }))}
+            />
+          </Col>
+          <Col xs="auto" className="align-self-center">
+            <i className="bi bi-arrow-right"></i>
+          </Col>
+          <Col>
+            <StationDropdown
+              value={arrival}
+              onChange={(station) =>
+                dispatch({ type: "setArrival", payload: station })
+              }
+              header="到着駅"
+              items={line.stations.map((station) => ({
+                station,
+                disabled: station === departure,
+                active: station === arrival,
+              }))}
+            />
+          </Col>
+        </Row>
+      </Card>
+      {highSpeedAvailable && highSpeedSection ? (
+        <Accordion className="mb-3">
+          <ContextAwareItem
+            eventKey="0"
+            line={line}
+            section={section}
+            highSpeedSection={highSpeedSection}
+            onChange={(highSpeedSection) =>
+              dispatch({
+                type: "setHighSpeedSection",
+                payload: highSpeedSection,
+              })
+            }
+          />
+        </Accordion>
+      ) : (
+        <></>
+      )}
+      <C2
+        line={line}
+        section={section}
+        highSpeedSection={highSpeedAvailable ? highSpeedSection : undefined}
+      />
     </>
   );
 };
+
+const App: React.VFC = () => (
+  <HashRouter>
+    <Navbar variant="dark" bg="dark">
+      <Container>
+        <Navbar.Brand>JRE POINT特典チケットのレート計算</Navbar.Brand>
+        <Navbar.Toggle aria-controls="basic-navbar-nav" />
+        <Navbar.Collapse id="basic-navbar-nav">
+          <Nav className="me-auto">
+            <Nav.Link as={Link} to="/">
+              Home
+            </Nav.Link>
+            <Nav.Link as={Link} to="/ranking">
+              ランキング
+            </Nav.Link>
+          </Nav>
+        </Navbar.Collapse>
+      </Container>
+    </Navbar>
+    <Container>
+      <Switch>
+        <Route path="/ranking">Ranking</Route>
+        <Route path="/">
+          <App1 />
+        </Route>
+      </Switch>
+    </Container>
+  </HashRouter>
+);
 
 export default App;
