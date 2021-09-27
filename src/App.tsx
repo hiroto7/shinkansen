@@ -2,14 +2,19 @@ import "bootstrap-icons/font/bootstrap-icons.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import parse from "csv-parse/lib/sync";
 import { ceil, round } from "lodash";
-import React, { Reducer, useContext, useReducer, useState } from "react";
+import React, {
+  Reducer,
+  useContext,
+  useMemo,
+  useReducer,
+  useState,
+} from "react";
 import {
   Accordion,
   AccordionContext,
   Button,
   Card,
   Col,
-  Collapse,
   Container,
   Dropdown,
   DropdownButton,
@@ -961,11 +966,14 @@ const getFares = (
   };
 };
 
-const C2: React.VFC<{
+const isEquivalent = (a: Section, b: Section) => a[0] === b[0] && a[1] === b[1];
+
+const Result: React.VFC<{
   line: Line;
   section: Section;
   highSpeed: Section | undefined;
-}> = ({ line, section, highSpeed }) => {
+  longestHighSpeedSection: Section | undefined;
+}> = ({ line, section, highSpeed, longestHighSpeedSection }) => {
   const [departure, arrival] = section;
 
   const sortedSection: Section =
@@ -1037,9 +1045,9 @@ const C2: React.VFC<{
 
   return (
     <>
-      <h5>営業キロ</h5>
+      <h2 className="h5">営業キロ</h2>
       <p>{distance} km</p>
-      <h5>所定の運賃・特急料金</h5>
+      <h2 className="h5">所定の運賃・特急料金</h2>
       <Table bordered>
         <thead>
           <tr>
@@ -1129,19 +1137,23 @@ const C2: React.VFC<{
           </tr>
         </tfoot>
       </Table>
-      <h5>JRE POINT 特典チケット</h5>
-      <h6>交換ポイント</h6>
+      <h2 className="h5">JRE POINT 特典チケット</h2>
+      <h3 className="h6">交換ポイント</h3>
       <p>{points}ポイント</p>
-      <h6>レート</h6>
+      <h3 className="h6">レート</h3>
       <p>
         所定額（運賃・特急料金・割引の合計）のそれぞれを交換ポイントで割った値です。
       </p>
       <Table bordered>
         <thead>
-          <tr>{cells0}</tr>
+          <tr>
+            <td></td>
+            {cells0}
+          </tr>
         </thead>
         <tbody>
           <tr>
+            <th scope="row">レート</th>
             {total.nonReservedOrStandingOnly ? (
               <td>{(total.nonReservedOrStandingOnly / points).toFixed(2)}</td>
             ) : (
@@ -1150,6 +1162,57 @@ const C2: React.VFC<{
             <td>{(total.reserved / points).toFixed(2)}</td>
             {total.highSpeedReserved !== undefined ? (
               <td>{(total.highSpeedReserved / points).toFixed(2)}</td>
+            ) : (
+              <></>
+            )}
+          </tr>
+          <tr>
+            <th scope="row">順位</th>
+            {total.nonReservedOrStandingOnly !== undefined ? (
+              <td>
+                {sortedFares.nonReservedOrStandingOnly.findIndex(
+                  ({ section }) => isEquivalent(section, sortedSection)
+                ) + 1}
+                位
+              </td>
+            ) : (
+              <></>
+            )}
+            <td>
+              {total.nonReservedOrStandingOnly === undefined
+                ? `${
+                    sortedFares.nonReservedOrStandingOnly.findIndex(
+                      ({ section }) => isEquivalent(section, sortedSection)
+                    ) + 1
+                  }位または`
+                : undefined}
+              {sortedFares.reserved.findIndex(({ section }) =>
+                isEquivalent(section, sortedSection)
+              ) + 1}
+              位
+              {total.highSpeedReserved === undefined
+                ? `または${
+                    sortedFares.highSpeedReserved.findIndex(({ section }) =>
+                      isEquivalent(section, sortedSection)
+                    ) + 1
+                  }位`
+                : undefined}
+            </td>
+            {total.highSpeedReserved !== undefined ? (
+              <td>
+                {highSpeed &&
+                longestHighSpeedSection &&
+                isEquivalent(highSpeed, longestHighSpeedSection) ? (
+                  <>
+                    {sortedFares.highSpeedReserved.findIndex(({ section }) =>
+                      isEquivalent(section, sortedSection)
+                    ) + 1}
+                    位
+                  </>
+                ) : (
+                  <></>
+                )}
+              </td>
             ) : (
               <></>
             )}
@@ -1165,8 +1228,16 @@ const ContextAwareItem: React.VFC<{
   line: Line;
   section: Section;
   highSpeed: Section;
+  longestHighSpeedSection: Section;
   onChange: (highSpeed: Section) => void;
-}> = ({ eventKey, line, section, highSpeed, onChange }) => {
+}> = ({
+  eventKey,
+  line,
+  section,
+  highSpeed,
+  longestHighSpeedSection,
+  onChange,
+}) => {
   const { activeEventKey } = useContext(AccordionContext);
 
   const isCurrentEventKey = activeEventKey === eventKey;
@@ -1183,8 +1254,6 @@ const ContextAwareItem: React.VFC<{
       station.index >=
         line0.stations.findIndex((station) => station.name === "盛岡"),
   }));
-
-  const longestHighSpeedSection = getLongestHighSpeedSection(line, section)!;
 
   const train = highSpeedTrains.get(line)!;
 
@@ -1290,7 +1359,9 @@ const getLongestHighSpeedSection0 = (
       .slice(-1)[0],
   ];
 
-  return highSpeedDeparture && highSpeedArrival
+  return highSpeedDeparture &&
+    highSpeedArrival &&
+    highSpeedDeparture !== highSpeedArrival
     ? [highSpeedDeparture, highSpeedArrival]
     : undefined;
 };
@@ -1368,6 +1439,7 @@ const isHighSpeedAvailableSection = (line: Line, section: Section) => {
 interface State {
   readonly line: Line;
   readonly section: Section;
+  readonly longestHighSpeedSection: Section | undefined;
   readonly highSpeed: Section | undefined;
 }
 
@@ -1408,29 +1480,44 @@ const reducer: Reducer<State, Action> = (state, action) => {
         ? [firstOfLine === arrival ? lastOfLine : firstOfLine, arrival]
         : [firstOfLine, lastOfLine];
 
+      const longestHighSpeedSection = getLongestHighSpeedSection(line, section);
+
       return {
         ...state,
         line,
         section,
-        highSpeed: getLongestHighSpeedSection(line, section),
+        longestHighSpeedSection,
+        highSpeed: longestHighSpeedSection,
       };
     }
 
     case "setDeparture": {
       const section = [action.payload, state.section[1]] as const;
+      const longestHighSpeedSection = getLongestHighSpeedSection(
+        state.line,
+        section
+      );
+
       return {
         ...state,
         section,
-        highSpeed: getLongestHighSpeedSection(state.line, section),
+        longestHighSpeedSection,
+        highSpeed: longestHighSpeedSection,
       };
     }
 
     case "setArrival": {
       const section = [state.section[0], action.payload] as const;
+      const longestHighSpeedSection = getLongestHighSpeedSection(
+        state.line,
+        section
+      );
+
       return {
         ...state,
         section,
-        highSpeed: getLongestHighSpeedSection(state.line, section),
+        longestHighSpeedSection,
+        highSpeed: longestHighSpeedSection,
       };
     }
 
@@ -1445,21 +1532,30 @@ const reducer: Reducer<State, Action> = (state, action) => {
 const init = (): State => {
   const line = line0;
   const section: Section = [line.stations[0]!, line.stations.slice(-1)[0]!];
-  const highSpeed = getLongestHighSpeedSection(line, section);
-  return { line, section, highSpeed };
+  const longestHighSpeedSection = getLongestHighSpeedSection(line, section);
+  return {
+    line,
+    section,
+    longestHighSpeedSection,
+    highSpeed: longestHighSpeedSection,
+  };
 };
 
 const App1: React.VFC = () => {
   const [state, dispatch] = useReducer(reducer, undefined, init);
 
-  const { line, section, highSpeed } = state;
+  const { line, section, highSpeed, longestHighSpeedSection } = state;
   const [departure, arrival] = section;
 
-  const highSpeedAvailable = isHighSpeedAvailableSection(line, section);
+  const highSpeedAvailable = useMemo(
+    () => isHighSpeedAvailableSection(line, section),
+    [line, section]
+  );
 
   return (
     <main>
-      <p className="my-3">
+      <h1 className="mt-3">区間を指定して計算</h1>
+      <p>
         <a
           href="https://www.eki-net.com/top/point/guide/tokuten_section.html#headerM2_01"
           target="_blank"
@@ -1521,13 +1617,14 @@ const App1: React.VFC = () => {
           </Col>
         </Row>
       </Card>
-      {highSpeedAvailable && highSpeed ? (
+      {highSpeedAvailable && highSpeed && longestHighSpeedSection ? (
         <Accordion className="mb-3">
           <ContextAwareItem
             eventKey="0"
             line={line}
             section={section}
             highSpeed={highSpeed}
+            longestHighSpeedSection={longestHighSpeedSection}
             onChange={(highSpeed) =>
               dispatch({ type: "setHighSpeed", payload: highSpeed })
             }
@@ -1536,10 +1633,11 @@ const App1: React.VFC = () => {
       ) : (
         <></>
       )}
-      <C2
+      <Result
         line={line}
         section={section}
         highSpeed={highSpeedAvailable ? highSpeed : undefined}
+        longestHighSpeedSection={longestHighSpeedSection}
       />
     </main>
   );
@@ -1553,6 +1651,7 @@ const faresForEachSection = [...lines.values()].flatMap((line) => {
       .map((stationB) => {
         const section: Section = [stationA, stationB];
         const highSpeed = getLongestHighSpeedSection0(line, section);
+        console.log(line, section, highSpeed);
         return {
           section,
           fares: getFares(line, section, highSpeed),
@@ -1560,6 +1659,27 @@ const faresForEachSection = [...lines.values()].flatMap((line) => {
       })
   );
 });
+
+const sortedFares = {
+  nonReservedOrStandingOnly: [...faresForEachSection].sort(
+    ({ fares: faresA }, { fares: faresB }) =>
+      (faresB.total.nonReservedOrStandingOnly ?? faresB.total.reserved) /
+        faresB.points -
+      (faresA.total.nonReservedOrStandingOnly ?? faresA.total.reserved) /
+        faresA.points
+  ),
+  reserved: [...faresForEachSection].sort(
+    ({ fares: faresA }, { fares: faresB }) =>
+      faresB.total.reserved / faresB.points -
+      faresA.total.reserved / faresA.points
+  ),
+  highSpeedReserved: [...faresForEachSection].sort(
+    ({ fares: faresA }, { fares: faresB }) =>
+      (faresB.total.highSpeedReserved ?? faresB.total.reserved) /
+        faresB.points -
+      (faresA.total.highSpeedReserved ?? faresA.total.reserved) / faresA.points
+  ),
+};
 
 const Ranking: React.VFC = () => {
   const [seat, setSeat] = useState<
@@ -1649,74 +1769,66 @@ const Ranking: React.VFC = () => {
           </tr>
         </thead>
         <tbody>
-          {faresForEachSection
-            .sort(
-              ({ fares: faresA }, { fares: faresB }) =>
-                (faresB.total[seat] ?? faresB.total.reserved) / faresB.points -
-                (faresA.total[seat] ?? faresA.total.reserved) / faresA.points
-            )
-            .map(({ section, fares }, index) => {
-              const {
-                distance,
-                superExpressFares,
-                limitedExpressFares,
-                basicFare,
-                total,
-                points,
-              } = fares;
-              return (
-                <tr key={`${section[0].name}-${section[1].name}`}>
-                  <th scope="row">{index + 1}</th>
-                  <th scope="row">{section[0].name}</th>
-                  <th scope="row">{section[1].name}</th>
-                  <td>{distance.toFixed(1)}</td>
-                  <td>{points}</td>
-                  <td>{total.nonReservedOrStandingOnly}</td>
-                  <td>
-                    <strong
-                      className={
-                        total.nonReservedOrStandingOnly
-                          ? seat === "nonReservedOrStandingOnly"
-                            ? "text-primary"
-                            : undefined
-                          : "text-secondary"
-                      }
-                    >
-                      {(
-                        (total.nonReservedOrStandingOnly ?? total.reserved) /
-                        points
-                      ).toFixed(2)}
-                    </strong>
-                  </td>
-                  <td>{total.reserved}</td>
-                  <td>
-                    <strong
-                      className={
-                        seat === "reserved" ? "text-primary" : undefined
-                      }
-                    >
-                      {(total.reserved / points).toFixed(2)}
-                    </strong>
-                  </td>
-                  <td>{total.highSpeedReserved}</td>
-                  <td>
-                    <strong
-                      className={
-                        total.highSpeedReserved
-                          ? seat === "highSpeedReserved"
-                            ? "text-primary"
-                            : undefined
-                          : "text-secondary"
-                      }
-                    >
-                      {(
-                        (total.highSpeedReserved ?? total.reserved) / points
-                      ).toFixed(2)}
-                    </strong>
-                  </td>
-                </tr>
-              );
-            })}
+          {sortedFares[seat].map(({ section, fares }, index) => {
+            const {
+              distance,
+              superExpressFares,
+              limitedExpressFares,
+              basicFare,
+              total,
+              points,
+            } = fares;
+            return (
+              <tr key={`${section[0].name}-${section[1].name}`}>
+                <th scope="row">{index + 1}</th>
+                <th scope="row">{section[0].name}</th>
+                <th scope="row">{section[1].name}</th>
+                <td>{distance.toFixed(1)}</td>
+                <td>{points}</td>
+                <td>{total.nonReservedOrStandingOnly}</td>
+                <td>
+                  <strong
+                    className={
+                      total.nonReservedOrStandingOnly
+                        ? seat === "nonReservedOrStandingOnly"
+                          ? "text-primary"
+                          : undefined
+                        : "text-secondary"
+                    }
+                  >
+                    {(
+                      (total.nonReservedOrStandingOnly ?? total.reserved) /
+                      points
+                    ).toFixed(2)}
+                  </strong>
+                </td>
+                <td>{total.reserved}</td>
+                <td>
+                  <strong
+                    className={seat === "reserved" ? "text-primary" : undefined}
+                  >
+                    {(total.reserved / points).toFixed(2)}
+                  </strong>
+                </td>
+                <td>{total.highSpeedReserved}</td>
+                <td>
+                  <strong
+                    className={
+                      total.highSpeedReserved
+                        ? seat === "highSpeedReserved"
+                          ? "text-primary"
+                          : undefined
+                        : "text-secondary"
+                    }
+                  >
+                    {(
+                      (total.highSpeedReserved ?? total.reserved) / points
+                    ).toFixed(2)}
+                  </strong>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </Table>
     </main>
@@ -1732,7 +1844,7 @@ const App: React.VFC = () => (
         <Navbar.Collapse id="basic-navbar-nav">
           <Nav className="me-auto">
             <Nav.Link as={Link} to="/">
-              Home
+              区間を指定して計算
             </Nav.Link>
             <Nav.Link as={Link} to="/ranking">
               ランキング
