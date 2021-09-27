@@ -1675,11 +1675,11 @@ const Ranking: React.VFC = () => {
                   <td>
                     <strong
                       className={
-                        seat === "nonReservedOrStandingOnly"
-                          ? total.nonReservedOrStandingOnly
+                        total.nonReservedOrStandingOnly
+                          ? seat === "nonReservedOrStandingOnly"
                             ? "text-primary"
-                            : "text-secondary"
-                          : undefined
+                            : undefined
+                          : "text-secondary"
                       }
                     >
                       {(
@@ -1702,11 +1702,11 @@ const Ranking: React.VFC = () => {
                   <td>
                     <strong
                       className={
-                        seat === "highSpeedReserved"
-                          ? total.highSpeedReserved
+                        total.highSpeedReserved
+                          ? seat === "highSpeedReserved"
                             ? "text-primary"
-                            : "text-secondary"
-                          : undefined
+                            : undefined
+                          : "text-secondary"
                       }
                     >
                       {(
