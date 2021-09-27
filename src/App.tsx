@@ -6,7 +6,6 @@ import React, { Reducer, useContext, useReducer, useState } from "react";
 import {
   Accordion,
   AccordionContext,
-  Alert,
   Button,
   Card,
   Col,
@@ -878,7 +877,37 @@ const getFares = (
         stationB.index <=
           line.stations.findIndex((station) => station.name === "大曲")
       ? getBasicFare1(distance)
-      : getBasicFare0(distance);
+      : getBasicFare0(
+          line === line1 &&
+            ["盛岡", "大曲"]
+              .map((name) =>
+                line.stations.findIndex((station) => station.name === name)
+              )
+              .some((i) => stationA.index < i && i < stationB.index)
+            ? distance +
+                round(
+                  getDistance0(
+                    stationA.index <
+                      line.stations.findIndex(
+                        (station) => station.name === "盛岡"
+                      )
+                      ? line.stations.find(
+                          (station) => station.name === "盛岡"
+                        )!
+                      : stationA,
+                    line.stations.findIndex(
+                      (station) => station.name === "大曲"
+                    ) < stationB.index
+                      ? line.stations.find(
+                          (station) => station.name === "大曲"
+                        )!
+                      : stationB
+                  ) *
+                    (17.8 / 16.2 - 1),
+                  1
+                )
+            : distance
+        );
 
   const nonReservedOrStandingOnlyAvailable =
     (!superExpressFares ||
@@ -1365,7 +1394,7 @@ type Action = Readonly<
     }
 >;
 
-type Section = readonly [Station, Station];
+type Section = readonly [a: Station, b: Station];
 
 const reducer: Reducer<State, Action> = (state, action) => {
   switch (action.type) {
@@ -1462,13 +1491,6 @@ const App1: React.VFC = () => {
             <option>北陸新幹線</option>
           </Form.Select>
         </FloatingLabel>
-        {line === line1 ? (
-          <p className="text-danger">
-            <Notes1 />
-          </p>
-        ) : (
-          <></>
-        )}
         <Row className="gy-2 gx-3">
           <Col>
             <StationDropdown
@@ -1551,10 +1573,7 @@ const App2: React.VFC = () => {
 
   return (
     <>
-      <Alert variant="danger" className="mt-3">
-        <Notes1 />
-      </Alert>
-      <Form.Group className="mb-3" controlId="SmallTableCheckbox">
+      <Form.Group className="my-3" controlId="SmallTableCheckbox">
         <Form.Check
           type="checkbox"
           label="小さく表示する"
@@ -1692,14 +1711,6 @@ const App2: React.VFC = () => {
     </>
   );
 };
-
-const Notes1: React.VFC = () => (
-  <>
-    区間に
-    <b>田沢湖線</b>（盛岡 <i className="bi bi-arrow-left-right"></i> 大曲）
-    の全部または一部を含む場合、 現在のところ<b>運賃</b>は正しく計算されません。
-  </>
-);
 
 const App: React.VFC = () => (
   <HashRouter>
