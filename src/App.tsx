@@ -1037,12 +1037,8 @@ const C2: React.VFC<{
 
   return (
     <>
-      <dl>
-        <dt>営業キロ</dt>
-        <dd>{distance} km</dd>
-        <dt>JRE POINT特典チケット 交換ポイント</dt>
-        <dd>{points}ポイント</dd>
-      </dl>
+      <h5>営業キロ</h5>
+      <p>{distance} km</p>
       <h5>所定の運賃・特急料金</h5>
       <Table bordered>
         <thead>
@@ -1054,15 +1050,17 @@ const C2: React.VFC<{
         <tbody>
           <tr>
             <th scope="row">運賃</th>
-            <td
-              colSpan={
-                +(expressFares.highSpeedReserved !== undefined) +
-                +(expressFares.nonReservedOrStandingOnly !== undefined) +
-                1
-              }
-            >
-              {basicFare}円
-            </td>
+            {expressFares.nonReservedOrStandingOnly !== undefined ? (
+              <td>{basicFare}円</td>
+            ) : (
+              <></>
+            )}
+            <td>{basicFare}円</td>
+            {expressFares.highSpeedReserved !== undefined ? (
+              <td>{basicFare}円</td>
+            ) : (
+              <></>
+            )}
           </tr>
           <tr>
             <th scope="row">特急料金</th>
@@ -1131,7 +1129,10 @@ const C2: React.VFC<{
           </tr>
         </tfoot>
       </Table>
-      <h5>JRE POINTのレート</h5>
+      <h5>JRE POINT 特典チケット</h5>
+      <h6>交換ポイント</h6>
+      <p>{points}ポイント</p>
+      <h6>レート</h6>
       <p>
         所定額（運賃・特急料金・割引の合計）のそれぞれを交換ポイントで割った値です。
       </p>
@@ -1237,23 +1238,18 @@ const ContextAwareItem: React.VFC<{
             />
           </Col>
         </Row>
-        <Collapse
-          in={
-            highSpeed[0] !== longestHighSpeedSection?.[0] ||
-            highSpeed[1] !== longestHighSpeedSection?.[1]
-          }
-        >
-          <div>
-            <div className="d-grid mt-3">
-              <Button
-                variant="outline-secondary"
-                onClick={() => onChange(longestHighSpeedSection)}
-              >
-                デフォルトに戻す
-              </Button>
-            </div>
-          </div>
-        </Collapse>
+        <div className="d-grid mt-3">
+          <Button
+            variant="outline-secondary"
+            onClick={() => onChange(longestHighSpeedSection)}
+            disabled={
+              highSpeed[0] === longestHighSpeedSection?.[0] &&
+              highSpeed[1] === longestHighSpeedSection?.[1]
+            }
+          >
+            デフォルトに戻す
+          </Button>
+        </div>
       </Accordion.Body>
     </Accordion.Item>
   );
@@ -1462,7 +1458,7 @@ const App1: React.VFC = () => {
   const highSpeedAvailable = isHighSpeedAvailableSection(line, section);
 
   return (
-    <>
+    <main>
       <p className="my-3">
         <a
           href="https://www.eki-net.com/top/point/guide/tokuten_section.html#headerM2_01"
@@ -1545,7 +1541,7 @@ const App1: React.VFC = () => {
         section={section}
         highSpeed={highSpeedAvailable ? highSpeed : undefined}
       />
-    </>
+    </main>
   );
 };
 
@@ -1565,15 +1561,26 @@ const faresForEachSection = [...lines.values()].flatMap((line) => {
   );
 });
 
-const App2: React.VFC = () => {
+const Ranking: React.VFC = () => {
   const [seat, setSeat] = useState<
     "nonReservedOrStandingOnly" | "reserved" | "highSpeedReserved"
   >("nonReservedOrStandingOnly");
   const [small, setSmall] = useState(false);
 
   return (
-    <>
-      <Form.Group className="my-3" controlId="SmallTableCheckbox">
+    <main>
+      <h1 className="mt-3">ランキング</h1>
+      <p>
+        <a
+          href="https://www.eki-net.com/top/point/guide/tokuten_section.html#headerM2_01"
+          target="_blank"
+          rel="noreferrer"
+        >
+          JRE POINT 特典チケット
+        </a>
+        を交換するのに割がいい区間を調べます。
+      </p>
+      <Form.Group className="mb-3" controlId="SmallTableCheckbox">
         <Form.Check
           type="checkbox"
           label="小さく表示する"
@@ -1629,7 +1636,7 @@ const App2: React.VFC = () => {
               指定席
             </th>
             <th scope="col" colSpan={2}>
-              はやぶさ号・こまち号 指定席
+              <div>はやぶさ号・こまち号</div> <div>指定席</div>
             </th>
           </tr>
           <tr>
@@ -1669,7 +1676,9 @@ const App2: React.VFC = () => {
                     <strong
                       className={
                         seat === "nonReservedOrStandingOnly"
-                          ? "text-primary"
+                          ? total.nonReservedOrStandingOnly
+                            ? "text-primary"
+                            : "text-secondary"
                           : undefined
                       }
                     >
@@ -1694,7 +1703,9 @@ const App2: React.VFC = () => {
                     <strong
                       className={
                         seat === "highSpeedReserved"
-                          ? "text-primary"
+                          ? total.highSpeedReserved
+                            ? "text-primary"
+                            : "text-secondary"
                           : undefined
                       }
                     >
@@ -1708,7 +1719,7 @@ const App2: React.VFC = () => {
             })}
         </tbody>
       </Table>
-    </>
+    </main>
   );
 };
 
@@ -1733,7 +1744,7 @@ const App: React.VFC = () => (
     <Container>
       <Switch>
         <Route path="/ranking">
-          <App2 />
+          <Ranking />
         </Route>
         <Route path="/">
           <App1 />
