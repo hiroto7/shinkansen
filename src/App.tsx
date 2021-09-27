@@ -6,7 +6,6 @@ import React, { Reducer, useContext, useReducer, useState } from "react";
 import {
   Accordion,
   AccordionContext,
-  Alert,
   Button,
   Card,
   Col,
@@ -340,6 +339,131 @@ const StationDropdown: React.FC<{
   );
 };
 
+/**
+ * 地方交通線の営業キロの区間
+ * @param distance 10キロメートルを超え、1200キロメートルまでの営業キロ
+ * @returns 中央の営業キロ
+ */
+const getDistance2 = (distance: number) =>
+  distance <= 15
+    ? 13
+    : distance <= 20
+    ? 18
+    : distance <= 23
+    ? 22
+    : distance <= 28
+    ? 26
+    : distance <= 32
+    ? 30
+    : distance <= 37
+    ? 35
+    : distance <= 41
+    ? 39
+    : distance <= 46
+    ? 44
+    : distance <= 55
+    ? 51
+    : distance <= 64
+    ? 60
+    : distance <= 73
+    ? 69
+    : distance <= 82
+    ? 78
+    : distance <= 91
+    ? 87
+    : distance <= 100
+    ? 96
+    : distance <= 110
+    ? 105
+    : distance <= 128
+    ? 119
+    : distance <= 146
+    ? 137
+    : distance <= 164
+    ? 155
+    : distance <= 182
+    ? 173
+    : distance <= 200
+    ? 191
+    : distance <= 219
+    ? 210
+    : distance <= 237
+    ? 228
+    : distance <= 255
+    ? 246
+    : distance <= 273
+    ? 264
+    : distance <= 291
+    ? 282
+    : distance <= 310
+    ? 301
+    : distance <= 328
+    ? 319
+    : distance <= 346
+    ? 337
+    : distance <= 364
+    ? 355
+    : distance <= 382
+    ? 373
+    : distance <= 400
+    ? 391
+    : distance <= 419
+    ? 410
+    : distance <= 437
+    ? 428
+    : distance <= 455
+    ? 446
+    : distance <= 473
+    ? 464
+    : distance <= 491
+    ? 482
+    : distance <= 510
+    ? 501
+    : distance <= 528
+    ? 519
+    : distance <= 546
+    ? 537
+    : distance <= 582
+    ? 564
+    : distance <= 619
+    ? 601
+    : distance <= 655
+    ? 637
+    : distance <= 691
+    ? 673
+    : distance <= 728
+    ? 710
+    : distance <= 764
+    ? 746
+    : distance <= 800
+    ? 782
+    : distance <= 837
+    ? 819
+    : distance <= 873
+    ? 855
+    : distance <= 910
+    ? 892
+    : distance <= 946
+    ? 928
+    : distance <= 982
+    ? 964
+    : distance <= 1019
+    ? 1001
+    : distance <= 1055
+    ? 1037
+    : distance <= 1091
+    ? 1073
+    : distance <= 1128
+    ? 1110
+    : distance <= 1164
+    ? 1146
+    : 1182;
+
+/**
+ *
+ * @param distance 10キロメートルを超える営業キロ
+ * @returns
+ */
 const getDistance1 = (distance: number) =>
   distance > 600
     ? Math.ceil(distance / 40) * 40 - 20
@@ -380,11 +504,59 @@ const getBasicFare0 = (distance: number) => {
 };
 
 /**
- * **東京附近における電車特定区間**内相互発着の場合の大人片道普通旅客運賃を計算する
+ * **地方交通線**内相互発着となる場合の大人片道普通旅客運賃を計算する
  * @param distance 営業キロ
  * @returns 運賃
  */
 const getBasicFare1 = (distance: number) => {
+  // 1-3: 150, 4-6: 190, 7-10: 210
+  const distance2 = getDistance2(distance);
+  const fare0 =
+    17.8 * Math.min(distance2, 273) +
+    14.1 * Math.max(Math.min(distance2 - 273, 273), 0) +
+    7.7 * Math.max(distance2 - 546, 0);
+
+  return 10 < distance && distance <= 15
+    ? 240
+    : 15 < distance && distance <= 20
+    ? 330
+    : 20 < distance && distance <= 23
+    ? 420
+    : 23 < distance && distance <= 28
+    ? 510
+    : 32 < distance && distance <= 37
+    ? 680
+    : 41 < distance && distance <= 46
+    ? 860
+    : 46 < distance && distance <= 55
+    ? 990
+    : 55 < distance && distance <= 64
+    ? 1170
+    : 64 < distance && distance <= 73
+    ? 1340
+    : 73 < distance && distance <= 82
+    ? 1520
+    : 82 < distance && distance <= 91
+    ? 1690
+    : 100 < distance && distance <= 110
+    ? 1980
+    : 291 < distance && distance <= 310
+    ? 5720
+    : distance > 10
+    ? round((distance > 100 ? round(fare0, -2) : ceil(fare0, -1)) * 1.1, -1)
+    : distance > 6
+    ? 210
+    : distance > 3
+    ? 190
+    : 150;
+};
+
+/**
+ * **東京附近における電車特定区間**内相互発着の場合の大人片道普通旅客運賃を計算する
+ * @param distance 営業キロ
+ * @returns 運賃
+ */
+const getBasicFare2 = (distance: number) => {
   // 1-3: 140, 4-6: 160, 7-10: 170
   const distance1 = getDistance1(distance);
   const fare0 =
@@ -698,8 +870,44 @@ const getFares = (
   const basicFare =
     stationB.index <=
     line.stations.findIndex((station) => station.name === "大宮")
+      ? getBasicFare2(distance)
+      : line === line1 &&
+        stationA.index >=
+          line.stations.findIndex((station) => station.name === "盛岡") &&
+        stationB.index <=
+          line.stations.findIndex((station) => station.name === "大曲")
       ? getBasicFare1(distance)
-      : getBasicFare0(distance);
+      : getBasicFare0(
+          line === line1 &&
+            ["盛岡", "大曲"]
+              .map((name) =>
+                line.stations.findIndex((station) => station.name === name)
+              )
+              .some((i) => stationA.index < i && i < stationB.index)
+            ? distance +
+                round(
+                  getDistance0(
+                    stationA.index <
+                      line.stations.findIndex(
+                        (station) => station.name === "盛岡"
+                      )
+                      ? line.stations.find(
+                          (station) => station.name === "盛岡"
+                        )!
+                      : stationA,
+                    line.stations.findIndex(
+                      (station) => station.name === "大曲"
+                    ) < stationB.index
+                      ? line.stations.find(
+                          (station) => station.name === "大曲"
+                        )!
+                      : stationB
+                  ) *
+                    (17.8 / 16.2 - 1),
+                  1
+                )
+            : distance
+        );
 
   const nonReservedOrStandingOnlyAvailable =
     (!superExpressFares ||
@@ -1186,7 +1394,7 @@ type Action = Readonly<
     }
 >;
 
-type Section = readonly [Station, Station];
+type Section = readonly [a: Station, b: Station];
 
 const reducer: Reducer<State, Action> = (state, action) => {
   switch (action.type) {
@@ -1283,13 +1491,6 @@ const App1: React.VFC = () => {
             <option>北陸新幹線</option>
           </Form.Select>
         </FloatingLabel>
-        {line === line1 ? (
-          <p className="text-danger">
-            <Notes1 />
-          </p>
-        ) : (
-          <></>
-        )}
         <Row className="gy-2 gx-3">
           <Col>
             <StationDropdown
@@ -1372,10 +1573,7 @@ const App2: React.VFC = () => {
 
   return (
     <>
-      <Alert variant="danger" className="mt-3">
-        <Notes1 />
-      </Alert>
-      <Form.Group className="mb-3" controlId="SmallTableCheckbox">
+      <Form.Group className="my-3" controlId="SmallTableCheckbox">
         <Form.Check
           type="checkbox"
           label="小さく表示する"
@@ -1513,14 +1711,6 @@ const App2: React.VFC = () => {
     </>
   );
 };
-
-const Notes1: React.VFC = () => (
-  <>
-    区間に
-    <b>田沢湖線</b>（盛岡 <i className="bi bi-arrow-left-right"></i> 大曲）
-    の全部または一部を含む場合、 現在のところ<b>運賃</b>は正しく計算されません。
-  </>
-);
 
 const App: React.VFC = () => (
   <HashRouter>
