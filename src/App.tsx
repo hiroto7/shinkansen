@@ -28,17 +28,7 @@ import {
   Row,
   Table,
 } from "react-bootstrap";
-import {
-  HashRouter,
-  Link,
-  NavLink,
-  Route,
-  Switch,
-  useHistory,
-  useLocation,
-  useParams,
-  useRouteMatch,
-} from "react-router-dom";
+import { HashRouter, NavLink, Route, Switch } from "react-router-dom";
 import "./App.css";
 
 interface Station {
@@ -1264,19 +1254,18 @@ const ContextAwareItem: React.VFC<{
   return (
     <Accordion.Item eventKey={eventKey}>
       <Accordion.Header>
-        <Row className="flex-grow-1 justify-content-between">
-          <Col xs="auto">{train}号の利用区間</Col>
+        <div className="d-flex justify-content-between flex-grow-1 overflow-hidden">
+          <span className="flex-shrink-0">{train}号の利用区間</span>
           <Fade in={!isCurrentEventKey}>
-            <Col
-              xs="auto"
-              className="overflow-hidden text-nowrap"
+            <span
+              className="ms-4 overflow-hidden text-nowrap"
               style={{ textOverflow: "ellipsis" }}
             >
               <b>{highSpeed[0].name}</b> <i className="bi bi-arrow-right"></i>{" "}
               <b>{highSpeed[1].name}</b>
-            </Col>
+            </span>
           </Fade>
-        </Row>
+        </div>
       </Accordion.Header>
       <Accordion.Body as="fieldset">
         <Row className="gy-2 gx-3">
