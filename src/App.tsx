@@ -28,7 +28,17 @@ import {
   Row,
   Table,
 } from "react-bootstrap";
-import { HashRouter, Link, Route, Switch } from "react-router-dom";
+import {
+  HashRouter,
+  Link,
+  NavLink,
+  Route,
+  Switch,
+  useHistory,
+  useLocation,
+  useParams,
+  useRouteMatch,
+} from "react-router-dom";
 import "./App.css";
 
 interface Station {
@@ -748,26 +758,24 @@ const Td1: React.VFC<{
             <Popover.Header>内訳</Popover.Header>
             <Popover.Body>
               {items.map(({ section, fare }) => (
-                <div
-                  className="d-flex justify-content-between"
+                <Row
+                  className="justify-content-between"
                   key={`${section[0].name}-${section[1].name}`}
                 >
-                  <span>
+                  <Col xs="auto">
                     {section[0].name} <i className="bi bi-arrow-right"></i>{" "}
                     {section[1].name}
-                  </span>
-                  <span className="ms-4">{fare}円</span>
-                </div>
+                  </Col>
+                  <Col xs="auto">{fare}円</Col>
+                </Row>
               ))}
             </Popover.Body>
           </Popover>
         }
       >
-        <span
-          style={{ textDecoration: "underline dotted var(--bs-secondary)" }}
-        >
+        <u style={{ textDecoration: "underline dotted var(--bs-secondary)" }}>
           {total}円
-        </span>
+        </u>
       </OverlayTrigger>
     ) : (
       `${total}円`
@@ -794,28 +802,24 @@ const BothOfNonReservedAndStandingOnlyLabel: React.VFC<{
               で<b>乗り換え</b>が必要です。
             </p>
             {items.map(({ section, seat }) => (
-              <div
-                className="d-flex justify-content-between"
+              <Row
+                className="justify-content-between"
                 key={`${section[0].name}-${section[1].name}`}
               >
-                <span>
+                <Col xs="auto">
                   {section[0].name} <i className="bi bi-arrow-right"></i>{" "}
                   {section[1].name}
-                </span>
-                <span className="ms-4">{seat}</span>
-              </div>
+                </Col>
+                <Col xs="auto">{seat}</Col>
+              </Row>
             ))}
           </Popover.Body>
         </Popover>
       }
     >
-      <span
-        style={{
-          textDecoration: "underline dotted var(--bs-secondary)",
-        }}
-      >
+      <u style={{ textDecoration: "underline dotted var(--bs-secondary)" }}>
         {items.map(({ seat }) => seat).join("・")}
-      </span>
+      </u>
     </OverlayTrigger>
   );
 };
@@ -1260,20 +1264,21 @@ const ContextAwareItem: React.VFC<{
   return (
     <Accordion.Item eventKey={eventKey}>
       <Accordion.Header>
-        <div className="d-flex justify-content-between flex-grow-1 overflow-hidden">
-          <span className="flex-shrink-0">{train}号の利用区間</span>
+        <Row className="flex-grow-1 justify-content-between">
+          <Col xs="auto">{train}号の利用区間</Col>
           <Fade in={!isCurrentEventKey}>
-            <span
-              className="ms-4 me-2 overflow-hidden text-nowrap"
+            <Col
+              xs="auto"
+              className="overflow-hidden text-nowrap"
               style={{ textOverflow: "ellipsis" }}
             >
               <b>{highSpeed[0].name}</b> <i className="bi bi-arrow-right"></i>{" "}
               <b>{highSpeed[1].name}</b>
-            </span>
+            </Col>
           </Fade>
-        </div>
+        </Row>
       </Accordion.Header>
-      <Accordion.Body>
+      <Accordion.Body as="fieldset">
         <Row className="gy-2 gx-3">
           <Col>
             <StationDropdown
@@ -1554,7 +1559,7 @@ const App1: React.VFC = () => {
 
   return (
     <main>
-      <h1 className="mt-3">区間を指定して計算</h1>
+      <h1 className="mt-3">区間を指定して調べる</h1>
       <p>
         <a
           href="https://www.eki-net.com/top/point/guide/tokuten_section.html#headerM2_01"
@@ -1565,7 +1570,7 @@ const App1: React.VFC = () => {
         </a>
         が、割引なしのきっぷと比べてどのくらい割がいいのか計算します。
       </p>
-      <Card body className="my-3">
+      <Card body className="my-3" as="fieldset">
         <FloatingLabel controlId="floatingSelect" label="路線" className="mb-3">
           <Form.Select
             aria-label="Floating label select example"
@@ -1651,7 +1656,6 @@ const faresForEachSection = [...lines.values()].flatMap((line) => {
       .map((stationB) => {
         const section: Section = [stationA, stationB];
         const highSpeed = getLongestHighSpeedSection0(line, section);
-        console.log(line, section, highSpeed);
         return {
           section,
           fares: getFares(line, section, highSpeed),
@@ -1843,10 +1847,10 @@ const App: React.VFC = () => (
         <Navbar.Toggle aria-controls="basic-navbar-nav" />
         <Navbar.Collapse id="basic-navbar-nav">
           <Nav className="me-auto">
-            <Nav.Link as={Link} to="/">
-              区間を指定して計算
+            <Nav.Link as={NavLink} exact to="/">
+              区間を指定して調べる
             </Nav.Link>
-            <Nav.Link as={Link} to="/ranking">
+            <Nav.Link as={NavLink} to="/ranking">
               ランキング
             </Nav.Link>
           </Nav>
