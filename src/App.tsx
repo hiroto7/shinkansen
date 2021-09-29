@@ -1266,7 +1266,7 @@ const ContextAwareItem: React.VFC<{
   return (
     <Accordion.Item eventKey={eventKey}>
       <Accordion.Header>
-        <div className="d-flex justify-content-between flex-grow-1 overflow-hidden">
+        <div className="d-flex justify-content-between flex-grow-1 overflow-hidden me-1">
           <span className="flex-shrink-0">{train}号の利用区間</span>
           <Fade in={!isCurrentEventKey}>
             <span
