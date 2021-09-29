@@ -630,7 +630,7 @@ const getLimitedExpressFares1 = (distance: number) => {
   return {
     reserved,
     nonReservedOrStandingOnly: reserved - 380,
-  };
+  } as const;
 };
 
 /**
@@ -701,7 +701,7 @@ const getSuperExpressFares = (
     nonReserved: nonReservedAvailable ? nonReservedOrStandingOnly : undefined,
     standingOnly: standingOnlyAvailable ? nonReservedOrStandingOnly : undefined,
     nonReservedOrStandingOnly,
-  };
+  } as const;
 };
 
 /**
@@ -730,7 +730,7 @@ const getLimitedExpressFares = (
     nonReserved: nonReservedAvailable ? nonReservedOrStandingOnly : undefined,
     standingOnly: standingOnlyAvailable ? nonReservedOrStandingOnly : undefined,
     nonReservedOrStandingOnly,
-  };
+  } as const;
 };
 
 const Td1: React.VFC<{
@@ -955,6 +955,17 @@ const getFares = (
       reserved: reservedTotal,
       highSpeedReserved: highSpeedReservedTotal,
     },
+    rate: {
+      nonReservedOrStandingOnly:
+        nonReservedOrStandingOnlyTotal !== undefined
+          ? nonReservedOrStandingOnlyTotal / points
+          : undefined,
+      reserved: reservedTotal / points,
+      highSpeedReserved:
+        highSpeedReservedTotal !== undefined
+          ? highSpeedReservedTotal / points
+          : undefined,
+    },
     basicFare,
     points,
   };
@@ -988,6 +999,7 @@ const Result: React.VFC<{
     basicFare,
     expressFares,
     total,
+    rate,
     points,
   } = getFares(line, sortedSection, sortedHighSpeed);
 
@@ -1148,14 +1160,14 @@ const Result: React.VFC<{
         <tbody>
           <tr>
             <th scope="row">レート</th>
-            {total.nonReservedOrStandingOnly ? (
-              <td>{(total.nonReservedOrStandingOnly / points).toFixed(2)}</td>
+            {rate.nonReservedOrStandingOnly ? (
+              <td>{rate.nonReservedOrStandingOnly.toFixed(2)}</td>
             ) : (
               <></>
             )}
-            <td>{(total.reserved / points).toFixed(2)}</td>
-            {total.highSpeedReserved !== undefined ? (
-              <td>{(total.highSpeedReserved / points).toFixed(2)}</td>
+            <td>{rate.reserved.toFixed(2)}</td>
+            {rate.highSpeedReserved !== undefined ? (
+              <td>{rate.highSpeedReserved.toFixed(2)}</td>
             ) : (
               <></>
             )}
@@ -1164,9 +1176,9 @@ const Result: React.VFC<{
             <th scope="row">順位</th>
             {total.nonReservedOrStandingOnly !== undefined ? (
               <td>
-                {sortedFares.nonReservedOrStandingOnly.findIndex(
-                  ({ section }) => isEquivalent(section, sortedSection)
-                ) + 1}
+                {rankedFares.nonReservedOrStandingOnly.find(({ section }) =>
+                  isEquivalent(section, sortedSection)
+                )!.rank + 1}
                 位
               </td>
             ) : (
@@ -1175,20 +1187,20 @@ const Result: React.VFC<{
             <td>
               {total.nonReservedOrStandingOnly === undefined
                 ? `${
-                    sortedFares.nonReservedOrStandingOnly.findIndex(
-                      ({ section }) => isEquivalent(section, sortedSection)
-                    ) + 1
+                    rankedFares.nonReservedOrStandingOnly.find(({ section }) =>
+                      isEquivalent(section, sortedSection)
+                    )!.rank + 1
                   }位または`
                 : undefined}
-              {sortedFares.reserved.findIndex(({ section }) =>
+              {rankedFares.reserved.find(({ section }) =>
                 isEquivalent(section, sortedSection)
-              ) + 1}
+              )!.rank + 1}
               位
               {total.highSpeedReserved === undefined
                 ? `または${
-                    sortedFares.highSpeedReserved.findIndex(({ section }) =>
+                    rankedFares.highSpeedReserved.find(({ section }) =>
                       isEquivalent(section, sortedSection)
-                    ) + 1
+                    )!.rank + 1
                   }位`
                 : undefined}
             </td>
@@ -1198,9 +1210,9 @@ const Result: React.VFC<{
                 longestHighSpeedSection &&
                 isEquivalent(highSpeed, longestHighSpeedSection) ? (
                   <>
-                    {sortedFares.highSpeedReserved.findIndex(({ section }) =>
+                    {rankedFares.highSpeedReserved.find(({ section }) =>
                       isEquivalent(section, sortedSection)
-                    ) + 1}
+                    )!.rank + 1}
                     位
                   </>
                 ) : (
@@ -1653,25 +1665,37 @@ const faresForEachSection = [...lines.values()].flatMap((line) => {
   );
 });
 
-const sortedFares = {
-  nonReservedOrStandingOnly: [...faresForEachSection].sort(
-    ({ fares: faresA }, { fares: faresB }) =>
-      (faresB.total.nonReservedOrStandingOnly ?? faresB.total.reserved) /
-        faresB.points -
-      (faresA.total.nonReservedOrStandingOnly ?? faresA.total.reserved) /
-        faresA.points
+type Ranked<T> = { value: T; rank: number };
+const rank = <T,>(array: readonly T[], callbackfn: (t: T) => number) =>
+  [...array]
+    .sort((a, b) => callbackfn(b) - callbackfn(a))
+    .reduce<{ last?: Ranked<T>; array: readonly Ranked<T>[] }>(
+      (previous, current, index) => {
+        const last = {
+          value: current,
+          rank:
+            previous.last === undefined ||
+            callbackfn(previous.last.value) !== callbackfn(current)
+              ? index
+              : previous.last.rank,
+        };
+        return { last, array: [...previous.array, last] };
+      },
+      { array: [] }
+    ).array;
+
+const rankedFares = {
+  nonReservedOrStandingOnly: rank(
+    faresForEachSection,
+    ({ fares }) => fares.rate.nonReservedOrStandingOnly ?? fares.rate.reserved
+  ).map(({ value, rank }) => ({ ...value, rank })),
+  reserved: rank(faresForEachSection, ({ fares }) => fares.rate.reserved).map(
+    ({ value, rank }) => ({ ...value, rank })
   ),
-  reserved: [...faresForEachSection].sort(
-    ({ fares: faresA }, { fares: faresB }) =>
-      faresB.total.reserved / faresB.points -
-      faresA.total.reserved / faresA.points
-  ),
-  highSpeedReserved: [...faresForEachSection].sort(
-    ({ fares: faresA }, { fares: faresB }) =>
-      (faresB.total.highSpeedReserved ?? faresB.total.reserved) /
-        faresB.points -
-      (faresA.total.highSpeedReserved ?? faresA.total.reserved) / faresA.points
-  ),
+  highSpeedReserved: rank(
+    faresForEachSection,
+    ({ fares }) => fares.rate.highSpeedReserved ?? fares.rate.reserved
+  ).map(({ value, rank }) => ({ ...value, rank })),
 };
 
 const Ranking: React.VFC = () => {
@@ -1762,7 +1786,7 @@ const Ranking: React.VFC = () => {
           </tr>
         </thead>
         <tbody>
-          {sortedFares[seat].map(({ section, fares }, index) => {
+          {rankedFares[seat].map(({ rank, section, fares }) => {
             const {
               distance,
               superExpressFares,
@@ -1770,54 +1794,54 @@ const Ranking: React.VFC = () => {
               basicFare,
               total,
               points,
+              rate,
             } = fares;
             return (
               <tr key={`${section[0].name}-${section[1].name}`}>
-                <th scope="row">{index + 1}</th>
+                <th scope="row">{rank + 1}</th>
                 <th scope="row">{section[0].name}</th>
                 <th scope="row">{section[1].name}</th>
                 <td>{distance.toFixed(1)}</td>
                 <td>{points}</td>
                 <td>{total.nonReservedOrStandingOnly}</td>
                 <td>
-                  <strong
-                    className={
-                      total.nonReservedOrStandingOnly
-                        ? seat === "nonReservedOrStandingOnly"
+                  {rate.nonReservedOrStandingOnly !== undefined ? (
+                    <strong
+                      className={
+                        seat === "nonReservedOrStandingOnly"
                           ? "text-primary"
                           : undefined
-                        : "text-secondary"
-                    }
-                  >
-                    {(
-                      (total.nonReservedOrStandingOnly ?? total.reserved) /
-                      points
-                    ).toFixed(2)}
-                  </strong>
+                      }
+                    >
+                      {rate.nonReservedOrStandingOnly.toFixed(2)}
+                    </strong>
+                  ) : (
+                    <i className="text-muted">{rate.reserved.toFixed(2)}</i>
+                  )}
                 </td>
                 <td>{total.reserved}</td>
                 <td>
                   <strong
                     className={seat === "reserved" ? "text-primary" : undefined}
                   >
-                    {(total.reserved / points).toFixed(2)}
+                    {rate.reserved.toFixed(2)}
                   </strong>
                 </td>
                 <td>{total.highSpeedReserved}</td>
                 <td>
-                  <strong
-                    className={
-                      total.highSpeedReserved
-                        ? seat === "highSpeedReserved"
+                  {rate.highSpeedReserved !== undefined ? (
+                    <strong
+                      className={
+                        seat === "highSpeedReserved"
                           ? "text-primary"
                           : undefined
-                        : "text-secondary"
-                    }
-                  >
-                    {(
-                      (total.highSpeedReserved ?? total.reserved) / points
-                    ).toFixed(2)}
-                  </strong>
+                      }
+                    >
+                      {rate.highSpeedReserved.toFixed(2)}
+                    </strong>
+                  ) : (
+                    <i className="text-muted">{rate.reserved.toFixed(2)}</i>
+                  )}
                 </td>
               </tr>
             );
