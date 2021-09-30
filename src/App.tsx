@@ -2,13 +2,8 @@ import "bootstrap-icons/font/bootstrap-icons.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import parse from "csv-parse/lib/sync";
 import { ceil, round } from "lodash";
-import React, {
-  Reducer,
-  useContext,
-  useMemo,
-  useReducer,
-  useState,
-} from "react";
+import type * as React from "react";
+import { Reducer, useContext, useMemo, useReducer, useState } from "react";
 import {
   Accordion,
   AccordionContext,
@@ -612,12 +607,17 @@ const getLimitedExpressFare1 = (distance: number) =>
  * @param distance 営業キロ
  * @returns 指定席特急料金、立席特急料金及び自由席特急料金
  */
-const getLimitedExpressFares0 = (distance: number) => {
+const getLimitedExpressFares0 = (distance: number, season: Season) => {
   const reserved = getLimitedExpressFare0(distance);
   return {
-    reserved,
+    reserved:
+      season === busy
+        ? reserved + 200
+        : season === off
+        ? reserved - 200
+        : reserved,
     nonReservedOrStandingOnly: reserved - 530,
-  };
+  } as const;
 };
 
 /**
@@ -625,10 +625,15 @@ const getLimitedExpressFares0 = (distance: number) => {
  * @param distance 営業キロ
  * @returns 指定席特急料金・立席特急料金及び自由席特急料金
  */
-const getLimitedExpressFares1 = (distance: number) => {
+const getLimitedExpressFares1 = (distance: number, season: Season) => {
   const reserved = getLimitedExpressFare1(distance);
   return {
-    reserved,
+    reserved:
+      season === busy
+        ? reserved + 140
+        : season === off
+        ? reserved - 140
+        : reserved,
     nonReservedOrStandingOnly: reserved - 380,
   } as const;
 };
@@ -654,7 +659,8 @@ const getSuperExpressFare = (line: Line, section: Section) =>
 const getSuperExpressFares = (
   line: Line,
   section: Section,
-  highSpeed: Section | undefined
+  highSpeed: Section | undefined,
+  season: Season
 ) => {
   const [stationA, stationB] = section;
 
@@ -696,8 +702,20 @@ const getSuperExpressFares = (
         getSuperExpressFare(line, highSpeed));
 
   return {
-    reserved,
-    highSpeedReserved,
+    reserved:
+      season === busy
+        ? reserved + 200
+        : season === off
+        ? reserved - 200
+        : reserved,
+    highSpeedReserved:
+      highSpeedReserved !== undefined
+        ? season === busy
+          ? highSpeedReserved + 200
+          : season === off
+          ? highSpeedReserved - 200
+          : highSpeedReserved
+        : undefined,
     nonReserved: nonReservedAvailable ? nonReservedOrStandingOnly : undefined,
     standingOnly: standingOnlyAvailable ? nonReservedOrStandingOnly : undefined,
     nonReservedOrStandingOnly,
@@ -713,13 +731,18 @@ const getSuperExpressFares = (
 const getLimitedExpressFares = (
   line: Line,
   section: Section,
-  getLimitedExpressFares0: (distance: number) => {
+  getLimitedExpressFares0: (
+    distance: number,
+    season: Season
+  ) => {
     readonly reserved: number;
     readonly nonReservedOrStandingOnly: number;
-  }
+  },
+  season: Season
 ) => {
   const { reserved, nonReservedOrStandingOnly } = getLimitedExpressFares0(
-    getDistance0(...section)
+    getDistance0(...section),
+    season
   );
 
   const nonReservedAvailable = line === line2;
@@ -823,7 +846,8 @@ const BothOfNonReservedAndStandingOnlyLabel: React.VFC<{
 const getFares = (
   line: Line,
   section: Section,
-  highSpeed: Section | undefined
+  highSpeed: Section | undefined,
+  season: Season
 ) => {
   const [stationA, stationB] = section;
 
@@ -848,21 +872,23 @@ const getFares = (
             highSpeed &&
               (junction.index < highSpeed[1].index
                 ? [highSpeed[0], junction]
-                : highSpeed)
+                : highSpeed),
+            season
           )
         : undefined
-      : getSuperExpressFares(line, section, highSpeed);
+      : getSuperExpressFares(line, section, highSpeed, season);
 
   const limitedExpressFares =
     (line === line1 || line === line2) &&
     junction &&
     stationB.index > junction.index
       ? stationA.index >= junction.index
-        ? getLimitedExpressFares(line, section, getLimitedExpressFares0)
+        ? getLimitedExpressFares(line, section, getLimitedExpressFares0, season)
         : getLimitedExpressFares(
             line,
             [junction, stationB],
-            getLimitedExpressFares1
+            getLimitedExpressFares1,
+            season
           )
       : undefined;
 
@@ -978,7 +1004,32 @@ const Result: React.VFC<{
   section: Section;
   highSpeed: Section | undefined;
   longestHighSpeedSection: Section | undefined;
-}> = ({ line, section, highSpeed, longestHighSpeedSection }) => {
+  rankedFares: Readonly<{
+    nonReservedOrStandingOnly: {
+      section: Section;
+      rank: number;
+      fares: ReturnType<typeof getFares>;
+    }[];
+    reserved: {
+      section: Section;
+      rank: number;
+      fares: ReturnType<typeof getFares>;
+    }[];
+    highSpeedReserved: {
+      section: Section;
+      rank: number;
+      fares: ReturnType<typeof getFares>;
+    }[];
+  }>;
+  season: Season;
+}> = ({
+  line,
+  section,
+  highSpeed,
+  longestHighSpeedSection,
+  rankedFares,
+  season,
+}) => {
   const [departure, arrival] = section;
 
   const sortedSection: Section =
@@ -1001,7 +1052,7 @@ const Result: React.VFC<{
     total,
     rate,
     points,
-  } = getFares(line, sortedSection, sortedHighSpeed);
+  } = getFares(line, sortedSection, sortedHighSpeed, season);
 
   const items =
     junction && superExpressFares && limitedExpressFares
@@ -1547,7 +1598,26 @@ const init = (): State => {
   };
 };
 
-const App1: React.VFC = () => {
+const App1: React.VFC<{
+  season: Season;
+  rankedFares: Readonly<{
+    nonReservedOrStandingOnly: {
+      section: Section;
+      rank: number;
+      fares: ReturnType<typeof getFares>;
+    }[];
+    reserved: {
+      section: Section;
+      rank: number;
+      fares: ReturnType<typeof getFares>;
+    }[];
+    highSpeedReserved: {
+      section: Section;
+      rank: number;
+      fares: ReturnType<typeof getFares>;
+    }[];
+  }>;
+}> = ({ season, rankedFares }) => {
   const [state, dispatch] = useReducer(reducer, undefined, init);
 
   const { line, section, highSpeed, longestHighSpeedSection } = state;
@@ -1644,26 +1714,12 @@ const App1: React.VFC = () => {
         section={section}
         highSpeed={highSpeedAvailable ? highSpeed : undefined}
         longestHighSpeedSection={longestHighSpeedSection}
+        rankedFares={rankedFares}
+        season={season}
       />
     </main>
   );
 };
-
-const faresForEachSection = [...lines.values()].flatMap((line) => {
-  const junction = junctions.get(line);
-  return line.stations.flatMap((stationA, index, stations) =>
-    stations
-      .slice(Math.max(index, junction?.index ?? 0) + 1)
-      .map((stationB) => {
-        const section: Section = [stationA, stationB];
-        const highSpeed = getLongestHighSpeedSection0(line, section);
-        return {
-          section,
-          fares: getFares(line, section, highSpeed),
-        };
-      })
-  );
-});
 
 type Ranked<T> = { value: T; rank: number };
 const rank = <T,>(array: readonly T[], callbackfn: (t: T) => number) =>
@@ -1684,21 +1740,25 @@ const rank = <T,>(array: readonly T[], callbackfn: (t: T) => number) =>
       { array: [] }
     ).array;
 
-const rankedFares = {
-  nonReservedOrStandingOnly: rank(
-    faresForEachSection,
-    ({ fares }) => fares.rate.nonReservedOrStandingOnly ?? fares.rate.reserved
-  ).map(({ value, rank }) => ({ ...value, rank })),
-  reserved: rank(faresForEachSection, ({ fares }) => fares.rate.reserved).map(
-    ({ value, rank }) => ({ ...value, rank })
-  ),
-  highSpeedReserved: rank(
-    faresForEachSection,
-    ({ fares }) => fares.rate.highSpeedReserved ?? fares.rate.reserved
-  ).map(({ value, rank }) => ({ ...value, rank })),
-};
-
-const Ranking: React.VFC = () => {
+const Ranking: React.VFC<{
+  rankedFares: Readonly<{
+    nonReservedOrStandingOnly: {
+      section: Section;
+      rank: number;
+      fares: ReturnType<typeof getFares>;
+    }[];
+    reserved: {
+      section: Section;
+      rank: number;
+      fares: ReturnType<typeof getFares>;
+    }[];
+    highSpeedReserved: {
+      section: Section;
+      rank: number;
+      fares: ReturnType<typeof getFares>;
+    }[];
+  }>;
+}> = ({ rankedFares }) => {
   const [seat, setSeat] = useState<
     "nonReservedOrStandingOnly" | "reserved" | "highSpeedReserved"
   >("nonReservedOrStandingOnly");
@@ -1852,35 +1912,96 @@ const Ranking: React.VFC = () => {
   );
 };
 
-const App: React.VFC = () => (
-  <HashRouter>
-    <Navbar variant="dark" bg="dark" expand="lg">
+const average = "通常期";
+const busy = "繁忙期";
+const off = "閑散期";
+
+const seasons: readonly Season[] = [off, average, busy];
+
+type Season = typeof average | typeof busy | typeof off;
+
+const App: React.VFC = () => {
+  const [season, setSeason] = useState<Season>(average);
+
+  const faresForEachSection = useMemo(
+    () =>
+      [...lines.values()].flatMap((line) => {
+        const junction = junctions.get(line);
+        return line.stations.flatMap((stationA, index, stations) =>
+          stations
+            .slice(Math.max(index, junction?.index ?? 0) + 1)
+            .map((stationB) => {
+              const section: Section = [stationA, stationB];
+              const highSpeed = getLongestHighSpeedSection0(line, section);
+              return {
+                section,
+                fares: getFares(line, section, highSpeed, season),
+              };
+            })
+        );
+      }),
+    [season]
+  );
+
+  const rankedFares = useMemo(
+    () => ({
+      nonReservedOrStandingOnly: rank(
+        faresForEachSection,
+        ({ fares }) =>
+          fares.rate.nonReservedOrStandingOnly ?? fares.rate.reserved
+      ).map(({ value, rank }) => ({ ...value, rank })),
+      reserved: rank(
+        faresForEachSection,
+        ({ fares }) => fares.rate.reserved
+      ).map(({ value, rank }) => ({ ...value, rank })),
+      highSpeedReserved: rank(
+        faresForEachSection,
+        ({ fares }) => fares.rate.highSpeedReserved ?? fares.rate.reserved
+      ).map(({ value, rank }) => ({ ...value, rank })),
+    }),
+    [faresForEachSection]
+  );
+
+  return (
+    <HashRouter>
+      <Navbar variant="dark" bg="dark" expand="lg">
+        <Container>
+          <Navbar.Brand>JRE POINT特典チケットのレート計算</Navbar.Brand>
+          <Navbar.Toggle aria-controls="basic-navbar-nav" />
+          <Navbar.Collapse id="basic-navbar-nav">
+            <Nav className="me-auto">
+              <Nav.Link as={NavLink} exact to="/">
+                区間を指定して調べる
+              </Nav.Link>
+              <Nav.Link as={NavLink} to="/ranking">
+                ランキング
+              </Nav.Link>
+            </Nav>
+            <FloatingLabel label="シーズン">
+              <Form.Select
+                value={season}
+                onChange={(e) => setSeason(e.currentTarget.value as Season)}
+              >
+                {seasons.map((season) => (
+                  <option>{season}</option>
+                ))}
+              </Form.Select>
+            </FloatingLabel>
+          </Navbar.Collapse>
+        </Container>
+      </Navbar>
       <Container>
-        <Navbar.Brand>JRE POINT特典チケットのレート計算</Navbar.Brand>
-        <Navbar.Toggle aria-controls="basic-navbar-nav" />
-        <Navbar.Collapse id="basic-navbar-nav">
-          <Nav className="me-auto">
-            <Nav.Link as={NavLink} exact to="/">
-              区間を指定して調べる
-            </Nav.Link>
-            <Nav.Link as={NavLink} to="/ranking">
-              ランキング
-            </Nav.Link>
-          </Nav>
-        </Navbar.Collapse>
+        <Switch>
+          <Route path="/ranking">
+            <Ranking rankedFares={rankedFares} />
+          </Route>
+          <Route path="/">
+            <App1 season={season} rankedFares={rankedFares} />
+          </Route>
+        </Switch>
       </Container>
-    </Navbar>
-    <Container>
-      <Switch>
-        <Route path="/ranking">
-          <Ranking />
-        </Route>
-        <Route path="/">
-          <App1 />
-        </Route>
-      </Switch>
-    </Container>
-  </HashRouter>
-);
+    </HashRouter>
+  );
+};
 
 export default App;
