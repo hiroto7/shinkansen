@@ -12,6 +12,7 @@ import React, {
 import {
   Accordion,
   AccordionContext,
+  Alert,
   Button,
   Card,
   Col,
@@ -635,14 +636,12 @@ const getLimitedExpressFares1 = (distance: number) => {
 
 /**
  * 新幹線の指定席特急料金を計算する
- * @param line 東北新幹線、上越新幹線、北陸新幹線のいずれか
- * @param section 区間。 `section[1]` は `section[0]` より終点に近い駅である必要がある。
+ * @param table 指定席特急料金の表
+ * @param section 区間。 `section[1]` は `section[0]` より終点に近い駅である必要がある
  * @returns 指定席特急料金
  */
-const getSuperExpressFare = (line: Line, section: Section) =>
-  +tables.get(line)!.find((row) => row["駅名"] === section[1].name)![
-    section[0].name
-  ]!;
+const getSuperExpressFare = (table: FareTable, section: Section): number =>
+  +table.find((row) => row["駅名"] === section[1].name)![section[0].name]!;
 
 /**
  * 新幹線の指定した区間の特急料金を計算する
@@ -658,7 +657,7 @@ const getSuperExpressFares = (
 ) => {
   const [stationA, stationB] = section;
 
-  const reserved = getSuperExpressFare(line, section);
+  const reserved = getSuperExpressFare(tables.get(line)!, section);
 
   const lowExpressFare =
     stationA.name === "東京" && stationB.name === "大宮"
@@ -690,10 +689,8 @@ const getSuperExpressFares = (
     (highSpeed[0] === stationA && highSpeed[1] === stationB
       ? +table.find((row) => row["駅名"] === stationB.name)![stationA.name]!
       : reserved +
-        +table.find((row) => row["駅名"] === highSpeed[1].name)![
-          highSpeed[0].name
-        ]! -
-        getSuperExpressFare(line, highSpeed));
+        getSuperExpressFare(table, highSpeed) -
+        getSuperExpressFare(tables.get(line)!, highSpeed));
 
   return {
     reserved,
@@ -1571,6 +1568,7 @@ const App1: React.VFC = () => {
         </a>
         が、割引なしのきっぷと比べてどのくらい割がいいのか計算します。
       </p>
+      <Notes1 />
       <Card body className="my-3" as="fieldset">
         <FloatingLabel controlId="floatingSelect" label="路線" className="mb-3">
           <Form.Select
@@ -1717,6 +1715,7 @@ const Ranking: React.VFC = () => {
         </a>
         を交換するのに割がいい区間を調べます。
       </p>
+      <Notes1 />
       <Form.Group className="mb-3" controlId="SmallTableCheckbox">
         <Form.Check
           type="checkbox"
@@ -1851,6 +1850,12 @@ const Ranking: React.VFC = () => {
     </main>
   );
 };
+
+const Notes1: React.VFC = () => (
+  <Alert variant="warning">
+    このページに表示される運賃・特急料金およびその他の内容について、正確性を保証しません。また、区間によって実際には発売されないと考えられる金額が表示される場合があります。
+  </Alert>
+);
 
 const App: React.VFC = () => (
   <HashRouter>
