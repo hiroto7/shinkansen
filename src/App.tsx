@@ -24,7 +24,7 @@ import {
   Row,
   Table,
 } from "react-bootstrap";
-import { HashRouter, NavLink, Route, Switch } from "react-router-dom";
+import { NavLink, Route, Routes } from "react-router-dom";
 import "./App.css";
 
 interface Station {
@@ -1968,17 +1968,17 @@ const App: React.VFC = () => {
   );
 
   return (
-    <HashRouter>
+    <>
       <Navbar variant="dark" bg="dark" expand="lg">
         <Container>
           <Navbar.Brand>JRE POINT特典チケットのレート計算</Navbar.Brand>
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
           <Navbar.Collapse id="basic-navbar-nav">
             <Nav className="me-auto">
-              <Nav.Link as={NavLink} exact to="/">
+              <Nav.Link as={NavLink} end to="/">
                 区間を指定して調べる
               </Nav.Link>
-              <Nav.Link as={NavLink} to="/ranking">
+              <Nav.Link as={NavLink} end to="/ranking">
                 ランキング
               </Nav.Link>
             </Nav>
@@ -1996,16 +1996,18 @@ const App: React.VFC = () => {
         </Container>
       </Navbar>
       <Container>
-        <Switch>
-          <Route path="/ranking">
-            <Ranking rankedFares={rankedFares} />
-          </Route>
-          <Route path="/">
-            <App1 season={season} rankedFares={rankedFares} />
-          </Route>
-        </Switch>
+        <Routes>
+          <Route
+            path="ranking"
+            element={<Ranking rankedFares={rankedFares} />}
+          />
+          <Route
+            path="/"
+            element={<App1 season={season} rankedFares={rankedFares} />}
+          />
+        </Routes>
       </Container>
-    </HashRouter>
+    </>
   );
 };
 
