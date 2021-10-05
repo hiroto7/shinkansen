@@ -612,7 +612,9 @@ const getLimitedExpressFares0 = (distance: number, season: Season) => {
   const reserved = getLimitedExpressFare0(distance);
   return {
     reserved:
-      season === busy
+      season === busiest
+        ? reserved + 400
+        : season === busy
         ? reserved + 200
         : season === off
         ? reserved - 200
@@ -630,7 +632,9 @@ const getLimitedExpressFares1 = (distance: number, season: Season) => {
   const reserved = getLimitedExpressFare1(distance);
   return {
     reserved:
-      season === busy
+      season === busiest
+        ? reserved + 280
+        : season === busy
         ? reserved + 140
         : season === off
         ? reserved - 140
@@ -700,14 +704,18 @@ const getSuperExpressFares = (
 
   return {
     reserved:
-      season === busy
+      season === busiest
+        ? reserved + 400
+        : season === busy
         ? reserved + 200
         : season === off
         ? reserved - 200
         : reserved,
     highSpeedReserved:
       highSpeedReserved !== undefined
-        ? season === busy
+        ? season === busiest
+          ? highSpeedReserved + 400
+          : season === busy
           ? highSpeedReserved + 200
           : season === off
           ? highSpeedReserved - 200
@@ -1913,17 +1921,26 @@ const Ranking: React.VFC<{
 
 const Notes1: React.VFC = () => (
   <Alert variant="warning">
-    このページに表示される運賃・特急料金およびその他の内容について、正確性を保証しません。また、区間によって実際には発売されないと考えられる金額が表示される場合があります。
+    <ul className="mb-0">
+      <li>
+        このページに表示される運賃・特急料金およびその他の内容について、正確性を保証しません。
+      </li>
+      <li>
+        <b>最繁忙期</b>
+        の特急料金のうち、秋田新幹線や山形新幹線のものは予想です。
+      </li>
+    </ul>
   </Alert>
 );
 
 const average = "通常期";
 const busy = "繁忙期";
+const busiest = "最繁忙期";
 const off = "閑散期";
 
-const seasons: readonly Season[] = [off, average, busy];
+const seasons: readonly Season[] = [off, average, busy, busiest];
 
-type Season = typeof average | typeof busy | typeof off;
+type Season = typeof average | typeof busy | typeof off | typeof busiest;
 
 const App: React.VFC = () => {
   const [season, setSeason] = useState<Season>(average);
