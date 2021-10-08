@@ -1635,7 +1635,7 @@ const App1: React.VFC<{
 
   return (
     <main>
-      <h1 className="mt-3">区間を指定して調べる</h1>
+      <h1>区間を指定して調べる</h1>
       <p>
         <a
           href="https://www.eki-net.com/top/point/guide/tokuten_section.html#headerM2_01"
@@ -1646,7 +1646,6 @@ const App1: React.VFC<{
         </a>
         が、割引なしのきっぷと比べてどのくらい割がいいのか計算します。
       </p>
-      <Notes1 />
       <Card body className="my-3" as="fieldset">
         <FloatingLabel controlId="floatingSelect" label="路線" className="mb-3">
           <Form.Select
@@ -1772,7 +1771,7 @@ const Ranking: React.VFC<{
 
   return (
     <main>
-      <h1 className="mt-3">ランキング</h1>
+      <h1>ランキング</h1>
       <p>
         <a
           href="https://www.eki-net.com/top/point/guide/tokuten_section.html#headerM2_01"
@@ -1783,7 +1782,6 @@ const Ranking: React.VFC<{
         </a>
         を交換するのに割がいい区間を調べます。
       </p>
-      <Notes1 />
       <Form.Group className="mb-3" controlId="SmallTableCheckbox">
         <Form.Check
           type="checkbox"
@@ -1919,20 +1917,6 @@ const Ranking: React.VFC<{
   );
 };
 
-const Notes1: React.VFC = () => (
-  <Alert variant="warning">
-    <ul className="mb-0">
-      <li>
-        このページに表示される運賃・特急料金およびその他の内容について、正確性を保証しません。
-      </li>
-      <li>
-        <b>最繁忙期</b>
-        の特急料金のうち、秋田新幹線や山形新幹線のものは予想です。
-      </li>
-    </ul>
-  </Alert>
-);
-
 const average = "通常期";
 const busy = "繁忙期";
 const busiest = "最繁忙期";
@@ -2013,6 +1997,17 @@ const App: React.VFC = () => {
         </Container>
       </Navbar>
       <Container>
+        <Alert variant="warning" className="mt-3">
+          <ul className="mb-0">
+            <li>
+              このページに表示される運賃・特急料金およびその他の内容について、正確性を保証しません。
+            </li>
+            <li>
+              <b>最繁忙期</b>
+              の特急料金のうち、秋田新幹線や山形新幹線のものは予想です。
+            </li>
+          </ul>
+        </Alert>
         <Routes>
           <Route
             path="ranking"
