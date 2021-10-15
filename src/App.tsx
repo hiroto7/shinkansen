@@ -1149,6 +1149,18 @@ const getFares = (
 
 const isEquivalent = (a: Section, b: Section) => a[0] === b[0] && a[1] === b[1];
 
+const reverseTickets = (
+  ...tickets: readonly ExpressTicket[]
+): readonly ExpressTicket[] =>
+  tickets
+    .map(
+      (ticket): ExpressTicket => ({
+        ...ticket,
+        section: [ticket.section[1], ticket.section[0]],
+      })
+    )
+    .reverse();
+
 const Result: React.VFC<{
   line: Line;
   section: Section;
@@ -1201,20 +1213,39 @@ const Result: React.VFC<{
     points,
   } = getFares(line, sortedSection, sortedHighSpeed, season);
 
+  const [
+    nonReservedOrStandingOnlyExpressTickets,
+    reservedExpressTickets,
+    reservedHighSpeedExpressTickets,
+  ] =
+    departure.index < arrival.index
+      ? [
+          expressTickets.nonReservedOrStandingOnly,
+          expressTickets.reserved,
+          expressTickets.reservedHighSpeed,
+        ]
+      : [
+          expressTickets.nonReservedOrStandingOnly &&
+            reverseTickets(...expressTickets.nonReservedOrStandingOnly),
+          reverseTickets(...expressTickets.reserved),
+          expressTickets.reservedHighSpeed &&
+            reverseTickets(...expressTickets.reservedHighSpeed),
+        ];
+
   const cells0 = (
     <>
-      {expressTickets.nonReservedOrStandingOnly && (
+      {nonReservedOrStandingOnlyExpressTickets && (
         <th scope="col">
-          <SeatsLabel tickets={expressTickets.nonReservedOrStandingOnly} />
+          <SeatsLabel tickets={nonReservedOrStandingOnlyExpressTickets} />
         </th>
       )}
       <th scope="col">
-        <SeatsLabel tickets={expressTickets.reserved} />
+        <SeatsLabel tickets={reservedExpressTickets} />
       </th>
-      {expressTickets.reservedHighSpeed && (
+      {reservedHighSpeedExpressTickets && (
         <th scope="col">
           {highSpeedTrains.get(line)!}号<br />
-          <SeatsLabel tickets={expressTickets.reservedHighSpeed} />
+          <SeatsLabel tickets={reservedHighSpeedExpressTickets} />
         </th>
       )}
     </>
@@ -1250,25 +1281,25 @@ const Result: React.VFC<{
           <tr>
             <th scope="row">特急料金</th>
             {expressFares.nonReservedOrStandingOnly !== undefined &&
-              expressTickets.nonReservedOrStandingOnly && (
+              nonReservedOrStandingOnlyExpressTickets && (
                 <td>
                   <FaresLabel
-                    tickets={expressTickets.nonReservedOrStandingOnly}
+                    tickets={nonReservedOrStandingOnlyExpressTickets}
                     total={expressFares.nonReservedOrStandingOnly}
                   />
                 </td>
               )}
             <td>
               <FaresLabel
-                tickets={expressTickets.reserved}
+                tickets={reservedExpressTickets}
                 total={expressFares.reserved}
               />
             </td>
             {expressFares.reservedHighSpeed !== undefined &&
-              expressTickets.reservedHighSpeed && (
+              reservedHighSpeedExpressTickets && (
                 <td>
                   <FaresLabel
-                    tickets={expressTickets.reservedHighSpeed}
+                    tickets={reservedHighSpeedExpressTickets}
                     total={expressFares.reservedHighSpeed}
                   />
                 </td>
