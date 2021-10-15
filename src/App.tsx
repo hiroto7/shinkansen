@@ -1,7 +1,7 @@
 import "bootstrap-icons/font/bootstrap-icons.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import parse from "csv-parse/lib/sync";
-import { ceil, round } from "lodash";
+import { ceil, round, sum } from "lodash";
 import type * as React from "react";
 import { Reducer, useContext, useMemo, useReducer, useState } from "react";
 import {
@@ -577,11 +577,15 @@ const reserved = "指定席";
 const nonReserved = "自由席";
 const specific = "特定";
 const standingOnly = "立席";
-interface LimitedExpressTicket {
+interface ExpressTicket {
   /**
-   * 区間
+   * 全乗車区間
    */
   readonly section: Section;
+  /**
+   * はやぶさ号やこまち号を利用する区間
+   */
+  readonly highSpeed?: Section;
   /**
    * 特急料金
    */
@@ -683,6 +687,7 @@ const getSuperExpressFare = (table: FareTable, section: Section): number =>
  * @param line 東北新幹線、上越新幹線、北陸新幹線のいずれか
  * @param section 特急料金を計算する区間。 `section[1]` は `section[0]` より終点に近い駅である必要がある。
  * @param highSpeed はやぶさ号やこまち号を利用する区間
+ * @param season シーズン
  * @returns 自由席特急料金、特定特急料金、指定席特急料金
  */
 const getSuperExpressFares = (
@@ -691,17 +696,30 @@ const getSuperExpressFares = (
   highSpeed: Section | undefined,
   season: Season
 ): Readonly<{
-  reserved: LimitedExpressTicket;
-  nonReserved: LimitedExpressTicket | undefined;
-  highSpeedReserved: LimitedExpressTicket | undefined;
-  standingOnly: LimitedExpressTicket | undefined;
-  nonReservedOrStandingOnly: number;
+  reserved: ExpressTicket;
+  nonReserved: ExpressTicket | undefined;
+  reservedHighSpeed: ExpressTicket | undefined;
+  standingOnly: ExpressTicket | undefined;
 }> => {
   const [stationA, stationB] = section;
 
   const reservedExpressFare = getSuperExpressFare(tables.get(line)!, section);
 
-  const lowExpressFare =
+  const reservedExpressTicket: ExpressTicket = {
+    type: reserved,
+    availableSeat: reserved,
+    section,
+    fare:
+      season === busiest
+        ? reservedExpressFare + 400
+        : season === busy
+        ? reservedExpressFare + 200
+        : season === off
+        ? reservedExpressFare - 200
+        : reservedExpressFare,
+  };
+
+  const specificExpressFare =
     stationA.name === "東京" && stationB.name === "大宮"
       ? 1090
       : stationB.index - stationA.index === 1 ||
@@ -716,72 +734,78 @@ const getSuperExpressFares = (
         : 880
       : undefined;
 
-  const nonReservedOrStandingOnly = lowExpressFare ?? reservedExpressFare - 530;
+  /**
+   * 自由席が利用可能な区間であれば、 `true`
+   */
   const nonReservedAvailable =
     line !== line0 ||
     stationB.index <=
       line.stations.findIndex((station) => station.name === "盛岡");
+
+  /**
+   * 立席が利用可能な区間であれば、 `true`
+   */
   const standingOnlyAvailable =
     line === line0 &&
     stationA.index >=
       line.stations.findIndex((station) => station.name === "盛岡");
 
-  const highSpeedReserved =
+  const nonReservedExpressTicket: ExpressTicket | undefined =
+    nonReservedAvailable
+      ? {
+          availableSeat: nonReserved,
+          section,
+          ...(specificExpressFare !== undefined
+            ? { type: specific, fare: specificExpressFare }
+            : { type: nonReserved, fare: reservedExpressFare - 530 }),
+        }
+      : undefined;
+
+  const standingOnlyExpressTicket: ExpressTicket | undefined =
+    standingOnlyAvailable
+      ? {
+          type: specific,
+          availableSeat: standingOnly,
+          section,
+          fare:
+            specificExpressFare !== undefined
+              ? specificExpressFare
+              : reservedExpressFare - 530,
+        }
+      : undefined;
+
+  const reservedHighSpeedFare =
     highSpeed &&
     (highSpeed[0] === stationA && highSpeed[1] === stationB
-      ? +table.find((row) => row["駅名"] === stationB.name)![stationA.name]!
+      ? getSuperExpressFare(table, section)
       : reservedExpressFare +
         getSuperExpressFare(table, highSpeed) -
         getSuperExpressFare(tables.get(line)!, highSpeed));
 
+  const reservedHighSpeedTicket: ExpressTicket | undefined =
+    reservedHighSpeedFare !== undefined
+      ? {
+          type: reserved,
+          availableSeat: reserved,
+          section,
+          highSpeed,
+          fare:
+            season === busiest
+              ? reservedHighSpeedFare + 400
+              : season === busy
+              ? reservedHighSpeedFare + 200
+              : season === off
+              ? reservedHighSpeedFare - 200
+              : reservedHighSpeedFare,
+        }
+      : undefined;
+
   return {
-    reserved: {
-      type: reserved,
-      section,
-      fare:
-        season === busiest
-          ? reservedExpressFare + 400
-          : season === busy
-          ? reservedExpressFare + 200
-          : season === off
-          ? reservedExpressFare - 200
-          : reservedExpressFare,
-      availableSeat: reserved,
-    },
-    highSpeedReserved:
-      highSpeedReserved !== undefined
-        ? {
-            type: reserved,
-            section,
-            fare:
-              season === busiest
-                ? highSpeedReserved + 400
-                : season === busy
-                ? highSpeedReserved + 200
-                : season === off
-                ? highSpeedReserved - 200
-                : highSpeedReserved,
-            availableSeat: reserved,
-          }
-        : undefined,
-    nonReserved: nonReservedAvailable
-      ? {
-          type: lowExpressFare === undefined ? nonReserved : specific,
-          section,
-          fare: nonReservedOrStandingOnly,
-          availableSeat: nonReserved,
-        }
-      : undefined,
-    standingOnly: standingOnlyAvailable
-      ? {
-          type: specific,
-          section,
-          fare: nonReservedOrStandingOnly,
-          availableSeat: standingOnly,
-        }
-      : undefined,
-    nonReservedOrStandingOnly,
-  } as const;
+    reserved: reservedExpressTicket,
+    nonReserved: nonReservedExpressTicket,
+    standingOnly: standingOnlyExpressTicket,
+    reservedHighSpeed: reservedHighSpeedTicket,
+  };
 };
 
 /**
@@ -802,103 +826,71 @@ const getLimitedExpressFares = (
   },
   season: Season
 ): Readonly<{
-  reserved: LimitedExpressTicket;
-  nonReserved: LimitedExpressTicket | undefined;
-  standingOnly: LimitedExpressTicket | undefined;
-  nonReservedOrStandingOnly: number;
+  reserved: ExpressTicket;
+  nonReserved: ExpressTicket | undefined;
+  standingOnly: ExpressTicket | undefined;
 }> => {
-  const { reserved: reservedExpressFare, nonReservedOrStandingOnly } =
-    getLimitedExpressFares0(getDistance0(...section), season);
+  const {
+    reserved: reservedExpressFare,
+    nonReservedOrStandingOnly: nonReservedOrStandingOnlyExpressFare,
+  } = getLimitedExpressFares0(getDistance0(...section), season);
 
+  const reservedExpressTicket: ExpressTicket = {
+    type: reserved,
+    section,
+    fare: reservedExpressFare,
+    availableSeat: reserved,
+  };
+
+  /**
+   * 自由席が利用可能な区間であれば、 `true`
+   */
   const nonReservedAvailable = line === line2;
+
+  /**
+   * 立席が利用可能な区間であれば、 `true`
+   */
   const standingOnlyAvailable = line === line1;
 
-  return {
-    reserved: {
-      type: reserved,
-      section,
-      fare: reservedExpressFare,
-      availableSeat: reserved,
-    },
-    nonReserved: nonReservedAvailable
+  const nonReservedExpressTicket: ExpressTicket | undefined =
+    nonReservedAvailable
       ? {
+          availableSeat: nonReserved,
           type: nonReserved,
           section,
-          fare: nonReservedOrStandingOnly,
-          availableSeat: nonReserved,
+          fare: nonReservedOrStandingOnlyExpressFare,
         }
-      : undefined,
-    standingOnly: standingOnlyAvailable
+      : undefined;
+
+  const standingOnlyExpressTicket: ExpressTicket | undefined =
+    standingOnlyAvailable
       ? {
           type: specific,
-          section,
-          fare: nonReservedOrStandingOnly,
           availableSeat: standingOnly,
+          section,
+          fare: nonReservedOrStandingOnlyExpressFare,
         }
-      : undefined,
-    nonReservedOrStandingOnly,
-  } as const;
+      : undefined;
+
+  return {
+    reserved: reservedExpressTicket,
+    nonReserved: nonReservedExpressTicket,
+    standingOnly: standingOnlyExpressTicket,
+  };
 };
 
-const Td1: React.VFC<{
-  items?: readonly {
-    readonly section: Section;
-    readonly fare: number;
-  }[];
+const FaresLabel: React.VFC<{
+  tickets: readonly ExpressTicket[];
   total: number;
-}> = ({ items, total }) => (
-  <td>
-    {items ? (
-      <OverlayTrigger
-        overlay={
-          <Popover>
-            <Popover.Header>内訳</Popover.Header>
-            <Popover.Body>
-              {items.map(({ section, fare }) => (
-                <Row
-                  className="justify-content-between"
-                  key={`${section[0].name}-${section[1].name}`}
-                >
-                  <Col xs="auto">
-                    {section[0].name} <i className="bi bi-arrow-right"></i>{" "}
-                    {section[1].name}
-                  </Col>
-                  <Col xs="auto">{fare}円</Col>
-                </Row>
-              ))}
-            </Popover.Body>
-          </Popover>
-        }
-      >
-        <u style={{ textDecoration: "underline dotted var(--bs-secondary)" }}>
-          {total}円
-        </u>
-      </OverlayTrigger>
-    ) : (
-      `${total}円`
-    )}
-  </td>
-);
-
-const BothOfNonReservedAndStandingOnlyLabel: React.VFC<{
-  items: readonly {
-    readonly section: Section;
-    readonly seat: string;
-  }[];
-}> = ({ items }) => {
-  return (
+}> = ({ tickets, total }) => {
+  const text = `${total}円`;
+  return tickets.length > 1 ? (
     <OverlayTrigger
       overlay={
         <Popover>
+          <Popover.Header>内訳</Popover.Header>
           <Popover.Body>
-            <p>
-              {items
-                .slice(0, -1)
-                .map(({ section }) => `${section[1].name}駅`)
-                .join("、")}
-              で<b>乗り換え</b>が必要です。
-            </p>
-            {items.map(({ section, seat }) => (
+            {tickets.map(({ section, fare }) => (
               <Row
                 className="justify-content-between"
                 key={`${section[0].name}-${section[1].name}`}
@@ -907,7 +899,7 @@ const BothOfNonReservedAndStandingOnlyLabel: React.VFC<{
                   {section[0].name} <i className="bi bi-arrow-right"></i>{" "}
                   {section[1].name}
                 </Col>
-                <Col xs="auto">{seat}</Col>
+                <Col xs="auto">{fare}円</Col>
               </Row>
             ))}
           </Popover.Body>
@@ -915,9 +907,47 @@ const BothOfNonReservedAndStandingOnlyLabel: React.VFC<{
       }
     >
       <u style={{ textDecoration: "underline dotted var(--bs-secondary)" }}>
-        {items.map(({ seat }) => seat).join("・")}
+        {text}
       </u>
     </OverlayTrigger>
+  ) : (
+    <>{text}</>
+  );
+};
+
+const SeatsLabel: React.VFC<{
+  tickets: readonly ExpressTicket[];
+}> = ({ tickets }) => {
+  const seats = new Set(tickets.map(({ availableSeat }) => availableSeat));
+  const text = [...seats].join("・");
+  return seats.size > 1 ? (
+    <OverlayTrigger
+      overlay={
+        <Popover>
+          <Popover.Header>座席</Popover.Header>
+          <Popover.Body>
+            {tickets.map(({ section, availableSeat }) => (
+              <Row
+                className="justify-content-between"
+                key={`${section[0].name}-${section[1].name}`}
+              >
+                <Col xs="auto">
+                  {section[0].name} <i className="bi bi-arrow-right"></i>{" "}
+                  {section[1].name}
+                </Col>
+                <Col xs="auto">{availableSeat}</Col>
+              </Row>
+            ))}
+          </Popover.Body>
+        </Popover>
+      }
+    >
+      <u style={{ textDecoration: "underline dotted var(--bs-secondary)" }}>
+        {text}
+      </u>
+    </OverlayTrigger>
+  ) : (
+    <>{text}</>
   );
 };
 
@@ -947,7 +977,7 @@ const getFares = (
 
   const junction = junctions.get(line);
 
-  const superExpressFares =
+  const superExpressTickets =
     (line === line1 || line === line2) && junction
       ? stationA.index < junction.index
         ? getSuperExpressFares(
@@ -1018,29 +1048,46 @@ const getFares = (
             : distance
         );
 
-  const nonReservedOrStandingOnlyAvailable =
-    (!superExpressFares ||
-      superExpressFares.nonReserved !== undefined ||
-      superExpressFares.standingOnly !== undefined) &&
-    (!limitedExpressFares ||
-      limitedExpressFares.nonReserved !== undefined ||
-      limitedExpressFares.standingOnly !== undefined);
+  const nonReservedOrStandingOnlySuperExpressTicket =
+    superExpressTickets?.nonReserved ?? superExpressTickets?.standingOnly;
+  const nonReservedOrStandingOnlyLimitedExpressTicket =
+    limitedExpressFares?.nonReserved ?? limitedExpressFares?.standingOnly;
+
+  const nonReservedOrStandingOnlyAvailable: boolean =
+    (!superExpressTickets || !!nonReservedOrStandingOnlySuperExpressTicket) &&
+    (!limitedExpressFares || !!nonReservedOrStandingOnlyLimitedExpressTicket);
+
+  const nonReservedOrStandingOnlyExpressTickets =
+    nonReservedOrStandingOnlyAvailable
+      ? [
+          nonReservedOrStandingOnlySuperExpressTicket,
+          nonReservedOrStandingOnlyLimitedExpressTicket,
+        ].filter((ticket): ticket is ExpressTicket => ticket !== undefined)
+      : undefined;
+
+  const reservedExpressTickets = [
+    superExpressTickets?.reserved,
+    limitedExpressFares?.reserved,
+  ].filter((ticket): ticket is ExpressTicket => ticket !== undefined);
+
+  const reservedHighSpeedExpressTickets =
+    superExpressTickets?.reservedHighSpeed &&
+    [
+      superExpressTickets?.reservedHighSpeed,
+      limitedExpressFares?.reserved,
+    ].filter((ticket): ticket is ExpressTicket => ticket !== undefined);
 
   const nonReservedOrStandingOnlyExpressFare =
-    nonReservedOrStandingOnlyAvailable
-      ? (superExpressFares?.nonReservedOrStandingOnly ?? 0) +
-        (limitedExpressFares?.nonReservedOrStandingOnly ?? 0)
-      : undefined;
+    nonReservedOrStandingOnlyExpressTickets &&
+    sum(nonReservedOrStandingOnlyExpressTickets.map(({ fare }) => fare));
 
-  const reservedExpressFare =
-    (superExpressFares?.reserved.fare ?? 0) +
-    (limitedExpressFares?.reserved.fare ?? 0);
+  const reservedExpressFare = sum(
+    reservedExpressTickets.map(({ fare }) => fare)
+  );
 
-  const highSpeedReservedExpressFare =
-    superExpressFares?.highSpeedReserved !== undefined
-      ? (superExpressFares.highSpeedReserved.fare ?? 0) +
-        (limitedExpressFares?.reserved.fare ?? 0)
-      : undefined;
+  const reservedHighSpeedExpressFare =
+    reservedHighSpeedExpressTickets &&
+    sum(reservedHighSpeedExpressTickets.map(({ fare }) => fare));
 
   const nonReservedOrStandingOnlyTotal =
     nonReservedOrStandingOnlyExpressFare !== undefined
@@ -1048,23 +1095,26 @@ const getFares = (
       : undefined;
   const reservedTotal = basicFare + reservedExpressFare - 200;
   const highSpeedReservedTotal =
-    highSpeedReservedExpressFare !== undefined
-      ? basicFare + highSpeedReservedExpressFare - 200
+    reservedHighSpeedExpressFare !== undefined
+      ? basicFare + reservedHighSpeedExpressFare - 200
       : undefined;
 
   return {
     distance,
-    superExpressFares,
-    limitedExpressFares,
     expressFares: {
       nonReservedOrStandingOnly: nonReservedOrStandingOnlyExpressFare,
       reserved: reservedExpressFare,
-      highSpeedReserved: highSpeedReservedExpressFare,
+      reservedHighSpeed: reservedHighSpeedExpressFare,
+    },
+    expressTickets: {
+      nonReservedOrStandingOnly: nonReservedOrStandingOnlyExpressTickets,
+      reserved: reservedExpressTickets,
+      reservedHighSpeed: reservedHighSpeedExpressTickets,
     },
     total: {
       nonReservedOrStandingOnly: nonReservedOrStandingOnlyTotal,
       reserved: reservedTotal,
-      highSpeedReserved: highSpeedReservedTotal,
+      reservedHighSpeed: highSpeedReservedTotal,
     },
     rate: {
       nonReservedOrStandingOnly:
@@ -1072,7 +1122,7 @@ const getFares = (
           ? nonReservedOrStandingOnlyTotal / points
           : undefined,
       reserved: reservedTotal / points,
-      highSpeedReserved:
+      reservedHighSpeed:
         highSpeedReservedTotal !== undefined
           ? highSpeedReservedTotal / points
           : undefined,
@@ -1126,12 +1176,9 @@ const Result: React.VFC<{
       : [highSpeed[1], highSpeed[0]]
     : undefined;
 
-  const junction = junctions.get(line);
-
   const {
     distance,
-    superExpressFares,
-    limitedExpressFares,
+    expressTickets,
     basicFare,
     expressFares,
     total,
@@ -1139,48 +1186,21 @@ const Result: React.VFC<{
     points,
   } = getFares(line, sortedSection, sortedHighSpeed, season);
 
-  const items =
-    junction && superExpressFares && limitedExpressFares
-      ? departure.index < arrival.index
-        ? ([
-            { section: [departure, junction], fares: superExpressFares },
-            { section: [junction, arrival], fares: limitedExpressFares },
-          ] as const)
-        : ([
-            { section: [departure, junction], fares: limitedExpressFares },
-            { section: [junction, arrival], fares: superExpressFares },
-          ] as const)
-      : undefined;
-
   const cells0 = (
     <>
-      {limitedExpressFares ? (
+      {expressTickets.nonReservedOrStandingOnly && (
         <th scope="col">
-          {limitedExpressFares.nonReserved ? (
-            "自由席"
-          ) : superExpressFares ? (
-            <BothOfNonReservedAndStandingOnlyLabel
-              items={items!.map(({ section, fares }) => ({
-                section,
-                seat: fares.nonReserved ? "自由席" : "立席",
-              }))}
-            />
-          ) : (
-            "立席"
-          )}
+          <SeatsLabel tickets={expressTickets.nonReservedOrStandingOnly} />
         </th>
-      ) : superExpressFares!.nonReserved ? (
-        <th scope="col">自由席</th>
-      ) : superExpressFares!.standingOnly ? (
-        <th scope="col">立席</th>
-      ) : (
-        <></>
       )}
-      <th scope="col">指定席</th>
-      {superExpressFares?.highSpeedReserved !== undefined ? (
-        <th scope="col">{highSpeedTrains.get(line)!}号 指定席</th>
-      ) : (
-        <></>
+      <th scope="col">
+        <SeatsLabel tickets={expressTickets.reserved} />
+      </th>
+      {expressTickets.reservedHighSpeed && (
+        <th scope="col">
+          {highSpeedTrains.get(line)!}号<br />
+          <SeatsLabel tickets={expressTickets.reservedHighSpeed} />
+        </th>
       )}
     </>
   );
@@ -1206,7 +1226,7 @@ const Result: React.VFC<{
               <></>
             )}
             <td>{basicFare}円</td>
-            {expressFares.highSpeedReserved !== undefined ? (
+            {expressFares.reservedHighSpeed !== undefined ? (
               <td>{basicFare}円</td>
             ) : (
               <></>
@@ -1214,38 +1234,30 @@ const Result: React.VFC<{
           </tr>
           <tr>
             <th scope="row">特急料金</th>
-            {expressFares.nonReservedOrStandingOnly !== undefined ? (
-              <Td1
-                items={items?.map(({ section, fares }) => ({
-                  section,
-                  fare: fares.nonReservedOrStandingOnly,
-                }))}
-                total={expressFares.nonReservedOrStandingOnly}
+            {expressFares.nonReservedOrStandingOnly !== undefined &&
+              expressTickets.nonReservedOrStandingOnly && (
+                <td>
+                  <FaresLabel
+                    tickets={expressTickets.nonReservedOrStandingOnly}
+                    total={expressFares.nonReservedOrStandingOnly}
+                  />
+                </td>
+              )}
+            <td>
+              <FaresLabel
+                tickets={expressTickets.reserved}
+                total={expressFares.reserved}
               />
-            ) : (
-              <></>
-            )}
-            <Td1
-              items={items?.map(({ section, fares }) => ({
-                section,
-                fare: fares.reserved.fare,
-              }))}
-              total={expressFares.reserved}
-            />
-            {expressFares.highSpeedReserved !== undefined ? (
-              <Td1
-                items={items?.map(({ section, fares }) => ({
-                  section,
-                  fare:
-                    "highSpeedReserved" in fares
-                      ? fares.highSpeedReserved!.fare
-                      : fares.reserved.fare,
-                }))}
-                total={expressFares.highSpeedReserved}
-              />
-            ) : (
-              <></>
-            )}
+            </td>
+            {expressFares.reservedHighSpeed !== undefined &&
+              expressTickets.reservedHighSpeed && (
+                <td>
+                  <FaresLabel
+                    tickets={expressTickets.reservedHighSpeed}
+                    total={expressFares.reservedHighSpeed}
+                  />
+                </td>
+              )}
           </tr>
           <tr>
             <th scope="row">割引</th>
@@ -1255,7 +1267,7 @@ const Result: React.VFC<{
               <></>
             )}
             <td>-200円</td>
-            {expressFares.highSpeedReserved !== undefined ? (
+            {expressFares.reservedHighSpeed !== undefined ? (
               <td>-200円</td>
             ) : (
               <></>
@@ -1271,8 +1283,8 @@ const Result: React.VFC<{
               <></>
             )}
             <td>{total.reserved}円</td>
-            {total.highSpeedReserved !== undefined ? (
-              <td>{total.highSpeedReserved}円</td>
+            {total.reservedHighSpeed !== undefined ? (
+              <td>{total.reservedHighSpeed}円</td>
             ) : (
               <></>
             )}
@@ -1302,8 +1314,8 @@ const Result: React.VFC<{
               <></>
             )}
             <td>{rate.reserved.toFixed(2)}</td>
-            {rate.highSpeedReserved !== undefined ? (
-              <td>{rate.highSpeedReserved.toFixed(2)}</td>
+            {rate.reservedHighSpeed !== undefined ? (
+              <td>{rate.reservedHighSpeed.toFixed(2)}</td>
             ) : (
               <></>
             )}
@@ -1332,7 +1344,7 @@ const Result: React.VFC<{
                 isEquivalent(section, sortedSection)
               )!.rank + 1}
               位
-              {total.highSpeedReserved === undefined
+              {total.reservedHighSpeed === undefined
                 ? `または${
                     rankedFares.highSpeedReserved.find(({ section }) =>
                       isEquivalent(section, sortedSection)
@@ -1340,7 +1352,7 @@ const Result: React.VFC<{
                   }位`
                 : undefined}
             </td>
-            {total.highSpeedReserved !== undefined ? (
+            {total.reservedHighSpeed !== undefined ? (
               <td>
                 {highSpeed &&
                 longestHighSpeedSection &&
@@ -1918,7 +1930,9 @@ const Ranking: React.VFC<{
               指定席
             </th>
             <th scope="col" colSpan={2}>
-              <div>はやぶさ号・こまち号</div> <div>指定席</div>
+              はやぶさ号・こまち号
+              <br />
+              指定席
             </th>
           </tr>
           <tr>
@@ -1932,15 +1946,7 @@ const Ranking: React.VFC<{
         </thead>
         <tbody>
           {rankedFares[seat].map(({ rank, section, fares }) => {
-            const {
-              distance,
-              superExpressFares,
-              limitedExpressFares,
-              basicFare,
-              total,
-              points,
-              rate,
-            } = fares;
+            const { distance, total, points, rate } = fares;
             return (
               <tr key={`${section[0].name}-${section[1].name}`}>
                 <th scope="row">{rank + 1}</th>
@@ -1972,9 +1978,9 @@ const Ranking: React.VFC<{
                     {rate.reserved.toFixed(2)}
                   </strong>
                 </td>
-                <td>{total.highSpeedReserved}</td>
+                <td>{total.reservedHighSpeed}</td>
                 <td>
-                  {rate.highSpeedReserved !== undefined ? (
+                  {rate.reservedHighSpeed !== undefined ? (
                     <strong
                       className={
                         seat === "highSpeedReserved"
@@ -1982,7 +1988,7 @@ const Ranking: React.VFC<{
                           : undefined
                       }
                     >
-                      {rate.highSpeedReserved.toFixed(2)}
+                      {rate.reservedHighSpeed.toFixed(2)}
                     </strong>
                   ) : (
                     <i className="text-muted">{rate.reserved.toFixed(2)}</i>
@@ -2042,7 +2048,7 @@ const App: React.VFC = () => {
       ).map(({ value, rank }) => ({ ...value, rank })),
       highSpeedReserved: rank(
         faresForEachSection,
-        ({ fares }) => fares.rate.highSpeedReserved ?? fares.rate.reserved
+        ({ fares }) => fares.rate.reservedHighSpeed ?? fares.rate.reserved
       ).map(({ value, rank }) => ({ ...value, rank })),
     }),
     [faresForEachSection]
