@@ -8,6 +8,7 @@ import {
   Accordion,
   AccordionContext,
   Alert,
+  Badge,
   Button,
   Card,
   Col,
@@ -884,34 +885,48 @@ const FaresLabel: React.VFC<{
   total: number;
 }> = ({ tickets, total }) => {
   const text = `${total}円`;
+  const badges = [
+    ...new Set(
+      tickets
+        .filter(({ type, availableSeat }) => type !== availableSeat)
+        .map(({ type }) => type)
+    ),
+  ].map((type) => <Badge>{type}</Badge>);
+
   return tickets.length > 1 ? (
-    <OverlayTrigger
-      overlay={
-        <Popover>
-          <Popover.Header>内訳</Popover.Header>
-          <Popover.Body>
-            {tickets.map(({ section, fare }) => (
-              <Row
-                className="justify-content-between"
-                key={`${section[0].name}-${section[1].name}`}
-              >
-                <Col xs="auto">
-                  {section[0].name} <i className="bi bi-arrow-right"></i>{" "}
-                  {section[1].name}
-                </Col>
-                <Col xs="auto">{fare}円</Col>
-              </Row>
-            ))}
-          </Popover.Body>
-        </Popover>
-      }
-    >
-      <u style={{ textDecoration: "underline dotted var(--bs-secondary)" }}>
-        {text}
-      </u>
-    </OverlayTrigger>
+    <>
+      <OverlayTrigger
+        overlay={
+          <Popover>
+            <Popover.Header>内訳</Popover.Header>
+            <Popover.Body>
+              {tickets.map(({ section, fare, type, availableSeat }) => (
+                <Row
+                  className="justify-content-between"
+                  key={`${section[0].name}-${section[1].name}`}
+                >
+                  <Col xs="auto">
+                    {section[0].name} <i className="bi bi-arrow-right"></i>{" "}
+                    {section[1].name}{" "}
+                    {type !== availableSeat ? <Badge>{type}</Badge> : undefined}
+                  </Col>
+                  <Col xs="auto">{fare}円</Col>
+                </Row>
+              ))}
+            </Popover.Body>
+          </Popover>
+        }
+      >
+        <u style={{ textDecoration: "underline dotted var(--bs-secondary)" }}>
+          {text}
+        </u>
+      </OverlayTrigger>{" "}
+      {badges}
+    </>
   ) : (
-    <>{text}</>
+    <>
+      {text} {badges}
+    </>
   );
 };
 
