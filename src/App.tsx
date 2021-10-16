@@ -1764,7 +1764,7 @@ const App1: React.VFC<{
         >
           えきねっとでJRE POINTと交換できる特典チケット
         </a>
-        が、割引なしのきっぷと比べてどのくらい割がいいのか計算します。
+        が、割引なしのきっぷと比べてどのくらい割がいいのか（レート）を計算します。
       </p>
       <Card body className="my-3" as="fieldset">
         <FloatingLabel controlId="floatingSelect" label="路線" className="mb-3">
@@ -1898,9 +1898,9 @@ const Ranking: React.VFC<{
           target="_blank"
           rel="noreferrer"
         >
-          JRE POINT 特典チケット
+          JRE POINT特典チケット
         </a>
-        を交換するのに割がいい区間を調べます。
+        を交換するのに割がいい（レートが高い）区間を調べます。
       </p>
       <Form.Group className="mb-3" controlId="SmallTableCheckbox">
         <Form.Check
