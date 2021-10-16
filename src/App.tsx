@@ -1108,7 +1108,7 @@ const getFares = (
       ? basicFare + nonReservedOrStandingOnlyExpressFare
       : undefined;
   const reservedTotal = basicFare + reservedExpressFare - 200;
-  const highSpeedReservedTotal =
+  const reservedHighSpeedTotal =
     reservedHighSpeedExpressFare !== undefined
       ? basicFare + reservedHighSpeedExpressFare - 200
       : undefined;
@@ -1123,7 +1123,7 @@ const getFares = (
     total: {
       nonReservedOrStandingOnly: nonReservedOrStandingOnlyTotal,
       reserved: reservedTotal,
-      reservedHighSpeed: highSpeedReservedTotal,
+      reservedHighSpeed: reservedHighSpeedTotal,
     },
     rate: {
       nonReservedOrStandingOnly:
@@ -1132,8 +1132,8 @@ const getFares = (
           : undefined,
       reserved: reservedTotal / points,
       reservedHighSpeed:
-        highSpeedReservedTotal !== undefined
-          ? highSpeedReservedTotal / points
+        reservedHighSpeedTotal !== undefined
+          ? reservedHighSpeedTotal / points
           : undefined,
     },
     basicFare,
@@ -1177,7 +1177,7 @@ const Result: React.VFC<{
       rank: number;
       fares: ReturnType<typeof getFares>;
     }[];
-    highSpeedReserved: {
+    reservedHighSpeed: {
       section: Section;
       rank: number;
       fares: ReturnType<typeof getFares>;
@@ -1374,7 +1374,7 @@ const Result: React.VFC<{
               位
               {total.reservedHighSpeed === undefined
                 ? `または${
-                    rankedFares.highSpeedReserved.find(({ section }) =>
+                    rankedFares.reservedHighSpeed.find(({ section }) =>
                       isEquivalent(section, sortedSection)
                     )!.rank + 1
                   }位`
@@ -1386,7 +1386,7 @@ const Result: React.VFC<{
                 longestHighSpeedSection &&
                 isEquivalent(highSpeed, longestHighSpeedSection) ? (
                   <>
-                    {rankedFares.highSpeedReserved.find(({ section }) =>
+                    {rankedFares.reservedHighSpeed.find(({ section }) =>
                       isEquivalent(section, sortedSection)
                     )!.rank + 1}
                     位
@@ -1736,7 +1736,7 @@ const App1: React.VFC<{
       rank: number;
       fares: ReturnType<typeof getFares>;
     }[];
-    highSpeedReserved: {
+    reservedHighSpeed: {
       section: Section;
       rank: number;
       fares: ReturnType<typeof getFares>;
@@ -1847,10 +1847,16 @@ const App1: React.VFC<{
 };
 
 type Ranked<T> = { value: T; rank: number };
-const rank = <T,>(array: readonly T[], callbackfn: (t: T) => number) =>
+const rank = <T,>(
+  array: readonly T[],
+  callbackfn: (t: T) => number
+): readonly Ranked<T>[] =>
   [...array]
     .sort((a, b) => callbackfn(b) - callbackfn(a))
-    .reduce<{ last?: Ranked<T>; array: readonly Ranked<T>[] }>(
+    .reduce<{
+      readonly last?: Ranked<T>;
+      readonly array: readonly Ranked<T>[];
+    }>(
       (previous, current, index) => {
         const last = {
           value: current,
@@ -1877,7 +1883,7 @@ const Ranking: React.VFC<{
       rank: number;
       fares: ReturnType<typeof getFares>;
     }[];
-    highSpeedReserved: {
+    reservedHighSpeed: {
       section: Section;
       rank: number;
       fares: ReturnType<typeof getFares>;
@@ -1885,7 +1891,7 @@ const Ranking: React.VFC<{
   }>;
 }> = ({ rankedFares }) => {
   const [seat, setSeat] = useState<
-    "nonReservedOrStandingOnly" | "reserved" | "highSpeedReserved"
+    "nonReservedOrStandingOnly" | "reserved" | "reservedHighSpeed"
   >("nonReservedOrStandingOnly");
   const [small, setSmall] = useState(false);
 
@@ -1921,13 +1927,13 @@ const Ranking: React.VFC<{
               e.currentTarget.value as
                 | "nonReservedOrStandingOnly"
                 | "reserved"
-                | "highSpeedReserved"
+                | "reservedHighSpeed"
             )
           }
         >
           <option value="nonReservedOrStandingOnly">自由席・立席</option>
           <option value="reserved">指定席</option>
-          <option value="highSpeedReserved">はやぶさ・こまち号 指定席</option>
+          <option value="reservedHighSpeed">はやぶさ・こまち号 指定席</option>
         </Form.Select>
       </FloatingLabel>
       <Table
@@ -2011,7 +2017,7 @@ const Ranking: React.VFC<{
                   {rate.reservedHighSpeed !== undefined ? (
                     <strong
                       className={
-                        seat === "highSpeedReserved"
+                        seat === "reservedHighSpeed"
                           ? "text-primary"
                           : undefined
                       }
@@ -2074,7 +2080,7 @@ const App: React.VFC = () => {
         faresForEachSection,
         ({ fares }) => fares.rate.reserved
       ).map(({ value, rank }) => ({ ...value, rank })),
-      highSpeedReserved: rank(
+      reservedHighSpeed: rank(
         faresForEachSection,
         ({ fares }) => fares.rate.reservedHighSpeed ?? fares.rate.reserved
       ).map(({ value, rank }) => ({ ...value, rank })),
