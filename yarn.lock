@@ -9179,10 +9179,10 @@ react-app-polyfill@^2.0.0:
     regenerator-runtime "^0.13.7"
     whatwg-fetch "^3.4.1"
 
-react-bootstrap@^2.0.0-rc.0:
-  version "2.0.0-rc.0"
-  resolved "https://registry.yarnpkg.com/react-bootstrap/-/react-bootstrap-2.0.0-rc.0.tgz#490c6c7c28fd5f94d060691f086cf675f75eaa2e"
-  integrity sha512-E2z/FQ/sDUfyFTPxNwd/BjUq319151TAQ3vosArgljBPLMiEAP9PHKCqxW82auta3IcM1T/zEl7ETU7nk3V3aA==
+react-bootstrap@^2.0.0-rc.1:
+  version "2.0.0-rc.1"
+  resolved "https://registry.yarnpkg.com/react-bootstrap/-/react-bootstrap-2.0.0-rc.1.tgz#c216b58ab53341a4e3870dc571c9d4bd82249b65"
+  integrity sha512-iKKtbEZXBd6bZ5ES5yh1nl4/gykGktL8vXh/VP4fHUZRUjIKnpvQ4F5gR33FiDyEHRXlKIlE3LRtGMZosujRuQ==
   dependencies:
     "@babel/runtime" "^7.14.0"
     "@restart/context" "^2.1.4"
@@ -9266,17 +9266,17 @@ react-refresh@^0.8.3:
   resolved "https://registry.yarnpkg.com/react-refresh/-/react-refresh-0.8.3.tgz#721d4657672d400c5e3c75d063c4a85fb2d5d68f"
   integrity sha512-X8jZHc7nCMjaCqoU+V2I0cOhNW+QMBwSUkeXnTi8IPe6zaRWfn60ZzvFDZqWPfmSJfjub7dDW1SP0jaHWLu/hg==
 
-react-router-dom@^6.0.0-beta.5:
-  version "6.0.0-beta.5"
-  resolved "https://registry.yarnpkg.com/react-router-dom/-/react-router-dom-6.0.0-beta.5.tgz#7364ae41326ed7eb640c3da601ed9192be92f65e"
-  integrity sha512-l4LaL0WHiPUaLfVSMjZiGbV6uitfHTQWYVfHtmCo8dabhjTZ3gIKbAKGQVieZqi1avFVqj+s3i0Ul1ZalLr8Bw==
+react-router-dom@^6.0.0-beta.7:
+  version "6.0.0-beta.7"
+  resolved "https://registry.yarnpkg.com/react-router-dom/-/react-router-dom-6.0.0-beta.7.tgz#896acf6002a57507cccf09ed5cc6cf9d5554e07d"
+  integrity sha512-XW50WW6YBYbRJwQPIt8SAcXf8Jo47sY5QuEI8Y/TkckekoMVOHcax4CAArrbONV8MTNyZ4jUfDU776G8ToNDgw==
   dependencies:
-    react-router "6.0.0-beta.5"
+    react-router "6.0.0-beta.7"
 
-react-router@6.0.0-beta.5:
-  version "6.0.0-beta.5"
-  resolved "https://registry.yarnpkg.com/react-router/-/react-router-6.0.0-beta.5.tgz#f86700a6a627b81cdb87e4b1cab7c20f75e230bc"
-  integrity sha512-czEOOTV0uAcK1U05EJXkCgL2X53jipBzmHAcWZ9SnKUBnLSNIxc/sdkcPNwdb99U4x8TzZyDY5BqVGGwif42qg==
+react-router@6.0.0-beta.7:
+  version "6.0.0-beta.7"
+  resolved "https://registry.yarnpkg.com/react-router/-/react-router-6.0.0-beta.7.tgz#8c22236c46977e53696ed779ebec31080ab2d3ee"
+  integrity sha512-n5eIqqY724yW6v2G2DXwcTNwz+NlowV1bOg/OKLz6EtJWD8/lez/5whyfyp9dPkA3ICqYuDZhZxnhk7A/u0aFQ==
 
 react-scripts@4.0.3:
   version "4.0.3"
@@ -10946,10 +10946,10 @@ typedarray@^0.0.6:
   resolved "https://registry.yarnpkg.com/typedarray/-/typedarray-0.0.6.tgz#867ac74e3864187b1d3d47d996a78ec5c8830777"
   integrity sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=
 
-typescript@^4.4.3:
-  version "4.4.3"
-  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.4.3.tgz#bdc5407caa2b109efd4f82fe130656f977a29324"
-  integrity sha512-4xfscpisVgqqDfPaJo5vkd+Qd/ItkoagnHpufr+i2QCHBsNYp+G7UAoyFl8aPtx879u38wPV65rZ8qbGZijalA==
+typescript@^4.5.0-beta:
+  version "4.5.0-beta"
+  resolved "https://registry.yarnpkg.com/typescript/-/typescript-4.5.0-beta.tgz#f2e2724d93c35e7a0d0d1e55a22d1e4efb2181c7"
+  integrity sha512-7PvWhki2lwukaR9osVhFnNzxaE4LM+gC94dlwcvS+Tqz8+U65va7FbKo02bT+/MFlnMPM8bsPUXvHiMD/Mg3Jg==
 
 uncontrollable@^7.2.1:
   version "7.2.1"

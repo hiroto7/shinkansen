@@ -882,9 +882,8 @@ const getLimitedExpressFares = (
 
 const FaresLabel: React.VFC<{
   tickets: readonly ExpressTicket[];
-  total: number;
-}> = ({ tickets, total }) => {
-  const text = `${total}円`;
+}> = ({ tickets }) => {
+  const text = jpyFormatter.format(sum(tickets.map(({ fare }) => fare)));
   const badges = [
     ...new Set(
       tickets
@@ -910,7 +909,7 @@ const FaresLabel: React.VFC<{
                     {section[1].name}{" "}
                     {type !== availableSeat ? <Badge>{type}</Badge> : undefined}
                   </Col>
-                  <Col xs="auto">{fare}円</Col>
+                  <Col xs="auto">{jpyFormatter.format(fare)}</Col>
                 </Row>
               ))}
             </Popover.Body>
@@ -1161,6 +1160,12 @@ const reverseTickets = (
     )
     .reverse();
 
+const jpyFormatter = new Intl.NumberFormat(undefined, {
+  style: "currency",
+  currency: "JPY",
+  currencyDisplay: "name",
+});
+
 const Result: React.VFC<{
   line: Line;
   section: Section;
@@ -1254,7 +1259,13 @@ const Result: React.VFC<{
   return (
     <>
       <h2 className="h5">営業キロ</h2>
-      <p>{distance} km</p>
+      <p>
+        {distance.toLocaleString(undefined, {
+          style: "unit",
+          unit: "kilometer",
+          maximumFractionDigits: 1,
+        })}
+      </p>
       <h2 className="h5">所定の運賃・特急料金</h2>
       <Table bordered>
         <thead>
@@ -1267,43 +1278,32 @@ const Result: React.VFC<{
           <tr>
             <th scope="row">運賃</th>
             {expressFares.nonReservedOrStandingOnly !== undefined ? (
-              <td>{basicFare}円</td>
+              <td>{jpyFormatter.format(basicFare)}</td>
             ) : (
               <></>
             )}
-            <td>{basicFare}円</td>
+            <td>{jpyFormatter.format(basicFare)}</td>
             {expressFares.reservedHighSpeed !== undefined ? (
-              <td>{basicFare}円</td>
+              <td>{jpyFormatter.format(basicFare)}</td>
             ) : (
               <></>
             )}
           </tr>
           <tr>
             <th scope="row">特急料金</th>
-            {expressFares.nonReservedOrStandingOnly !== undefined &&
-              nonReservedOrStandingOnlyExpressTickets && (
-                <td>
-                  <FaresLabel
-                    tickets={nonReservedOrStandingOnlyExpressTickets}
-                    total={expressFares.nonReservedOrStandingOnly}
-                  />
-                </td>
-              )}
+            {nonReservedOrStandingOnlyExpressTickets && (
+              <td>
+                <FaresLabel tickets={nonReservedOrStandingOnlyExpressTickets} />
+              </td>
+            )}
             <td>
-              <FaresLabel
-                tickets={reservedExpressTickets}
-                total={expressFares.reserved}
-              />
+              <FaresLabel tickets={reservedExpressTickets} />
             </td>
-            {expressFares.reservedHighSpeed !== undefined &&
-              reservedHighSpeedExpressTickets && (
-                <td>
-                  <FaresLabel
-                    tickets={reservedHighSpeedExpressTickets}
-                    total={expressFares.reservedHighSpeed}
-                  />
-                </td>
-              )}
+            {reservedHighSpeedExpressTickets && (
+              <td>
+                <FaresLabel tickets={reservedHighSpeedExpressTickets} />
+              </td>
+            )}
           </tr>
           <tr>
             <th scope="row">割引</th>
@@ -1312,9 +1312,9 @@ const Result: React.VFC<{
             ) : (
               <></>
             )}
-            <td>-200円</td>
+            <td>{jpyFormatter.format(-200)}</td>
             {expressFares.reservedHighSpeed !== undefined ? (
-              <td>-200円</td>
+              <td>{jpyFormatter.format(-200)}</td>
             ) : (
               <></>
             )}
@@ -1324,13 +1324,13 @@ const Result: React.VFC<{
           <tr>
             <th scope="row">計</th>
             {total.nonReservedOrStandingOnly ? (
-              <td>{total.nonReservedOrStandingOnly}円</td>
+              <td>{jpyFormatter.format(total.nonReservedOrStandingOnly)}</td>
             ) : (
               <></>
             )}
-            <td>{total.reserved}円</td>
+            <td>{jpyFormatter.format(total.reserved)}</td>
             {total.reservedHighSpeed !== undefined ? (
-              <td>{total.reservedHighSpeed}円</td>
+              <td>{jpyFormatter.format(total.reservedHighSpeed)}</td>
             ) : (
               <></>
             )}
@@ -1339,7 +1339,7 @@ const Result: React.VFC<{
       </Table>
       <h2 className="h5">JRE POINT 特典チケット</h2>
       <h3 className="h6">交換ポイント</h3>
-      <p>{points}ポイント</p>
+      <p>{points.toLocaleString()}ポイント</p>
       <h3 className="h6">レート</h3>
       <p>
         所定額（運賃・特急料金・割引の合計）のそれぞれを交換ポイントで割った値です。
@@ -1999,8 +1999,8 @@ const Ranking: React.VFC<{
                 <th scope="row">{section[0].name}</th>
                 <th scope="row">{section[1].name}</th>
                 <td>{distance.toFixed(1)}</td>
-                <td>{points}</td>
-                <td>{total.nonReservedOrStandingOnly}</td>
+                <td>{points.toLocaleString()}</td>
+                <td>{total.nonReservedOrStandingOnly?.toLocaleString()}</td>
                 <td>
                   {rate.nonReservedOrStandingOnly !== undefined ? (
                     <strong
@@ -2016,7 +2016,7 @@ const Ranking: React.VFC<{
                     <i className="text-muted">{rate.reserved.toFixed(2)}</i>
                   )}
                 </td>
-                <td>{total.reserved}</td>
+                <td>{total.reserved.toLocaleString()}</td>
                 <td>
                   <strong
                     className={seat === "reserved" ? "text-primary" : undefined}
@@ -2024,7 +2024,7 @@ const Ranking: React.VFC<{
                     {rate.reserved.toFixed(2)}
                   </strong>
                 </td>
-                <td>{total.reservedHighSpeed}</td>
+                <td>{total.reservedHighSpeed?.toLocaleString()}</td>
                 <td>
                   {rate.reservedHighSpeed !== undefined ? (
                     <strong
