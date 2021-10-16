@@ -1115,11 +1115,6 @@ const getFares = (
 
   return {
     distance,
-    expressFares: {
-      nonReservedOrStandingOnly: nonReservedOrStandingOnlyExpressFare,
-      reserved: reservedExpressFare,
-      reservedHighSpeed: reservedHighSpeedExpressFare,
-    },
     expressTickets: {
       nonReservedOrStandingOnly: nonReservedOrStandingOnlyExpressTickets,
       reserved: reservedExpressTickets,
@@ -1208,15 +1203,12 @@ const Result: React.VFC<{
       : [highSpeed[1], highSpeed[0]]
     : undefined;
 
-  const {
-    distance,
-    expressTickets,
-    basicFare,
-    expressFares,
-    total,
-    rate,
-    points,
-  } = getFares(line, sortedSection, sortedHighSpeed, season);
+  const { distance, expressTickets, basicFare, total, rate, points } = getFares(
+    line,
+    sortedSection,
+    sortedHighSpeed,
+    season
+  );
 
   const [
     nonReservedOrStandingOnlyExpressTickets,
@@ -1277,16 +1269,12 @@ const Result: React.VFC<{
         <tbody>
           <tr>
             <th scope="row">運賃</th>
-            {expressFares.nonReservedOrStandingOnly !== undefined ? (
+            {nonReservedOrStandingOnlyExpressTickets && (
               <td>{jpyFormatter.format(basicFare)}</td>
-            ) : (
-              <></>
             )}
             <td>{jpyFormatter.format(basicFare)}</td>
-            {expressFares.reservedHighSpeed !== undefined ? (
+            {reservedHighSpeedExpressTickets && (
               <td>{jpyFormatter.format(basicFare)}</td>
-            ) : (
-              <></>
             )}
           </tr>
           <tr>
@@ -1307,16 +1295,10 @@ const Result: React.VFC<{
           </tr>
           <tr>
             <th scope="row">割引</th>
-            {expressFares.nonReservedOrStandingOnly !== undefined ? (
-              <td></td>
-            ) : (
-              <></>
-            )}
+            {nonReservedOrStandingOnlyExpressTickets && <td></td>}
             <td>{jpyFormatter.format(-200)}</td>
-            {expressFares.reservedHighSpeed !== undefined ? (
+            {reservedHighSpeedExpressTickets && (
               <td>{jpyFormatter.format(-200)}</td>
-            ) : (
-              <></>
             )}
           </tr>
         </tbody>
