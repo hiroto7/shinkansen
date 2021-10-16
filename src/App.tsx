@@ -2103,7 +2103,7 @@ const App: React.VFC = () => {
                 onChange={(e) => setSeason(e.currentTarget.value as Season)}
               >
                 {seasons.map((season) => (
-                  <option>{season}</option>
+                  <option key={season}>{season}</option>
                 ))}
               </Form.Select>
             </FloatingLabel>
