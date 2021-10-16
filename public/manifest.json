@@ -1,6 +1,6 @@
 {
   "short_name": "React App",
-  "name": "Create React App Sample",
+  "name": "JRE POINT特典チケットのレート計算",
   "icons": [
     {
       "src": "favicon.ico",
@@ -18,7 +18,7 @@
       "sizes": "512x512"
     }
   ],
-  "start_url": ".",
+  "start_url": "https://hiroto7.github.io/shinkansen/",
   "display": "standalone",
   "theme_color": "#000000",
   "background_color": "#ffffff"
