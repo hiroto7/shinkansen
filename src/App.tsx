@@ -1255,7 +1255,7 @@ const Result: React.VFC<{
         {distance.toLocaleString(undefined, {
           style: "unit",
           unit: "kilometer",
-          maximumFractionDigits: 1,
+          minimumFractionDigits: 1,
         })}
       </p>
       <h2 className="h5">所定の運賃・特急料金</h2>
