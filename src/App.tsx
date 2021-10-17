@@ -1141,7 +1141,7 @@ const chooseOneOrBothTicketType = <
 ): F => {
   const zipped = [
     [a.basicFareTicket.section[0], b.basicFareTicket.section[0]] as const,
-    [a.basicFareTicket.section[0], b.basicFareTicket.section[0]] as const,
+    [a.basicFareTicket.section[1], b.basicFareTicket.section[1]] as const,
   ];
 
   return a.total < b.total
