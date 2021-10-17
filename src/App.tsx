@@ -935,46 +935,44 @@ const getLimitedExpressFares = (
 const BasicFareLabel: React.VFC<{
   ticket: Ticket;
   section: Section;
-}> = ({ ticket, section }) => {
-  const text = jpyFormatter.format(ticket.fare);
-
-  return !isEquivalent(ticket.section, section) ? (
-    <>
+}> = ({ ticket, section }) => (
+  <>
+    {jpyFormatter.format(ticket.fare)}{" "}
+    {!isEquivalent(ticket.section, section) ? (
       <OverlayTrigger
         overlay={
           <Popover>
             <Popover.Header>運賃計算区間</Popover.Header>
             <Popover.Body>
-              {ticket.section[0].name} <i className="bi bi-arrow-right"></i>{" "}
+              {ticket.section[0].name} <i className="bi bi-arrow-right" />{" "}
               {ticket.section[1].name}
             </Popover.Body>
           </Popover>
         }
       >
-        <u style={{ textDecoration: "underline dotted var(--bs-secondary)" }}>
-          {text}
-        </u>
+        <i className="bi bi-info-circle text-info" />
       </OverlayTrigger>
-    </>
-  ) : (
-    <>{text}</>
-  );
-};
+    ) : (
+      <></>
+    )}
+  </>
+);
 
-const FaresLabel: React.VFC<{
+const ExpressFaresLabel: React.VFC<{
   tickets: readonly ExpressTicket[];
-}> = ({ tickets }) => {
-  const text = jpyFormatter.format(sum(tickets.map(({ fare }) => fare)));
-  const badges = [
-    ...new Set(
-      tickets
-        .filter(({ type, availableSeat }) => type !== availableSeat)
-        .map(({ type }) => type)
-    ),
-  ].map((type) => <Badge>{type}</Badge>);
-
-  return tickets.length > 1 ? (
-    <>
+}> = ({ tickets }) => (
+  <>
+    {jpyFormatter.format(sum(tickets.map(({ fare }) => fare)))}{" "}
+    {[
+      ...new Set(
+        tickets
+          .filter(({ type, availableSeat }) => type !== availableSeat)
+          .map(({ type }) => type)
+      ),
+    ].map((type) => (
+      <Badge>{type}</Badge>
+    ))}{" "}
+    {tickets.length > 1 ? (
       <OverlayTrigger
         overlay={
           <Popover>
@@ -986,7 +984,7 @@ const FaresLabel: React.VFC<{
                   key={`${section[0].name}-${section[1].name}`}
                 >
                   <Col xs="auto">
-                    {section[0].name} <i className="bi bi-arrow-right"></i>{" "}
+                    {section[0].name} <i className="bi bi-arrow-right" />{" "}
                     {section[1].name}{" "}
                     {type !== availableSeat ? <Badge>{type}</Badge> : undefined}
                   </Col>
@@ -997,18 +995,13 @@ const FaresLabel: React.VFC<{
           </Popover>
         }
       >
-        <u style={{ textDecoration: "underline dotted var(--bs-secondary)" }}>
-          {text}
-        </u>
-      </OverlayTrigger>{" "}
-      {badges}
-    </>
-  ) : (
-    <>
-      {text} {badges}
-    </>
-  );
-};
+        <i className="bi bi-info-circle text-info" />
+      </OverlayTrigger>
+    ) : (
+      <></>
+    )}
+  </>
+);
 
 const f = (stationOrZone: Station | Zone): Station =>
   "central" in stationOrZone ? stationOrZone.central : stationOrZone;
@@ -1017,35 +1010,37 @@ const SeatsLabel: React.VFC<{
   tickets: readonly ExpressTicket[];
 }> = ({ tickets }) => {
   const seats = new Set(tickets.map(({ availableSeat }) => availableSeat));
-  const text = [...seats].join("・");
-  return seats.size > 1 ? (
-    <OverlayTrigger
-      overlay={
-        <Popover>
-          <Popover.Header>座席</Popover.Header>
-          <Popover.Body>
-            {tickets.map(({ section, availableSeat }) => (
-              <Row
-                className="justify-content-between"
-                key={`${section[0].name}-${section[1].name}`}
-              >
-                <Col xs="auto">
-                  {section[0].name} <i className="bi bi-arrow-right"></i>{" "}
-                  {section[1].name}
-                </Col>
-                <Col xs="auto">{availableSeat}</Col>
-              </Row>
-            ))}
-          </Popover.Body>
-        </Popover>
-      }
-    >
-      <u style={{ textDecoration: "underline dotted var(--bs-secondary)" }}>
-        {text}
-      </u>
-    </OverlayTrigger>
-  ) : (
-    <>{text}</>
+  return (
+    <>
+      {[...seats].join("・")}{" "}
+      {seats.size > 1 ? (
+        <OverlayTrigger
+          overlay={
+            <Popover>
+              <Popover.Header>座席</Popover.Header>
+              <Popover.Body>
+                {tickets.map(({ section, availableSeat }) => (
+                  <Row
+                    className="justify-content-between"
+                    key={`${section[0].name}-${section[1].name}`}
+                  >
+                    <Col xs="auto">
+                      {section[0].name} <i className="bi bi-arrow-right" />{" "}
+                      {section[1].name}
+                    </Col>
+                    <Col xs="auto">{availableSeat}</Col>
+                  </Row>
+                ))}
+              </Popover.Body>
+            </Popover>
+          }
+        >
+          <i className="bi bi-info-circle text-info" />
+        </OverlayTrigger>
+      ) : (
+        <></>
+      )}
+    </>
   );
 };
 
@@ -1495,15 +1490,17 @@ const Result: React.VFC<{
             <th scope="row">特急料金</th>
             {nonReservedOrStandingOnlyExpressTickets && (
               <td>
-                <FaresLabel tickets={nonReservedOrStandingOnlyExpressTickets} />
+                <ExpressFaresLabel
+                  tickets={nonReservedOrStandingOnlyExpressTickets}
+                />
               </td>
             )}
             <td>
-              <FaresLabel tickets={reservedExpressTickets} />
+              <ExpressFaresLabel tickets={reservedExpressTickets} />
             </td>
             {reservedHighSpeedExpressTickets && (
               <td>
-                <FaresLabel tickets={reservedHighSpeedExpressTickets} />
+                <ExpressFaresLabel tickets={reservedHighSpeedExpressTickets} />
               </td>
             )}
           </tr>
@@ -1663,7 +1660,7 @@ const ContextAwareItem: React.VFC<{
               className="ms-4 overflow-hidden text-nowrap"
               style={{ textOverflow: "ellipsis" }}
             >
-              <b>{highSpeed[0].name}</b> <i className="bi bi-arrow-right"></i>{" "}
+              <b>{highSpeed[0].name}</b> <i className="bi bi-arrow-right" />{" "}
               <b>{highSpeed[1].name}</b>
             </span>
           </Fade>
@@ -1686,7 +1683,7 @@ const ContextAwareItem: React.VFC<{
             />
           </Col>
           <Col xs="auto" className="align-self-center">
-            <i className="bi bi-arrow-right"></i>
+            <i className="bi bi-arrow-right" />
           </Col>
           <Col>
             <StationDropdown
@@ -2015,7 +2012,7 @@ const App1: React.VFC<{
             />
           </Col>
           <Col xs="auto" className="align-self-center">
-            <i className="bi bi-arrow-right"></i>
+            <i className="bi bi-arrow-right" />
           </Col>
           <Col>
             <StationDropdown
