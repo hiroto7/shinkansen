@@ -1535,9 +1535,9 @@ const Result: React.VFC<{
 
   return (
     <>
-      <h2 className="h5">営業キロ</h2>
+      <h2 className="h4 mt-4">営業キロ</h2>
       <p>{kilometerFormatter.format(distance)}</p>
-      <h2 className="h5">所定の運賃・特急料金</h2>
+      <h2 className="h4 mt-4">所定の運賃・特急料金</h2>
       <Table bordered>
         <thead>
           <tr>
@@ -1615,7 +1615,7 @@ const Result: React.VFC<{
           ))}
         </dl>
       </details>
-      <h2 className="h5">JRE POINT 特典チケット</h2>
+      <h2 className="h4 mt-4">JRE POINT 特典チケット</h2>
       <h3 className="h6">交換ポイント</h3>
       <p>{points.toLocaleString()}ポイント</p>
       <h3 className="h6">レート</h3>
