@@ -1417,7 +1417,7 @@ const getFares = (
       rate: reservedHighSpeed.total / points,
     },
     points,
-  };
+  } as const;
 };
 
 const isEquivalent = (
@@ -1456,23 +1456,15 @@ const Result: React.VFC<{
   section: Section;
   highSpeed: Section | undefined;
   longestHighSpeedSection: Section | undefined;
-  rankedFares: Readonly<{
-    nonReservedOrStandingOnly: {
-      section: Section;
-      rank: number;
-      fares: ReturnType<typeof getFares>;
-    }[];
-    reserved: {
-      section: Section;
-      rank: number;
-      fares: ReturnType<typeof getFares>;
-    }[];
-    reservedHighSpeed: {
-      section: Section;
-      rank: number;
-      fares: ReturnType<typeof getFares>;
-    }[];
-  }>;
+  rankedFares: {
+    readonly [P in
+      | "nonReservedOrStandingOnly"
+      | "reserved"
+      | "reservedHighSpeed"]: readonly ({
+      readonly section: Section;
+      readonly rank: number;
+    } & ReturnType<typeof getFares>)[];
+  };
   season: Season;
 }> = ({
   line,
@@ -2042,23 +2034,15 @@ const init = (): State => {
 
 const Home: React.VFC<{
   season: Season;
-  rankedFares: Readonly<{
-    nonReservedOrStandingOnly: {
-      section: Section;
-      rank: number;
-      fares: ReturnType<typeof getFares>;
-    }[];
-    reserved: {
-      section: Section;
-      rank: number;
-      fares: ReturnType<typeof getFares>;
-    }[];
-    reservedHighSpeed: {
-      section: Section;
-      rank: number;
-      fares: ReturnType<typeof getFares>;
-    }[];
-  }>;
+  rankedFares: {
+    readonly [P in
+      | "nonReservedOrStandingOnly"
+      | "reserved"
+      | "reservedHighSpeed"]: readonly ({
+      readonly section: Section;
+      readonly rank: number;
+    } & ReturnType<typeof getFares>)[];
+  };
 }> = ({ season, rankedFares }) => {
   const [state, dispatch] = useReducer(reducer, undefined, init);
 
@@ -2203,23 +2187,15 @@ const rank = <T,>(
     ).array;
 
 const Ranking: React.VFC<{
-  rankedFares: Readonly<{
-    nonReservedOrStandingOnly: {
-      section: Section;
-      rank: number;
-      fares: ReturnType<typeof getFares>;
-    }[];
-    reserved: {
-      section: Section;
-      rank: number;
-      fares: ReturnType<typeof getFares>;
-    }[];
-    reservedHighSpeed: {
-      section: Section;
-      rank: number;
-      fares: ReturnType<typeof getFares>;
-    }[];
-  }>;
+  rankedFares: {
+    readonly [P in
+      | "nonReservedOrStandingOnly"
+      | "reserved"
+      | "reservedHighSpeed"]: readonly ({
+      readonly section: Section;
+      readonly rank: number;
+    } & ReturnType<typeof getFares>)[];
+  };
 }> = ({ rankedFares }) => {
   const [seat, setSeat] = useState<
     "nonReservedOrStandingOnly" | "reserved" | "reservedHighSpeed"
@@ -2310,15 +2286,16 @@ const Ranking: React.VFC<{
           </tr>
         </thead>
         <tbody>
-          {rankedFares[seat].map(({ rank, section, fares }) => {
-            const {
+          {rankedFares[seat].map(
+            ({
+              rank,
+              section,
               distance,
               points,
               nonReservedOrStandingOnly,
               reserved,
               reservedHighSpeed,
-            } = fares;
-            return (
+            }) => (
               <tr key={`${section[0].name}-${section[1].name}`}>
                 <th scope="row">{rank + 1}</th>
                 <th scope="row">{section[0].name}</th>
@@ -2333,7 +2310,7 @@ const Ranking: React.VFC<{
                     : undefined}
                 </td>
                 <td className="text-end">
-                  {nonReservedOrStandingOnly?.rate !== undefined ? (
+                  {nonReservedOrStandingOnly ? (
                     <strong
                       className={
                         seat === "nonReservedOrStandingOnly"
@@ -2363,7 +2340,7 @@ const Ranking: React.VFC<{
                     : undefined}
                 </td>
                 <td className="text-end">
-                  {reservedHighSpeed?.rate !== undefined ? (
+                  {reservedHighSpeed ? (
                     <strong
                       className={
                         seat === "reservedHighSpeed"
@@ -2378,8 +2355,8 @@ const Ranking: React.VFC<{
                   )}
                 </td>
               </tr>
-            );
-          })}
+            )
+          )}
         </tbody>
       </Table>
     </main>
@@ -2410,7 +2387,7 @@ const App: React.VFC = () => {
               const highSpeed = getLongestHighSpeedSection0(line, section);
               return {
                 section,
-                fares: getFares(line, section, highSpeed, season),
+                ...getFares(line, section, highSpeed, season),
               };
             })
         );
@@ -2422,16 +2399,16 @@ const App: React.VFC = () => {
     () => ({
       nonReservedOrStandingOnly: rank(
         faresForEachSection,
-        ({ fares }) =>
-          fares.nonReservedOrStandingOnly?.rate ?? fares.reserved.rate
+        ({ reserved, nonReservedOrStandingOnly }) =>
+          nonReservedOrStandingOnly?.rate ?? reserved.rate
       ).map(({ value, rank }) => ({ ...value, rank })),
-      reserved: rank(
-        faresForEachSection,
-        ({ fares }) => fares.reserved.rate
-      ).map(({ value, rank }) => ({ ...value, rank })),
+      reserved: rank(faresForEachSection, ({ reserved }) => reserved.rate).map(
+        ({ value, rank }) => ({ ...value, rank })
+      ),
       reservedHighSpeed: rank(
         faresForEachSection,
-        ({ fares }) => fares.reservedHighSpeed?.rate ?? fares.reserved.rate
+        ({ reserved, reservedHighSpeed }) =>
+          reservedHighSpeed?.rate ?? reserved.rate
       ).map(({ value, rank }) => ({ ...value, rank })),
     }),
     [faresForEachSection]
