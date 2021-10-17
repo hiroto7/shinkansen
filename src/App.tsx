@@ -945,13 +945,13 @@ const BasicFareLabel: React.VFC<{
           <Popover>
             <Popover.Header>運賃計算区間</Popover.Header>
             <Popover.Body>
-              {ticket.section[0].name} <i className="bi bi-arrow-right"></i>{" "}
+              {ticket.section[0].name} <i className="bi bi-arrow-right" />{" "}
               {ticket.section[1].name}
             </Popover.Body>
           </Popover>
         }
       >
-        <u style={{ textDecoration: "underline dotted var(--bs-secondary)" }}>
+        <u style={{ textDecoration: "underline dotted var(--bs-info)" }}>
           {text}
         </u>
       </OverlayTrigger>
@@ -986,7 +986,7 @@ const ExpressFaresLabel: React.VFC<{
                   key={`${section[0].name}-${section[1].name}`}
                 >
                   <Col xs="auto">
-                    {section[0].name} <i className="bi bi-arrow-right"></i>{" "}
+                    {section[0].name} <i className="bi bi-arrow-right" />{" "}
                     {section[1].name}{" "}
                     {type !== availableSeat ? <Badge>{type}</Badge> : undefined}
                   </Col>
@@ -997,7 +997,7 @@ const ExpressFaresLabel: React.VFC<{
           </Popover>
         }
       >
-        <u style={{ textDecoration: "underline dotted var(--bs-secondary)" }}>
+        <u style={{ textDecoration: "underline dotted var(--bs-info)" }}>
           {text}
         </u>
       </OverlayTrigger>{" "}
@@ -1030,7 +1030,7 @@ const SeatsLabel: React.VFC<{
                 key={`${section[0].name}-${section[1].name}`}
               >
                 <Col xs="auto">
-                  {section[0].name} <i className="bi bi-arrow-right"></i>{" "}
+                  {section[0].name} <i className="bi bi-arrow-right" />{" "}
                   {section[1].name}
                 </Col>
                 <Col xs="auto">{availableSeat}</Col>
@@ -1040,7 +1040,7 @@ const SeatsLabel: React.VFC<{
         </Popover>
       }
     >
-      <u style={{ textDecoration: "underline dotted var(--bs-secondary)" }}>
+      <u style={{ textDecoration: "underline dotted var(--bs-info)" }}>
         {text}
       </u>
     </OverlayTrigger>
@@ -1598,7 +1598,7 @@ const ContextAwareItem: React.VFC<{
               className="ms-4 overflow-hidden text-nowrap"
               style={{ textOverflow: "ellipsis" }}
             >
-              <b>{highSpeed[0].name}</b> <i className="bi bi-arrow-right"></i>{" "}
+              <b>{highSpeed[0].name}</b> <i className="bi bi-arrow-right" />{" "}
               <b>{highSpeed[1].name}</b>
             </span>
           </Fade>
@@ -1621,7 +1621,7 @@ const ContextAwareItem: React.VFC<{
             />
           </Col>
           <Col xs="auto" className="align-self-center">
-            <i className="bi bi-arrow-right"></i>
+            <i className="bi bi-arrow-right" />
           </Col>
           <Col>
             <StationDropdown
@@ -1950,7 +1950,7 @@ const App1: React.VFC<{
             />
           </Col>
           <Col xs="auto" className="align-self-center">
-            <i className="bi bi-arrow-right"></i>
+            <i className="bi bi-arrow-right" />
           </Col>
           <Col>
             <StationDropdown
