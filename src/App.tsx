@@ -1097,6 +1097,7 @@ interface TotalFare {
   readonly expressTickets: readonly ExpressTicket[];
   readonly discount?: number;
   readonly total: number;
+  readonly rate: number;
 }
 
 /**
@@ -1278,16 +1279,16 @@ const getFares = (
         ]
       : [];
 
-  const nonReservedOrStandingOnly2: TotalFare | undefined =
+  const nonReservedOrStandingOnly2: Omit<TotalFare, "rate"> | undefined =
     nonReservedOrStandingOnly0 !== undefined &&
     nonReservedOrStandingOnly1 !== undefined
       ? nonReservedOrStandingOnly0.total < nonReservedOrStandingOnly1.total
         ? nonReservedOrStandingOnly0
         : nonReservedOrStandingOnly1
       : undefined;
-  const reserved2: TotalFare =
+  const reserved2: Omit<TotalFare, "rate"> =
     reserved0.total < reserved1.total ? reserved0 : reserved1;
-  const reservedHighSpeed2: TotalFare | undefined =
+  const reservedHighSpeed2: Omit<TotalFare, "rate"> | undefined =
     reservedHighSpeed0 !== undefined && reservedHighSpeed1 !== undefined
       ? reservedHighSpeed0.total < reservedHighSpeed1.total
         ? reservedHighSpeed0
@@ -1393,66 +1394,37 @@ const Result: React.VFC<{
     points,
   } = getFares(line, sortedSection, sortedHighSpeed, season);
 
-  const [
-    [
-      nonReservedOrStandingOnlyBasicFareTicket,
-      reservedBasicFareTicket,
-      reservedHighSpeedBasicFareTicket,
-    ],
-    [
-      nonReservedOrStandingOnlyExpressTickets,
-      reservedExpressTickets,
-      reservedHighSpeedExpressTickets,
-    ],
-  ] =
+  const totalFares: readonly TotalFare[] = [
+    ...(nonReservedOrStandingOnly ? [nonReservedOrStandingOnly] : []),
+    ...(reserved ? [reserved] : []),
+    ...(reservedHighSpeed ? [reservedHighSpeed] : []),
+  ];
+
+  const [basicFareTickets, expressTicketLists] =
     departure.index < arrival.index
       ? [
-          [
-            nonReservedOrStandingOnly?.basicFareTicket,
-            reserved.basicFareTicket,
-            reservedHighSpeed?.basicFareTicket,
-          ],
-          [
-            nonReservedOrStandingOnly?.expressTickets,
-            reserved.expressTickets,
-            reservedHighSpeed?.expressTickets,
-          ],
+          totalFares.map(({ basicFareTicket }) => basicFareTicket),
+          totalFares.map(({ expressTickets }) => expressTickets),
         ]
       : [
-          [
-            nonReservedOrStandingOnly?.basicFareTicket &&
-              reverseTicket(nonReservedOrStandingOnly.basicFareTicket),
-            reverseTicket(reserved.basicFareTicket),
-            reservedHighSpeed?.basicFareTicket &&
-              reverseTicket(reservedHighSpeed.basicFareTicket),
-          ],
-          [
-            nonReservedOrStandingOnly?.expressTickets &&
-              reverseTickets(...nonReservedOrStandingOnly.expressTickets),
-            reverseTickets(...reserved.expressTickets),
-            reservedHighSpeed?.expressTickets &&
-              reverseTickets(...reservedHighSpeed.expressTickets),
-          ],
+          totalFares.map(({ basicFareTicket }) =>
+            reverseTicket(basicFareTicket)
+          ),
+          totalFares.map(({ expressTickets }) =>
+            reverseTickets(...expressTickets)
+          ),
         ];
 
-  const cells0 = (
-    <>
-      {nonReservedOrStandingOnlyExpressTickets && (
-        <th scope="col">
-          <SeatsLabel tickets={nonReservedOrStandingOnlyExpressTickets} />
-        </th>
-      )}
-      <th scope="col">
-        <SeatsLabel tickets={reservedExpressTickets} />
-      </th>
-      {reservedHighSpeedExpressTickets && (
-        <th scope="col">
+  const cells0 = expressTicketLists.map((expressTickets) => (
+    <th scope="col">
+      {expressTickets.some(({ highSpeed }) => highSpeed) && (
+        <>
           {highSpeedTrains.get(line)!}号<br />
-          <SeatsLabel tickets={reservedHighSpeedExpressTickets} />
-        </th>
+        </>
       )}
-    </>
-  );
+      <SeatsLabel tickets={expressTickets} />
+    </th>
+  ));
 
   return (
     <>
@@ -1469,82 +1441,37 @@ const Result: React.VFC<{
         <tbody>
           <tr>
             <th scope="row">運賃</th>
-            {nonReservedOrStandingOnlyBasicFareTicket && (
+            {basicFareTickets.map((basicFareTicket) => (
               <td>
-                <BasicFareLabel
-                  ticket={nonReservedOrStandingOnlyBasicFareTicket}
-                  section={section}
-                />
+                <BasicFareLabel ticket={basicFareTicket} section={section} />
               </td>
-            )}
-            <td>
-              <BasicFareLabel
-                ticket={reservedBasicFareTicket}
-                section={section}
-              />
-            </td>
-            {reservedHighSpeedBasicFareTicket && (
-              <td>
-                <BasicFareLabel
-                  ticket={reservedHighSpeedBasicFareTicket}
-                  section={section}
-                />
-              </td>
-            )}
+            ))}
           </tr>
           <tr>
             <th scope="row">特急料金</th>
-            {nonReservedOrStandingOnlyExpressTickets && (
+            {expressTicketLists.map((expressTickets) => (
               <td>
-                <ExpressFaresLabel
-                  tickets={nonReservedOrStandingOnlyExpressTickets}
-                />
+                <ExpressFaresLabel tickets={expressTickets} />
               </td>
-            )}
-            <td>
-              <ExpressFaresLabel tickets={reservedExpressTickets} />
-            </td>
-            {reservedHighSpeedExpressTickets && (
-              <td>
-                <ExpressFaresLabel tickets={reservedHighSpeedExpressTickets} />
-              </td>
-            )}
+            ))}
           </tr>
           <tr>
             <th scope="row">割引</th>
-            {nonReservedOrStandingOnly && (
+            {totalFares.map(({ discount }) => (
               <td>
-                {nonReservedOrStandingOnly.discount !== undefined
-                  ? jpyNameFormatter.format(nonReservedOrStandingOnly.discount)
+                {discount !== undefined
+                  ? jpyNameFormatter.format(discount)
                   : undefined}
               </td>
-            )}
-            <td>
-              {reserved.discount !== undefined
-                ? jpyNameFormatter.format(reserved.discount)
-                : undefined}
-            </td>
-            {reservedHighSpeed && (
-              <td>
-                {reservedHighSpeed.discount !== undefined
-                  ? jpyNameFormatter.format(reservedHighSpeed.discount)
-                  : undefined}
-              </td>
-            )}
+            ))}
           </tr>
         </tbody>
         <tfoot>
           <tr>
             <th scope="row">計</th>
-            {nonReservedOrStandingOnly && (
-              <td>
-                {jpyNameFormatter.format(nonReservedOrStandingOnly.total)}
-              </td>
-            )}
-            <td>{jpyNameFormatter.format(reserved.total)}</td>
-            {reservedHighSpeed && (
-              <td>{jpyNameFormatter.format(reservedHighSpeed.total)}</td>
-            )}
+            {totalFares.map(({ total }) => (
+              <td>{jpyNameFormatter.format(total)}</td>
+            ))}
           </tr>
         </tfoot>
       </Table>
@@ -1565,11 +1492,9 @@ const Result: React.VFC<{
         <tbody>
           <tr>
             <th scope="row">レート</th>
-            {nonReservedOrStandingOnly && (
-              <td>{nonReservedOrStandingOnly.rate.toFixed(2)}</td>
-            )}
-            <td>{reserved.rate.toFixed(2)}</td>
-            {reservedHighSpeed && <td>{reservedHighSpeed.rate.toFixed(2)}</td>}
+            {totalFares.map(({ rate }) => (
+              <td>{rate.toFixed(2)}</td>
+            ))}
           </tr>
           <tr>
             <th scope="row">順位</th>
