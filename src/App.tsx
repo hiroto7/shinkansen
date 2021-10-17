@@ -1588,7 +1588,7 @@ const Result: React.VFC<{
                 )}
                 <SeatsLabel tickets={expressTickets} />
               </Col>
-              <Col as="dd" xs="auto">
+              <Col as="dd" xs>
                 {types.map(({ name, href }, index) => (
                   <Fragment key={name}>
                     {href !== undefined ? (
