@@ -16,7 +16,6 @@ import {
   AccordionContext,
   Alert,
   Badge,
-  Button,
   Card,
   Col,
   Container,
@@ -31,6 +30,7 @@ import {
   Popover,
   Row,
   Table,
+  ToggleButton,
 } from "react-bootstrap";
 import { NavLink, Route, Routes } from "react-router-dom";
 import "./App.css";
@@ -1695,14 +1695,18 @@ const ContextAwareItem: React.VFC<{
   section: Section;
   highSpeed: Section;
   longestHighSpeedSection: Section;
-  onChange: (highSpeed: Section) => void;
+  onDepartureChange: (station: Station) => void;
+  onArrivalChange: (station: Station) => void;
+  onReset: () => void;
 }> = ({
   eventKey,
   line,
   section,
   highSpeed,
   longestHighSpeedSection,
-  onChange,
+  onDepartureChange,
+  onArrivalChange,
+  onReset,
 }) => {
   const { activeEventKey } = useContext(AccordionContext);
 
@@ -1744,7 +1748,7 @@ const ContextAwareItem: React.VFC<{
           <Col>
             <StationDropdown
               value={highSpeed[0]}
-              onChange={(station) => onChange([station, highSpeed[1]])}
+              onChange={onDepartureChange}
               header={`${train}号の乗車駅`}
               items={items.map(({ station, disabled }) => ({
                 station,
@@ -1761,7 +1765,7 @@ const ContextAwareItem: React.VFC<{
           <Col>
             <StationDropdown
               value={highSpeed[1]}
-              onChange={(station) => onChange([highSpeed[0], station])}
+              onChange={onArrivalChange}
               header={`${train}号の降車駅`}
               items={items.map(({ station, disabled }) => ({
                 station,
@@ -1774,16 +1778,23 @@ const ContextAwareItem: React.VFC<{
           </Col>
         </Row>
         <div className="d-grid mt-3">
-          <Button
+          <ToggleButton
             variant="outline-secondary"
-            onClick={() => onChange(longestHighSpeedSection)}
+            onChange={onReset}
+            type="checkbox"
+            id="toggle-check"
+            value="1"
             disabled={
               highSpeed[0] === longestHighSpeedSection?.[0] &&
               highSpeed[1] === longestHighSpeedSection?.[1]
             }
+            checked={
+              highSpeed[0] === longestHighSpeedSection?.[0] &&
+              highSpeed[1] === longestHighSpeedSection?.[1]
+            }
           >
-            デフォルトに戻す
-          </Button>
+            デフォルト
+          </ToggleButton>
         </div>
       </Accordion.Body>
     </Accordion.Item>
@@ -1905,8 +1916,9 @@ const isHighSpeedAvailableSection = (line: Line, section: Section) => {
 interface State {
   readonly line: Line;
   readonly section: Section;
-  readonly longestHighSpeedSection: Section | undefined;
-  readonly highSpeed: Section | undefined;
+  readonly highSpeed:
+    | readonly [a: Station | undefined, b: Station | undefined]
+    | undefined;
 }
 
 type Action = Readonly<
@@ -1923,8 +1935,15 @@ type Action = Readonly<
       payload: Station;
     }
   | {
-      type: "setHighSpeed";
-      payload: Section | undefined;
+      type: "setHighSpeedDeparture";
+      payload: Station;
+    }
+  | {
+      type: "setHighSpeedArrival";
+      payload: Station;
+    }
+  | {
+      type: "resetHighSpeed";
     }
 >;
 
@@ -1947,51 +1966,66 @@ const reducer: Reducer<State, Action> = (state, action) => {
         ? [firstOfLine === arrival ? lastOfLine : firstOfLine, arrival]
         : [firstOfLine, lastOfLine];
 
-      const longestHighSpeedSection = getLongestHighSpeedSection(line, section);
-
       return {
         ...state,
         line,
         section,
-        longestHighSpeedSection,
-        highSpeed: longestHighSpeedSection,
+        highSpeed: undefined,
       };
     }
 
     case "setDeparture": {
       const section = [action.payload, state.section[1]] as const;
-      const longestHighSpeedSection = getLongestHighSpeedSection(
-        state.line,
-        section
-      );
 
       return {
         ...state,
         section,
-        longestHighSpeedSection,
-        highSpeed: longestHighSpeedSection,
+        highSpeed: undefined,
       };
     }
 
     case "setArrival": {
       const section = [state.section[0], action.payload] as const;
-      const longestHighSpeedSection = getLongestHighSpeedSection(
-        state.line,
-        section
-      );
 
       return {
         ...state,
         section,
-        longestHighSpeedSection,
-        highSpeed: longestHighSpeedSection,
+        highSpeed: undefined,
       };
     }
 
-    case "setHighSpeed":
+    case "setHighSpeedDeparture":
       return {
         ...state,
-        highSpeed: action.payload,
+        highSpeed: state.highSpeed
+          ? [
+              action.payload,
+              state.highSpeed[1] &&
+              action.payload.index < state.highSpeed[1].index
+                ? state.highSpeed[1]
+                : undefined,
+            ]
+          : [action.payload, undefined],
+      };
+
+    case "setHighSpeedArrival":
+      return {
+        ...state,
+        highSpeed: state.highSpeed
+          ? [
+              state.highSpeed[0] &&
+              state.highSpeed[0].index < action.payload.index
+                ? state.highSpeed[0]
+                : undefined,
+              action.payload,
+            ]
+          : [undefined, action.payload],
+      };
+
+    case "resetHighSpeed":
+      return {
+        ...state,
+        highSpeed: undefined,
       };
   }
 };
@@ -1999,16 +2033,14 @@ const reducer: Reducer<State, Action> = (state, action) => {
 const init = (): State => {
   const line = line0;
   const section: Section = [line.stations[0]!, line.stations.slice(-1)[0]!];
-  const longestHighSpeedSection = getLongestHighSpeedSection(line, section);
   return {
     line,
     section,
-    longestHighSpeedSection,
-    highSpeed: longestHighSpeedSection,
+    highSpeed: undefined,
   };
 };
 
-const App1: React.VFC<{
+const Home: React.VFC<{
   season: Season;
   rankedFares: Readonly<{
     nonReservedOrStandingOnly: {
@@ -2030,13 +2062,23 @@ const App1: React.VFC<{
 }> = ({ season, rankedFares }) => {
   const [state, dispatch] = useReducer(reducer, undefined, init);
 
-  const { line, section, highSpeed, longestHighSpeedSection } = state;
-  const [departure, arrival] = section;
+  const { line, section } = state;
 
+  const longestHighSpeedSection = useMemo(
+    () => getLongestHighSpeedSection(line, section),
+    [line, section]
+  );
   const highSpeedAvailable = useMemo(
     () => isHighSpeedAvailableSection(line, section),
     [line, section]
   );
+
+  const highSpeed: Section | undefined = longestHighSpeedSection && [
+    state.highSpeed?.[0] ?? longestHighSpeedSection[0],
+    state.highSpeed?.[1] ?? longestHighSpeedSection[1],
+  ];
+
+  const [departure, arrival] = section;
 
   return (
     <main>
@@ -2111,9 +2153,13 @@ const App1: React.VFC<{
             section={section}
             highSpeed={highSpeed}
             longestHighSpeedSection={longestHighSpeedSection}
-            onChange={(highSpeed) =>
-              dispatch({ type: "setHighSpeed", payload: highSpeed })
+            onDepartureChange={(station: Station) =>
+              dispatch({ type: "setHighSpeedDeparture", payload: station })
             }
+            onArrivalChange={(station: Station) =>
+              dispatch({ type: "setHighSpeedArrival", payload: station })
+            }
+            onReset={() => dispatch({ type: "resetHighSpeed" })}
           />
         </Accordion>
       ) : (
@@ -2438,7 +2484,7 @@ const App: React.VFC = () => {
           />
           <Route
             path="/"
-            element={<App1 season={season} rankedFares={rankedFares} />}
+            element={<Home season={season} rankedFares={rankedFares} />}
           />
         </Routes>
       </Container>
