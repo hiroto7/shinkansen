@@ -949,7 +949,7 @@ const BasicFareLabel: React.VFC<{
       <OverlayTrigger
         overlay={
           <Popover>
-            <Popover.Header>運賃計算区間</Popover.Header>
+            <Popover.Header>運賃の計算区間</Popover.Header>
             <Popover.Body>
               {ticket.section[0].name} <i className="bi bi-arrow-right" />{" "}
               {ticket.section[1].name}
@@ -984,19 +984,18 @@ const ExpressFaresLabel: React.VFC<{
       <OverlayTrigger
         overlay={
           <Popover>
-            <Popover.Header>内訳</Popover.Header>
+            <Popover.Header>特急料金の内訳</Popover.Header>
             <Popover.Body>
               {tickets.map(({ section, fare, type, availableSeat }) => (
-                <Row
-                  className="justify-content-between"
-                  key={`${section[0].name}-${section[1].name}`}
-                >
+                <Row key={`${section[0].name}-${section[1].name}`}>
                   <Col xs="auto">
                     {section[0].name} <i className="bi bi-arrow-right" />{" "}
                     {section[1].name}{" "}
-                    {type !== availableSeat ? <Badge>{type}</Badge> : undefined}
+                    {type !== availableSeat ? <Badge>{type}</Badge> : <></>}
                   </Col>
-                  <Col xs="auto">{jpyNameFormatter.format(fare)}</Col>
+                  <Col xs="auto" className="ms-auto">
+                    {jpyNameFormatter.format(fare)}
+                  </Col>
                 </Row>
               ))}
             </Popover.Body>
@@ -1028,18 +1027,17 @@ const SeatsLabel: React.VFC<{
     <OverlayTrigger
       overlay={
         <Popover>
-          <Popover.Header>座席</Popover.Header>
+          <Popover.Header>区間ごとの利用座席</Popover.Header>
           <Popover.Body>
             {tickets.map(({ section, availableSeat }) => (
-              <Row
-                className="justify-content-between"
-                key={`${section[0].name}-${section[1].name}`}
-              >
+              <Row key={`${section[0].name}-${section[1].name}`}>
                 <Col xs="auto">
                   {section[0].name} <i className="bi bi-arrow-right" />{" "}
                   {section[1].name}
                 </Col>
-                <Col xs="auto">{availableSeat}</Col>
+                <Col xs="auto" className="ms-auto">
+                  {availableSeat}
+                </Col>
               </Row>
             ))}
           </Popover.Body>
