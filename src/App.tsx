@@ -935,44 +935,46 @@ const getLimitedExpressFares = (
 const BasicFareLabel: React.VFC<{
   ticket: Ticket;
   section: Section;
-}> = ({ ticket, section }) => (
-  <>
-    {jpyNameFormatter.format(ticket.fare)}{" "}
-    {!isEquivalent(ticket.section, section) ? (
+}> = ({ ticket, section }) => {
+  const text = jpyNameFormatter.format(ticket.fare);
+
+  return !isEquivalent(ticket.section, section) ? (
+    <>
       <OverlayTrigger
         overlay={
           <Popover>
             <Popover.Header>運賃計算区間</Popover.Header>
             <Popover.Body>
-              {ticket.section[0].name} <i className="bi bi-arrow-right" />{" "}
+              {ticket.section[0].name} <i className="bi bi-arrow-right"></i>{" "}
               {ticket.section[1].name}
             </Popover.Body>
           </Popover>
         }
       >
-        <i className="bi bi-info-circle text-info" />
+        <u style={{ textDecoration: "underline dotted var(--bs-secondary)" }}>
+          {text}
+        </u>
       </OverlayTrigger>
-    ) : (
-      <></>
-    )}
-  </>
-);
+    </>
+  ) : (
+    <>{text}</>
+  );
+};
 
 const ExpressFaresLabel: React.VFC<{
   tickets: readonly ExpressTicket[];
-}> = ({ tickets }) => (
-  <>
-    {jpyNameFormatter.format(sum(tickets.map(({ fare }) => fare)))}{" "}
-    {[
-      ...new Set(
-        tickets
-          .filter(({ type, availableSeat }) => type !== availableSeat)
-          .map(({ type }) => type)
-      ),
-    ].map((type) => (
-      <Badge>{type}</Badge>
-    ))}{" "}
-    {tickets.length > 1 ? (
+}> = ({ tickets }) => {
+  const text = jpyNameFormatter.format(sum(tickets.map(({ fare }) => fare)));
+  const badges = [
+    ...new Set(
+      tickets
+        .filter(({ type, availableSeat }) => type !== availableSeat)
+        .map(({ type }) => type)
+    ),
+  ].map((type) => <Badge>{type}</Badge>);
+
+  return tickets.length > 1 ? (
+    <>
       <OverlayTrigger
         overlay={
           <Popover>
@@ -984,7 +986,7 @@ const ExpressFaresLabel: React.VFC<{
                   key={`${section[0].name}-${section[1].name}`}
                 >
                   <Col xs="auto">
-                    {section[0].name} <i className="bi bi-arrow-right" />{" "}
+                    {section[0].name} <i className="bi bi-arrow-right"></i>{" "}
                     {section[1].name}{" "}
                     {type !== availableSeat ? <Badge>{type}</Badge> : undefined}
                   </Col>
@@ -995,13 +997,18 @@ const ExpressFaresLabel: React.VFC<{
           </Popover>
         }
       >
-        <i className="bi bi-info-circle text-info" />
-      </OverlayTrigger>
-    ) : (
-      <></>
-    )}
-  </>
-);
+        <u style={{ textDecoration: "underline dotted var(--bs-secondary)" }}>
+          {text}
+        </u>
+      </OverlayTrigger>{" "}
+      {badges}
+    </>
+  ) : (
+    <>
+      {text} {badges}
+    </>
+  );
+};
 
 const f = (stationOrZone: Station | Zone): Station =>
   "central" in stationOrZone ? stationOrZone.central : stationOrZone;
@@ -1010,37 +1017,35 @@ const SeatsLabel: React.VFC<{
   tickets: readonly ExpressTicket[];
 }> = ({ tickets }) => {
   const seats = new Set(tickets.map(({ availableSeat }) => availableSeat));
-  return (
-    <>
-      {[...seats].join("・")}{" "}
-      {seats.size > 1 ? (
-        <OverlayTrigger
-          overlay={
-            <Popover>
-              <Popover.Header>座席</Popover.Header>
-              <Popover.Body>
-                {tickets.map(({ section, availableSeat }) => (
-                  <Row
-                    className="justify-content-between"
-                    key={`${section[0].name}-${section[1].name}`}
-                  >
-                    <Col xs="auto">
-                      {section[0].name} <i className="bi bi-arrow-right" />{" "}
-                      {section[1].name}
-                    </Col>
-                    <Col xs="auto">{availableSeat}</Col>
-                  </Row>
-                ))}
-              </Popover.Body>
-            </Popover>
-          }
-        >
-          <i className="bi bi-info-circle text-info" />
-        </OverlayTrigger>
-      ) : (
-        <></>
-      )}
-    </>
+  const text = [...seats].join("・");
+  return seats.size > 1 ? (
+    <OverlayTrigger
+      overlay={
+        <Popover>
+          <Popover.Header>座席</Popover.Header>
+          <Popover.Body>
+            {tickets.map(({ section, availableSeat }) => (
+              <Row
+                className="justify-content-between"
+                key={`${section[0].name}-${section[1].name}`}
+              >
+                <Col xs="auto">
+                  {section[0].name} <i className="bi bi-arrow-right"></i>{" "}
+                  {section[1].name}
+                </Col>
+                <Col xs="auto">{availableSeat}</Col>
+              </Row>
+            ))}
+          </Popover.Body>
+        </Popover>
+      }
+    >
+      <u style={{ textDecoration: "underline dotted var(--bs-secondary)" }}>
+        {text}
+      </u>
+    </OverlayTrigger>
+  ) : (
+    <>{text}</>
   );
 };
 
@@ -1593,7 +1598,7 @@ const ContextAwareItem: React.VFC<{
               className="ms-4 overflow-hidden text-nowrap"
               style={{ textOverflow: "ellipsis" }}
             >
-              <b>{highSpeed[0].name}</b> <i className="bi bi-arrow-right" />{" "}
+              <b>{highSpeed[0].name}</b> <i className="bi bi-arrow-right"></i>{" "}
               <b>{highSpeed[1].name}</b>
             </span>
           </Fade>
@@ -1616,7 +1621,7 @@ const ContextAwareItem: React.VFC<{
             />
           </Col>
           <Col xs="auto" className="align-self-center">
-            <i className="bi bi-arrow-right" />
+            <i className="bi bi-arrow-right"></i>
           </Col>
           <Col>
             <StationDropdown
@@ -1945,7 +1950,7 @@ const App1: React.VFC<{
             />
           </Col>
           <Col xs="auto" className="align-self-center">
-            <i className="bi bi-arrow-right" />
+            <i className="bi bi-arrow-right"></i>
           </Col>
           <Col>
             <StationDropdown
