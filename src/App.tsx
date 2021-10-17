@@ -1092,13 +1092,58 @@ const getBasicFare = (line: Line, section: Section) => {
       );
 };
 
+interface TicketType {
+  readonly name: string;
+  readonly href?: string;
+}
+const ticketTypes: readonly [TicketType, TicketType, TicketType] = [
+  { name: "紙のきっぷ" },
+  { name: "新幹線eチケット", href: "https://www.eki-net.com/top/e-ticket/" },
+  { name: "タッチでGo!新幹線", href: "https://www.jreast.co.jp/touchdego/" },
+];
+
 interface TotalFare {
+  /**
+   * 乗車券
+   */
   readonly basicFareTicket: Ticket;
+  /**
+   * 特急券
+   */
   readonly expressTickets: readonly ExpressTicket[];
+  /**
+   * 割引
+   */
   readonly discount?: number;
+  /**
+   * 運賃・特急料金・割引の合計
+   */
   readonly total: number;
   readonly rate: number;
+  readonly types: readonly TicketType[];
 }
+
+const getAvailableIcCardTicketTypes = (
+  line: Line,
+  expressTickets: readonly ExpressTicket[]
+): readonly TicketType[] => {
+  const available1 = !expressTickets.some(
+    ({ availableSeat }) => availableSeat === standingOnly
+  );
+
+  const available2 =
+    !expressTickets.some(({ availableSeat }) => availableSeat === reserved) &&
+    ((line !== line0 && line !== line1) ||
+      expressTickets[0]!.section[0].index >=
+        line.stations.findIndex((station) => station.name === "盛岡") ||
+      expressTickets.slice(-1)[0]!.section[1].index <=
+        line.stations.findIndex((station) => station.name === "盛岡"));
+
+  return [
+    ...(available1 ? [ticketTypes[1]] : []),
+    ...(available2 ? [ticketTypes[2]] : []),
+  ];
+};
 
 /**
  * 指定した区間の運賃・特急料金を計算する
@@ -1220,45 +1265,85 @@ const getFares = (
   };
 
   const basicFareTicket1: Ticket =
-    getDistance0(...fareSection200) > 200
+    getDistance0(...fareSection200) > 200 &&
+    !isEquivalent(ticketSection200, section)
       ? {
           fare: getBasicFare(line, fareSection200),
           section: ticketSection200,
         }
-      : getDistance0(...fareSection100) > 100
+      : getDistance0(...fareSection100) > 100 &&
+        !isEquivalent(ticketSection100, section)
       ? {
           fare: getBasicFare(line, fareSection100),
           section: ticketSection100,
         }
       : basicFareTicket0;
 
-  const [nonReservedOrStandingOnly0, nonReservedOrStandingOnly1] =
+  const nonReservedOrStandingOnly0:
+    | Omit<TotalFare, "rate" | "types">
+    | undefined =
     nonReservedOrStandingOnlyExpressFare !== undefined &&
     nonReservedOrStandingOnlyExpressTickets
-      ? [
-          {
-            basicFareTicket: basicFareTicket0,
-            expressTickets: nonReservedOrStandingOnlyExpressTickets,
-            total: basicFareTicket0.fare + nonReservedOrStandingOnlyExpressFare,
-          },
-          {
-            basicFareTicket: basicFareTicket1,
-            expressTickets: nonReservedOrStandingOnlyExpressTickets,
-            total: basicFareTicket1.fare + nonReservedOrStandingOnlyExpressFare,
-          },
-        ]
-      : [];
+      ? {
+          basicFareTicket: basicFareTicket0,
+          expressTickets: nonReservedOrStandingOnlyExpressTickets,
+          total: basicFareTicket0.fare + nonReservedOrStandingOnlyExpressFare,
+        }
+      : undefined;
+
+  const nonReservedOrStandingOnly1: Omit<TotalFare, "rate"> | undefined =
+    basicFareTicket0 === basicFareTicket1 &&
+    nonReservedOrStandingOnly0 &&
+    nonReservedOrStandingOnlyExpressTickets
+      ? {
+          ...nonReservedOrStandingOnly0,
+          types: [
+            ticketTypes[0],
+            ...getAvailableIcCardTicketTypes(
+              line,
+              nonReservedOrStandingOnlyExpressTickets
+            ),
+          ],
+        }
+      : undefined;
+
+  const [nonReservedOrStandingOnly2, nonReservedOrStandingOnly3]:
+    | readonly [Omit<TotalFare, "rate">, Omit<TotalFare, "rate">]
+    | readonly [] = nonReservedOrStandingOnly1
+    ? [nonReservedOrStandingOnly1, nonReservedOrStandingOnly1]
+    : nonReservedOrStandingOnly0 &&
+      nonReservedOrStandingOnlyExpressFare !== undefined &&
+      nonReservedOrStandingOnlyExpressTickets
+    ? [
+        {
+          ...nonReservedOrStandingOnly0,
+          types: getAvailableIcCardTicketTypes(
+            line,
+            nonReservedOrStandingOnlyExpressTickets
+          ),
+        },
+        {
+          basicFareTicket: basicFareTicket1,
+          expressTickets: nonReservedOrStandingOnlyExpressTickets,
+          total: basicFareTicket1.fare + nonReservedOrStandingOnlyExpressFare,
+          types: [ticketTypes[0]],
+        },
+      ]
+    : [];
+
   const [reserved0, reserved1] = [
     {
       basicFareTicket: basicFareTicket0,
       expressTickets: reservedExpressTickets,
       discount: -200,
       total: basicFareTicket0.fare + reservedExpressFare - 200,
+      types: [ticketTypes[1]],
     },
     {
       basicFareTicket: basicFareTicket1,
       expressTickets: reservedExpressTickets,
       total: basicFareTicket1.fare + reservedExpressFare,
+      types: [ticketTypes[0]],
     },
   ];
   const [reservedHighSpeed0, reservedHighSpeed1] =
@@ -1270,21 +1355,23 @@ const getFares = (
             expressTickets: reservedHighSpeedExpressTickets,
             discount: -200,
             total: basicFareTicket0.fare + reservedHighSpeedExpressFare - 200,
+            types: [ticketTypes[1]],
           },
           {
             basicFareTicket: basicFareTicket1,
             expressTickets: reservedHighSpeedExpressTickets,
             total: basicFareTicket1.fare + reservedHighSpeedExpressFare,
+            types: [ticketTypes[0]],
           },
         ]
       : [];
 
-  const nonReservedOrStandingOnly2: Omit<TotalFare, "rate"> | undefined =
-    nonReservedOrStandingOnly0 !== undefined &&
-    nonReservedOrStandingOnly1 !== undefined
-      ? nonReservedOrStandingOnly0.total < nonReservedOrStandingOnly1.total
-        ? nonReservedOrStandingOnly0
-        : nonReservedOrStandingOnly1
+  const nonReservedOrStandingOnly4: Omit<TotalFare, "rate"> | undefined =
+    nonReservedOrStandingOnly2 !== undefined &&
+    nonReservedOrStandingOnly3 !== undefined
+      ? nonReservedOrStandingOnly2.total < nonReservedOrStandingOnly3.total
+        ? nonReservedOrStandingOnly2
+        : nonReservedOrStandingOnly3
       : undefined;
   const reserved2: Omit<TotalFare, "rate"> =
     reserved0.total < reserved1.total ? reserved0 : reserved1;
@@ -1297,9 +1384,9 @@ const getFares = (
 
   return {
     distance,
-    nonReservedOrStandingOnly: nonReservedOrStandingOnly2 && {
-      ...nonReservedOrStandingOnly2,
-      rate: nonReservedOrStandingOnly2.total / points,
+    nonReservedOrStandingOnly: nonReservedOrStandingOnly4 && {
+      ...nonReservedOrStandingOnly4,
+      rate: nonReservedOrStandingOnly4.total / points,
     },
     reserved: {
       ...reserved2,
@@ -1400,22 +1487,19 @@ const Result: React.VFC<{
     ...(reservedHighSpeed ? [reservedHighSpeed] : []),
   ];
 
-  const [basicFareTickets, expressTicketLists] =
-    departure.index < arrival.index
-      ? [
-          totalFares.map(({ basicFareTicket }) => basicFareTicket),
-          totalFares.map(({ expressTickets }) => expressTickets),
-        ]
-      : [
-          totalFares.map(({ basicFareTicket }) =>
-            reverseTicket(basicFareTicket)
-          ),
-          totalFares.map(({ expressTickets }) =>
-            reverseTickets(...expressTickets)
-          ),
-        ];
+  const maybeReversedTotalFares: readonly TotalFare[] = totalFares.map(
+    (totalFare) => ({
+      ...totalFare,
+      ...(departure.index < arrival.index
+        ? {}
+        : {
+            basicFareTicket: reverseTicket(totalFare.basicFareTicket),
+            expressTickets: reverseTickets(...totalFare.expressTickets),
+          }),
+    })
+  );
 
-  const cells0 = expressTicketLists.map((expressTickets) => (
+  const cells0 = maybeReversedTotalFares.map(({ expressTickets }) => (
     <th scope="col">
       {expressTickets.some(({ highSpeed }) => highSpeed) && (
         <>
@@ -1441,7 +1525,7 @@ const Result: React.VFC<{
         <tbody>
           <tr>
             <th scope="row">運賃</th>
-            {basicFareTickets.map((basicFareTicket) => (
+            {maybeReversedTotalFares.map(({ basicFareTicket }) => (
               <td>
                 <BasicFareLabel ticket={basicFareTicket} section={section} />
               </td>
@@ -1449,7 +1533,7 @@ const Result: React.VFC<{
           </tr>
           <tr>
             <th scope="row">特急料金</th>
-            {expressTicketLists.map((expressTickets) => (
+            {maybeReversedTotalFares.map(({ expressTickets }) => (
               <td>
                 <ExpressFaresLabel tickets={expressTickets} />
               </td>
@@ -1475,6 +1559,36 @@ const Result: React.VFC<{
           </tr>
         </tfoot>
       </Table>
+      <details className="mb-3">
+        <summary>きっぷの種類</summary>
+        <dl>
+          {maybeReversedTotalFares.map(({ expressTickets, types }) => (
+            <Row>
+              <Col as="dt" xs="auto">
+                {expressTickets.some(({ highSpeed }) => highSpeed) && (
+                  <>{highSpeedTrains.get(line)!}号 </>
+                )}
+                <SeatsLabel tickets={expressTickets} />
+              </Col>
+              <Col as="dd" xs="auto">
+                {types.map(({ name, href }, index) => (
+                  <>
+                    {href !== undefined ? (
+                      <a href={href} target="_blank" rel="noreferrer">
+                        {name}
+                      </a>
+                    ) : (
+                      name
+                    )}
+                    {types.length - 1 !== index ? "・" : ""}
+                  </>
+                ))}
+                {types.length > 1 ? "のいずれか" : ""}
+              </Col>
+            </Row>
+          ))}
+        </dl>
+      </details>
       <h2 className="h5">JRE POINT 特典チケット</h2>
       <h3 className="h6">交換ポイント</h3>
       <p>{points.toLocaleString()}ポイント</p>
