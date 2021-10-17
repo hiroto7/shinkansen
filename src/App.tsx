@@ -3,7 +3,14 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import parse from "csv-parse/lib/sync";
 import { ceil, round, sum } from "lodash";
 import type * as React from "react";
-import { Reducer, useContext, useMemo, useReducer, useState } from "react";
+import {
+  Fragment,
+  Reducer,
+  useContext,
+  useMemo,
+  useReducer,
+  useState,
+} from "react";
 import {
   Accordion,
   AccordionContext,
@@ -970,7 +977,7 @@ const ExpressFaresLabel: React.VFC<{
         .filter(({ type, availableSeat }) => type !== availableSeat)
         .map(({ type }) => type)
     ),
-  ].map((type) => <Badge>{type}</Badge>);
+  ].map((type) => <Badge key={type}>{type}</Badge>);
 
   return tickets.length > 1 ? (
     <>
@@ -1486,34 +1493,37 @@ const Result: React.VFC<{
       : [highSpeed[1], highSpeed[0]]
     : undefined;
 
-  const {
-    distance,
-    nonReservedOrStandingOnly,
-    reserved,
-    reservedHighSpeed,
-    points,
-  } = getFares(line, sortedSection, sortedHighSpeed, season);
-
-  const totalFares: readonly TotalFare[] = [
-    ...(nonReservedOrStandingOnly ? [nonReservedOrStandingOnly] : []),
-    ...(reserved ? [reserved] : []),
-    ...(reservedHighSpeed ? [reservedHighSpeed] : []),
-  ];
-
-  const maybeReversedTotalFares: readonly TotalFare[] = totalFares.map(
-    (totalFare) => ({
-      ...totalFare,
-      ...(departure.index < arrival.index
-        ? {}
-        : {
-            basicFareTicket: reverseTicket(totalFare.basicFareTicket),
-            expressTickets: reverseTickets(...totalFare.expressTickets),
-          }),
-    })
+  const { distance, points, ...others } = getFares(
+    line,
+    sortedSection,
+    sortedHighSpeed,
+    season
   );
 
-  const cells0 = maybeReversedTotalFares.map(({ expressTickets }) => (
-    <th scope="col">
+  const { nonReservedOrStandingOnly, reservedHighSpeed } = others;
+
+  const totalFares = (
+    ["nonReservedOrStandingOnly", "reserved", "reservedHighSpeed"] as const
+  ).flatMap((key: keyof typeof others) => {
+    const totalFare: TotalFare | undefined = others[key];
+    return totalFare
+      ? [
+          {
+            ...totalFare,
+            key,
+            ...(departure.index < arrival.index
+              ? {}
+              : {
+                  basicFareTicket: reverseTicket(totalFare.basicFareTicket),
+                  expressTickets: reverseTickets(...totalFare.expressTickets),
+                }),
+          },
+        ]
+      : [];
+  });
+
+  const cells0 = totalFares.map(({ expressTickets, key }) => (
+    <th scope="col" key={key}>
       {expressTickets.some(({ highSpeed }) => highSpeed) && (
         <>
           {highSpeedTrains.get(line)!}号<br />
@@ -1538,24 +1548,24 @@ const Result: React.VFC<{
         <tbody>
           <tr>
             <th scope="row">運賃</th>
-            {maybeReversedTotalFares.map(({ basicFareTicket }) => (
-              <td>
+            {totalFares.map(({ basicFareTicket, key }) => (
+              <td key={key}>
                 <BasicFareLabel ticket={basicFareTicket} section={section} />
               </td>
             ))}
           </tr>
           <tr>
             <th scope="row">特急料金</th>
-            {maybeReversedTotalFares.map(({ expressTickets }) => (
-              <td>
+            {totalFares.map(({ expressTickets, key }) => (
+              <td key={key}>
                 <ExpressFaresLabel tickets={expressTickets} />
               </td>
             ))}
           </tr>
           <tr>
             <th scope="row">割引</th>
-            {totalFares.map(({ discount }) => (
-              <td>
+            {totalFares.map(({ discount, key }) => (
+              <td key={key}>
                 {discount !== undefined
                   ? jpyNameFormatter.format(discount)
                   : undefined}
@@ -1566,8 +1576,8 @@ const Result: React.VFC<{
         <tfoot>
           <tr>
             <th scope="row">計</th>
-            {totalFares.map(({ total }) => (
-              <td>{jpyNameFormatter.format(total)}</td>
+            {totalFares.map(({ total, key }) => (
+              <td key={key}>{jpyNameFormatter.format(total)}</td>
             ))}
           </tr>
         </tfoot>
@@ -1575,8 +1585,8 @@ const Result: React.VFC<{
       <details className="mb-3">
         <summary>きっぷの種類</summary>
         <dl>
-          {maybeReversedTotalFares.map(({ expressTickets, types }) => (
-            <Row>
+          {totalFares.map(({ expressTickets, types, key }) => (
+            <Row key={key}>
               <Col as="dt" xs="auto">
                 {expressTickets.some(({ highSpeed }) => highSpeed) && (
                   <>{highSpeedTrains.get(line)!}号 </>
@@ -1585,7 +1595,7 @@ const Result: React.VFC<{
               </Col>
               <Col as="dd" xs="auto">
                 {types.map(({ name, href }, index) => (
-                  <>
+                  <Fragment key={name}>
                     {href !== undefined ? (
                       <a href={href} target="_blank" rel="noreferrer">
                         {name}
@@ -1594,7 +1604,7 @@ const Result: React.VFC<{
                       name
                     )}
                     {types.length - 1 !== index ? "・" : ""}
-                  </>
+                  </Fragment>
                 ))}
                 {types.length > 1 ? "のいずれか" : ""}
               </Col>
@@ -1619,8 +1629,8 @@ const Result: React.VFC<{
         <tbody>
           <tr>
             <th scope="row">レート</th>
-            {totalFares.map(({ rate }) => (
-              <td>{rate.toFixed(2)}</td>
+            {totalFares.map(({ rate, key }) => (
+              <td key={key}>{rate.toFixed(2)}</td>
             ))}
           </tr>
           <tr>
