@@ -937,7 +937,7 @@ const BasicFareLabel: React.VFC<{
   section: Section;
 }> = ({ ticket, section }) => (
   <>
-    {jpyFormatter.format(ticket.fare)}{" "}
+    {jpyNameFormatter.format(ticket.fare)}{" "}
     {!isEquivalent(ticket.section, section) ? (
       <OverlayTrigger
         overlay={
@@ -962,7 +962,7 @@ const ExpressFaresLabel: React.VFC<{
   tickets: readonly ExpressTicket[];
 }> = ({ tickets }) => (
   <>
-    {jpyFormatter.format(sum(tickets.map(({ fare }) => fare)))}{" "}
+    {jpyNameFormatter.format(sum(tickets.map(({ fare }) => fare)))}{" "}
     {[
       ...new Set(
         tickets
@@ -988,7 +988,7 @@ const ExpressFaresLabel: React.VFC<{
                     {section[1].name}{" "}
                     {type !== availableSeat ? <Badge>{type}</Badge> : undefined}
                   </Col>
-                  <Col xs="auto">{jpyFormatter.format(fare)}</Col>
+                  <Col xs="auto">{jpyNameFormatter.format(fare)}</Col>
                 </Row>
               ))}
             </Popover.Body>
@@ -1325,10 +1325,22 @@ const reverseTickets = (
   ...tickets: readonly ExpressTicket[]
 ): readonly ExpressTicket[] => tickets.map(reverseTicket).reverse();
 
-const jpyFormatter = new Intl.NumberFormat(undefined, {
+const kilometerFormatter = new Intl.NumberFormat(undefined, {
+  style: "unit",
+  unit: "kilometer",
+  minimumFractionDigits: 1,
+});
+
+const jpyNameFormatter = new Intl.NumberFormat(undefined, {
   style: "currency",
   currency: "JPY",
   currencyDisplay: "name",
+});
+
+const jpySymbolFormatter = new Intl.NumberFormat(undefined, {
+  style: "currency",
+  currency: "JPY",
+  currencyDisplay: "symbol",
 });
 
 const Result: React.VFC<{
@@ -1445,13 +1457,7 @@ const Result: React.VFC<{
   return (
     <>
       <h2 className="h5">営業キロ</h2>
-      <p>
-        {distance.toLocaleString(undefined, {
-          style: "unit",
-          unit: "kilometer",
-          minimumFractionDigits: 1,
-        })}
-      </p>
+      <p>{kilometerFormatter.format(distance)}</p>
       <h2 className="h5">所定の運賃・特急料金</h2>
       <Table bordered>
         <thead>
@@ -1509,19 +1515,19 @@ const Result: React.VFC<{
             {nonReservedOrStandingOnly && (
               <td>
                 {nonReservedOrStandingOnly.discount !== undefined
-                  ? jpyFormatter.format(nonReservedOrStandingOnly.discount)
+                  ? jpyNameFormatter.format(nonReservedOrStandingOnly.discount)
                   : undefined}
               </td>
             )}
             <td>
               {reserved.discount !== undefined
-                ? jpyFormatter.format(reserved.discount)
+                ? jpyNameFormatter.format(reserved.discount)
                 : undefined}
             </td>
             {reservedHighSpeed && (
               <td>
                 {reservedHighSpeed.discount !== undefined
-                  ? jpyFormatter.format(reservedHighSpeed.discount)
+                  ? jpyNameFormatter.format(reservedHighSpeed.discount)
                   : undefined}
               </td>
             )}
@@ -1531,11 +1537,13 @@ const Result: React.VFC<{
           <tr>
             <th scope="row">計</th>
             {nonReservedOrStandingOnly && (
-              <td>{jpyFormatter.format(nonReservedOrStandingOnly.total)}</td>
+              <td>
+                {jpyNameFormatter.format(nonReservedOrStandingOnly.total)}
+              </td>
             )}
-            <td>{jpyFormatter.format(reserved.total)}</td>
+            <td>{jpyNameFormatter.format(reserved.total)}</td>
             {reservedHighSpeed && (
-              <td>{jpyFormatter.format(reservedHighSpeed.total)}</td>
+              <td>{jpyNameFormatter.format(reservedHighSpeed.total)}</td>
             )}
           </tr>
         </tfoot>
@@ -2204,10 +2212,16 @@ const Ranking: React.VFC<{
                 <th scope="row">{rank + 1}</th>
                 <th scope="row">{section[0].name}</th>
                 <th scope="row">{section[1].name}</th>
-                <td>{distance.toFixed(1)}</td>
-                <td>{points.toLocaleString()}</td>
-                <td>{nonReservedOrStandingOnly?.total.toLocaleString()}</td>
-                <td>
+                <td className="text-end">
+                  {kilometerFormatter.format(distance)}
+                </td>
+                <td className="text-end">{points.toLocaleString()}</td>
+                <td className="text-end">
+                  {nonReservedOrStandingOnly
+                    ? jpySymbolFormatter.format(nonReservedOrStandingOnly.total)
+                    : undefined}
+                </td>
+                <td className="text-end">
                   {nonReservedOrStandingOnly?.rate !== undefined ? (
                     <strong
                       className={
@@ -2222,16 +2236,22 @@ const Ranking: React.VFC<{
                     <i className="text-muted">{reserved.rate.toFixed(2)}</i>
                   )}
                 </td>
-                <td>{reserved.total.toLocaleString()}</td>
-                <td>
+                <td className="text-end">
+                  {jpySymbolFormatter.format(reserved.total)}
+                </td>
+                <td className="text-end">
                   <strong
                     className={seat === "reserved" ? "text-primary" : undefined}
                   >
                     {reserved.rate.toFixed(2)}
                   </strong>
                 </td>
-                <td>{reservedHighSpeed?.total.toLocaleString()}</td>
-                <td>
+                <td className="text-end">
+                  {reservedHighSpeed
+                    ? jpySymbolFormatter.format(reservedHighSpeed.total)
+                    : undefined}
+                </td>
+                <td className="text-end">
                   {reservedHighSpeed?.rate !== undefined ? (
                     <strong
                       className={
