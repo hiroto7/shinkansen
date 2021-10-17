@@ -1578,7 +1578,10 @@ const Result: React.VFC<{
         </tfoot>
       </Table>
       <details className="mb-3">
-        <summary>きっぷの種類</summary>
+        <summary className="h6">きっぷの種類</summary>
+        <p>
+          利用可能な種類のきっぷのうち、最も低廉なものの運賃・特急料金を表示しています。
+        </p>
         <dl>
           {totalFares.map(({ expressTickets, types, key }) => (
             <Row key={key}>
