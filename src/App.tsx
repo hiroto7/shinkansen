@@ -618,20 +618,6 @@ const getBasicFare2 = (distance: number) => {
     : 140;
 };
 
-/**
- * 乗車券または特急券
- */
-interface Ticket {
-  /**
-   * 区間
-   */
-  readonly section: Section | BasicFareTicketSection;
-  /**
-   * 運賃または特急料金
-   */
-  readonly fare: number;
-}
-
 const reserved = "指定席";
 const nonReserved = "自由席";
 const specific = "特定";
@@ -640,11 +626,15 @@ const standingOnly = "立席";
 /**
  * 特急券
  */
-interface ExpressTicket extends Ticket {
+interface ExpressTicket {
   /**
    * 全乗車区間
    */
   readonly section: Section;
+  /**
+   * 特急料金
+   */
+  readonly fare: number;
   /**
    * はやぶさ号やこまち号を利用する区間
    */
@@ -938,35 +928,6 @@ const getLimitedExpressFares = (
   };
 };
 
-const BasicFareLabel: React.VFC<{
-  ticket: Ticket;
-  section: Section;
-}> = ({ ticket, section }) => {
-  const text = jpyNameFormatter.format(ticket.fare);
-
-  return !isEquivalent(ticket.section, section) ? (
-    <>
-      <OverlayTrigger
-        overlay={
-          <Popover>
-            <Popover.Header>運賃の計算区間</Popover.Header>
-            <Popover.Body>
-              {ticket.section[0].name} <i className="bi bi-arrow-right" />{" "}
-              {ticket.section[1].name}
-            </Popover.Body>
-          </Popover>
-        }
-      >
-        <u style={{ textDecoration: "underline dotted var(--bs-info)" }}>
-          {text}
-        </u>
-      </OverlayTrigger>
-    </>
-  ) : (
-    <>{text}</>
-  );
-};
-
 const ExpressFaresLabel: React.VFC<{
   tickets: readonly ExpressTicket[];
 }> = ({ tickets }) => {
@@ -1014,9 +975,6 @@ const ExpressFaresLabel: React.VFC<{
     </>
   );
 };
-
-const f = (stationOrZone: Station | Zone): Station =>
-  "central" in stationOrZone ? stationOrZone.central : stationOrZone;
 
 const SeatsLabel: React.VFC<{
   tickets: readonly ExpressTicket[];
@@ -1113,9 +1071,9 @@ const ticketTypes: readonly [TicketType, TicketType, TicketType] = [
 
 interface TotalFare {
   /**
-   * 乗車券
+   * 運賃
    */
-  readonly basicFareTicket: Ticket;
+  readonly basicFare: number;
   /**
    * 特急券
    */
@@ -1135,31 +1093,21 @@ interface TotalFare {
 const chooseOneOrBothTicketType = <
   F extends {
     readonly total: number;
-    readonly basicFareTicket: Ticket;
+    readonly basicFare: number;
     readonly types: readonly TicketType[];
   }
 >(
   a: F,
   b: F
-): F => {
-  const zipped = [
-    [a.basicFareTicket.section[0], b.basicFareTicket.section[0]] as const,
-    [a.basicFareTicket.section[1], b.basicFareTicket.section[1]] as const,
-  ];
-
-  return a.total < b.total
+): F =>
+  a.total < b.total
     ? a
     : a.total > b.total
-    ? b
-    : zipped.some(([a, b]) => "central" in a && !("central" in b))
-    ? a
-    : zipped.some(([a, b]) => !("central" in a) && "central" in b)
     ? b
     : {
         ...a,
         types: [...a.types, ...b.types],
       };
-};
 
 const isTicketType1Available = (expressTickets: readonly ExpressTicket[]) =>
   !expressTickets.some(({ availableSeat }) => availableSeat === standingOnly);
@@ -1176,11 +1124,11 @@ const isTicketType2Available = (
       line.stations.findIndex((station) => station.name === "盛岡"));
 
 const maybeGetTicketType1TotalFare = (
-  basicFareTicket: Ticket,
+  basicFare: number,
   expressTickets: readonly ExpressTicket[]
 ):
   | {
-      readonly basicFareTicket: Ticket;
+      readonly basicFare: number;
       readonly expressTickets: readonly ExpressTicket[];
       readonly discount?: number;
       readonly types: readonly TicketType[];
@@ -1188,7 +1136,7 @@ const maybeGetTicketType1TotalFare = (
   | undefined =>
   isTicketType1Available(expressTickets)
     ? {
-        basicFareTicket,
+        basicFare,
         expressTickets,
         types: [ticketTypes[1]],
         ...(expressTickets.some(
@@ -1201,18 +1149,18 @@ const maybeGetTicketType1TotalFare = (
 
 const maybeGetTicketType2TotalFare = (
   line: Line,
-  basicFareTicket: Ticket,
+  basicFare: number,
   expressTickets: readonly ExpressTicket[]
 ):
   | {
-      readonly basicFareTicket: Ticket;
+      readonly basicFare: number;
       readonly expressTickets: readonly ExpressTicket[];
       readonly types: readonly TicketType[];
     }
   | undefined =>
   isTicketType2Available(line, expressTickets)
     ? {
-        basicFareTicket,
+        basicFare,
         expressTickets,
         types: [ticketTypes[2]],
       }
@@ -1220,7 +1168,7 @@ const maybeGetTicketType2TotalFare = (
 
 const totalFares = <
   F extends {
-    readonly basicFareTicket: Ticket;
+    readonly basicFare: number;
     readonly expressTickets: readonly ExpressTicket[];
     readonly discount?: number;
   }
@@ -1229,7 +1177,7 @@ const totalFares = <
 ): F & { readonly total: number } => ({
   ...fares,
   total:
-    fares.basicFareTicket.fare +
+    fares.basicFare +
     sum(fares.expressTickets.map(({ fare }) => fare)) +
     (fares.discount ?? 0),
 });
@@ -1239,18 +1187,18 @@ const isNonNullable = <T,>(value: T): value is NonNullable<T> =>
 
 const getFareTotalWithSomeTicketType = (
   line: Line,
-  basicFareTickets: readonly [Ticket, Ticket],
+  basicFares: readonly [number, number],
   expressTickets: readonly ExpressTicket[]
 ) =>
   [
     {
-      basicFareTicket: basicFareTickets[1],
+      basicFare: basicFares[1],
       expressTickets,
       types: [ticketTypes[0]],
     },
     ...[
-      maybeGetTicketType1TotalFare(basicFareTickets[0], expressTickets),
-      maybeGetTicketType2TotalFare(line, basicFareTickets[0], expressTickets),
+      maybeGetTicketType1TotalFare(basicFares[0], expressTickets),
+      maybeGetTicketType2TotalFare(line, basicFares[0], expressTickets),
     ].filter(isNonNullable),
   ]
     .map(totalFares)
@@ -1340,63 +1288,43 @@ const getFares = (
       limitedExpressFares?.reserved,
     ].filter((ticket): ticket is ExpressTicket => ticket !== undefined);
 
-  const ticketSection200: BasicFareTicketSection = [
-    cityZones.find(({ stations }) => stations.has(section[0])) ?? section[0],
-    cityZones.find(({ stations }) => stations.has(section[1])) ?? section[1],
+  const section200: Section = [
+    cityZones.find(({ stations }) => stations.has(section[0]))?.central ??
+      section[0],
+    cityZones.find(({ stations }) => stations.has(section[1]))?.central ??
+      section[1],
   ];
-  const fareSection200: Section = [
-    f(ticketSection200[0]),
-    f(ticketSection200[1]),
-  ];
-
-  const ticketSection100: BasicFareTicketSection = [
-    zone0.stations.has(section[0]) ? zone0 : section[0],
-    zone0.stations.has(section[1]) ? zone0 : section[1],
-  ];
-  const fareSection100: Section = [
-    f(ticketSection100[0]),
-    f(ticketSection100[1]),
+  const section100: Section = [
+    zone0.stations.has(section[0]) ? zone0.central : section[0],
+    zone0.stations.has(section[1]) ? zone0.central : section[1],
   ];
 
-  const basicFareTicket0: Ticket = {
-    fare: getBasicFare(line, section),
-    section,
-  };
+  const basicFare0 = getBasicFare(line, section);
 
-  const basicFareTicket1: Ticket =
-    getDistance0(...fareSection200) > 200
-      ? !isEquivalent(ticketSection200, section)
-        ? {
-            fare: getBasicFare(line, fareSection200),
-            section: ticketSection200,
-          }
-        : basicFareTicket0
-      : getDistance0(...fareSection100) > 100
-      ? !isEquivalent(ticketSection100, section)
-        ? {
-            fare: getBasicFare(line, fareSection100),
-            section: ticketSection100,
-          }
-        : basicFareTicket0
-      : basicFareTicket0;
+  const basicFare1 =
+    getDistance0(...section200) > 200
+      ? getBasicFare(line, section200)
+      : getDistance0(...section100) > 100
+      ? getBasicFare(line, section100)
+      : basicFare0;
 
   const nonReservedOrStandingOnly: Omit<TotalFare, "rate"> | undefined =
     nonReservedOrStandingOnlyExpressTickets &&
     getFareTotalWithSomeTicketType(
       line,
-      [basicFareTicket0, basicFareTicket1],
+      [basicFare0, basicFare1],
       nonReservedOrStandingOnlyExpressTickets
     );
   const reserved: Omit<TotalFare, "rate"> = getFareTotalWithSomeTicketType(
     line,
-    [basicFareTicket0, basicFareTicket1],
+    [basicFare0, basicFare1],
     reservedExpressTickets
   );
   const reservedHighSpeed: Omit<TotalFare, "rate"> | undefined =
     reservedHighSpeedExpressTickets &&
     getFareTotalWithSomeTicketType(
       line,
-      [basicFareTicket0, basicFareTicket1],
+      [basicFare0, basicFare1],
       reservedHighSpeedExpressTickets
     );
 
@@ -1423,7 +1351,7 @@ const isEquivalent = (
   b: Section | BasicFareTicketSection
 ) => a[0] === b[0] && a[1] === b[1];
 
-const reverseTicket = <T extends Ticket>(ticket: T): T => ({
+const reverseTicket = (ticket: ExpressTicket): ExpressTicket => ({
   ...ticket,
   section: [ticket.section[1], ticket.section[0]],
 });
@@ -1504,7 +1432,6 @@ const Result: React.VFC<{
             ...(departure.index < arrival.index
               ? {}
               : {
-                  basicFareTicket: reverseTicket(totalFare.basicFareTicket),
                   expressTickets: reverseTickets(...totalFare.expressTickets),
                 }),
           },
@@ -1538,10 +1465,8 @@ const Result: React.VFC<{
         <tbody>
           <tr>
             <th scope="row">運賃</th>
-            {totalFares.map(({ basicFareTicket, key }) => (
-              <td key={key}>
-                <BasicFareLabel ticket={basicFareTicket} section={section} />
-              </td>
+            {totalFares.map(({ basicFare, key }) => (
+              <td key={key}>{jpyNameFormatter.format(basicFare)}</td>
             ))}
           </tr>
           <tr>
