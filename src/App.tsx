@@ -1318,13 +1318,17 @@ const getFares = (
 
 const isEquivalent = (a: Section, b: Section) => a[0] === b[0] && a[1] === b[1];
 
+const reverseSection = (section: Section): Section => [section[1], section[0]];
 const reverseTicket = (ticket: ExpressTicket): ExpressTicket => ({
   ...ticket,
-  section: [ticket.section[1], ticket.section[0]],
+  section: reverseSection(ticket.section),
 });
 const reverseTickets = (
   ...tickets: readonly ExpressTicket[]
 ): readonly ExpressTicket[] => tickets.map(reverseTicket).reverse();
+
+const maybeReverseSection = (section: Section): Section =>
+  section[0].index < section[1].index ? section : reverseSection(section);
 
 const kilometerFormatter = new Intl.NumberFormat(undefined, {
   style: "unit",
@@ -1369,13 +1373,9 @@ const Result: React.VFC<{
 }) => {
   const [a, b] = section;
 
-  const sortedSection: Section = a.index < b.index ? section : [b, a];
-
-  const sortedHighSpeed: Section | undefined = highSpeed
-    ? a.index < b.index
-      ? highSpeed
-      : [highSpeed[1], highSpeed[0]]
-    : undefined;
+  const sortedSection: Section = maybeReverseSection(section);
+  const sortedHighSpeed: Section | undefined =
+    highSpeed && maybeReverseSection(highSpeed);
 
   const { distance, points, ...others } = getFares(
     line,
@@ -1775,8 +1775,7 @@ M              x xx
  * @returns はやぶさ号やこまち号が利用可能な区間ならtrue
  */
 const isHighSpeedAvailableSection = (line: Line, section: Section) => {
-  const [a, b] =
-    section[0].index < section[1].index ? section : [section[1], section[0]];
+  const [a, b] = maybeReverseSection(section);
 
   return (
     (line === line0 || line === line1) &&
