@@ -1123,49 +1123,6 @@ const isTicketType2Available = (
     expressTickets.slice(-1)[0]!.section[1].index <=
       line.stations.findIndex((station) => station.name === "盛岡"));
 
-const maybeGetTicketType1TotalFare = (
-  basicFare: number,
-  expressTickets: readonly ExpressTicket[]
-):
-  | {
-      readonly basicFare: number;
-      readonly expressTickets: readonly ExpressTicket[];
-      readonly discount?: number;
-      readonly types: readonly TicketType[];
-    }
-  | undefined =>
-  isTicketType1Available(expressTickets)
-    ? {
-        basicFare,
-        expressTickets,
-        types: [ticketTypes[1]],
-        ...(expressTickets.some(
-          ({ availableSeat }) => availableSeat === reserved
-        )
-          ? { discount: -200 }
-          : {}),
-      }
-    : undefined;
-
-const maybeGetTicketType2TotalFare = (
-  line: Line,
-  basicFare: number,
-  expressTickets: readonly ExpressTicket[]
-):
-  | {
-      readonly basicFare: number;
-      readonly expressTickets: readonly ExpressTicket[];
-      readonly types: readonly TicketType[];
-    }
-  | undefined =>
-  isTicketType2Available(line, expressTickets)
-    ? {
-        basicFare,
-        expressTickets,
-        types: [ticketTypes[2]],
-      }
-    : undefined;
-
 const totalFares = <
   F extends {
     readonly basicFare: number;
@@ -1182,9 +1139,6 @@ const totalFares = <
     (fares.discount ?? 0),
 });
 
-const isNonNullable = <T,>(value: T): value is NonNullable<T> =>
-  value !== null && value !== undefined;
-
 const getFareTotalWithSomeTicketType = (
   line: Line,
   basicFares: readonly [number, number],
@@ -1196,10 +1150,29 @@ const getFareTotalWithSomeTicketType = (
       expressTickets,
       types: [ticketTypes[0]],
     },
-    ...[
-      maybeGetTicketType1TotalFare(basicFares[0], expressTickets),
-      maybeGetTicketType2TotalFare(line, basicFares[0], expressTickets),
-    ].filter(isNonNullable),
+    ...(isTicketType1Available(expressTickets)
+      ? [
+          {
+            basicFare: basicFares[0],
+            expressTickets,
+            types: [ticketTypes[1]],
+            ...(expressTickets.some(
+              ({ availableSeat }) => availableSeat === reserved
+            )
+              ? { discount: -200 }
+              : {}),
+          },
+        ]
+      : []),
+    ...(isTicketType2Available(line, expressTickets)
+      ? [
+          {
+            basicFare: basicFares[1],
+            expressTickets,
+            types: [ticketTypes[2]],
+          },
+        ]
+      : []),
   ]
     .map(totalFares)
     .reduce(chooseOneOrBothTicketType);
