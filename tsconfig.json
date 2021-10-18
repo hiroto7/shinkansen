@@ -11,6 +11,7 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
     "importsNotUsedAsValues": "error",
+    "exactOptionalPropertyTypes": true,
     "module": "esnext",
     "moduleResolution": "node",
     "resolveJsonModule": true,
