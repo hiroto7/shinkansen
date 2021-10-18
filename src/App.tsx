@@ -1065,8 +1065,8 @@ interface TicketType {
 }
 const ticketTypes: readonly [TicketType, TicketType, TicketType] = [
   { name: "紙のきっぷ" },
-  { name: "新幹線eチケット", href: "https://www.eki-net.com/top/e-ticket/" },
   { name: "タッチでGo!新幹線", href: "https://www.jreast.co.jp/touchdego/" },
+  { name: "新幹線eチケット", href: "https://www.eki-net.com/top/e-ticket/" },
 ];
 
 interface TotalFare {
@@ -1109,10 +1109,7 @@ const chooseOneOrBothTicketType = <
         types: [...a.types, ...b.types],
       };
 
-const isTicketType1Available = (expressTickets: readonly ExpressTicket[]) =>
-  !expressTickets.some(({ availableSeat }) => availableSeat === standingOnly);
-
-const isTicketType2Available = (
+const isTicketType1Available = (
   line: Line,
   expressTickets: readonly ExpressTicket[]
 ) =>
@@ -1122,6 +1119,9 @@ const isTicketType2Available = (
       line.stations.findIndex((station) => station.name === "盛岡") ||
     expressTickets.slice(-1)[0]!.section[1].index <=
       line.stations.findIndex((station) => station.name === "盛岡"));
+
+const isTicketType2Available = (expressTickets: readonly ExpressTicket[]) =>
+  !expressTickets.some(({ availableSeat }) => availableSeat === standingOnly);
 
 const totalFares = <
   F extends {
@@ -1150,26 +1150,26 @@ const getFareTotalWithSomeTicketType = (
       expressTickets,
       types: [ticketTypes[0]],
     },
-    ...(isTicketType1Available(expressTickets)
+    ...(isTicketType1Available(line, expressTickets)
+      ? [
+          {
+            basicFare: basicFares[1],
+            expressTickets,
+            types: [ticketTypes[1]],
+          },
+        ]
+      : []),
+    ...(isTicketType2Available(expressTickets)
       ? [
           {
             basicFare: basicFares[0],
             expressTickets,
-            types: [ticketTypes[1]],
+            types: [ticketTypes[2]],
             ...(expressTickets.some(
               ({ availableSeat }) => availableSeat === reserved
             )
               ? { discount: -200 }
               : {}),
-          },
-        ]
-      : []),
-    ...(isTicketType2Available(line, expressTickets)
-      ? [
-          {
-            basicFare: basicFares[1],
-            expressTickets,
-            types: [ticketTypes[2]],
           },
         ]
       : []),
