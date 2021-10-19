@@ -521,7 +521,7 @@ const getDistance1 = (distance: number) =>
 
 /**
  * 指定した区間の距離を返す。丸め誤差は取り除く。
- * @param section 距離を求める区間。 `section[1]` は `section[0]` より終点に近い駅である必要がある。
+ * @param section 距離を求める区間。 `arrival` は `departure` より終点に近い駅である必要がある。
  * @returns 距離
  */
 const getDistance0 = (...section: Section) =>
@@ -725,7 +725,7 @@ const getLimitedExpressFares1 = (distance: number, season: Season) => {
 /**
  * 新幹線の指定席特急料金を計算する
  * @param table 指定席特急料金の表
- * @param section 区間。 `section[1]` は `section[0]` より終点に近い駅である必要がある
+ * @param section 区間。 `arrival` は `departure` より終点に近い駅である必要がある
  * @returns 指定席特急料金
  */
 const getSuperExpressFare = (table: FareTable, section: Section): number =>
@@ -734,7 +734,7 @@ const getSuperExpressFare = (table: FareTable, section: Section): number =>
 /**
  * 新幹線の指定した区間の特急料金を計算する
  * @param line 東北新幹線、上越新幹線、北陸新幹線のいずれか
- * @param section 特急料金を計算する区間。 `section[1]` は `section[0]` より終点に近い駅である必要がある。
+ * @param section 特急料金を計算する区間。 `arrival` は `departure` より終点に近い駅である必要がある。
  * @param highSpeed はやぶさ号やこまち号を利用する区間
  * @param season シーズン
  * @returns 自由席特急料金、特定特急料金、指定席特急料金
@@ -860,7 +860,7 @@ const getSuperExpressFares = (
 /**
  * 新幹線以外の線区の指定した区間の特急料金を計算する
  * @param line 秋田新幹線または山形新幹線
- * @param section 特急料金を計算する区間。 `section[1]` は `section[0]` より終点に近い駅である必要がある。
+ * @param section 特急料金を計算する区間。 `arrival` は `departure` より終点に近い駅である必要がある。
  * @param getLimitedExpressFares `getLimitedExpressFares0` または `getLimitedExpressFares1`
  */
 const getLimitedExpressFares = (
@@ -1014,7 +1014,7 @@ const SeatsLabel: React.VFC<{
 /**
  * 指定した区間の運賃を計算する
  * @param line
- * @param section 運賃を計算する区間。 `section[1]` は `section[0]` より終点に近い駅である必要がある。
+ * @param section 運賃を計算する区間。 `arrival` は `departure` より終点に近い駅である必要がある。
  * @returns 運賃
  */
 const getBasicFare = (line: Line, section: Section) => {
@@ -1179,7 +1179,7 @@ const getFareTotalWithSomeTicketType = (
 /**
  * 指定した区間の運賃・特急料金を計算する
  * @param line
- * @param section 運賃・特急料金を計算する区間。 `section[1]` は `section[0]` より終点に近い駅である必要がある。
+ * @param section 運賃・特急料金を計算する区間。 `arrival` は `departure` より終点に近い駅である必要がある。
  * @param highSpeed はやぶさ号やこまち号を利用する区間
  */
 const getFares = (
@@ -1327,9 +1327,6 @@ const reverseTickets = (
   ...tickets: readonly ExpressTicket[]
 ): readonly ExpressTicket[] => tickets.map(reverseTicket).reverse();
 
-const maybeReverseSection = (section: Section): Section =>
-  section[0].index < section[1].index ? section : reverseSection(section);
-
 const kilometerFormatter = new Intl.NumberFormat(undefined, {
   style: "unit",
   unit: "kilometer",
@@ -1373,9 +1370,13 @@ const Result: React.VFC<{
 }) => {
   const [a, b] = section;
 
-  const sortedSection: Section = maybeReverseSection(section);
+  const reversalRequired = a.index > b.index;
+
+  const sortedSection: Section = reversalRequired
+    ? reverseSection(section)
+    : section;
   const sortedHighSpeed: Section | undefined =
-    highSpeed && maybeReverseSection(highSpeed);
+    highSpeed && reversalRequired ? reverseSection(highSpeed) : highSpeed;
 
   const { distance, points, ...others } = getFares(
     line,
@@ -1395,11 +1396,11 @@ const Result: React.VFC<{
           {
             ...totalFare,
             key,
-            ...(a.index < b.index
-              ? {}
-              : {
+            ...(reversalRequired
+              ? {
                   expressTickets: reverseTickets(...totalFare.expressTickets),
-                }),
+                }
+              : {}),
           },
         ]
       : [];
@@ -1698,10 +1699,10 @@ const isHighSpeedAvailableStation = (line: Line, station: Station) =>
 /**
  * 全乗車区間のうち、はやぶさ号やこまち号が利用可能な最長区間を求める。
  * @param line
- * @param section 全乗車区間。 `section[1]` は `section[0]` より終点に近い駅である必要がある。
+ * @param section 全乗車区間。 `arrival` は `departure` より終点に近い駅である必要がある。
  * @returns はやぶさ号やこまち号が利用可能な最長区間。 `undefined` の場合は利用可能な区間がない。
  */
-const getLongestHighSpeedSection0 = (
+const getLongestHighSpeedSection = (
   line: Line,
   section: Section
 ): Section | undefined => {
@@ -1722,30 +1723,6 @@ const getLongestHighSpeedSection0 = (
     highSpeedDeparture !== highSpeedArrival
     ? [highSpeedDeparture, highSpeedArrival]
     : undefined;
-};
-
-/**
- * 全乗車区間のうち、はやぶさ号やこまち号が利用可能な最長区間を求める。
- * @param line
- * @param section 全乗車区間。 `section[0]` と `section[1]` の順序は不問。
- * @returns はやぶさ号やこまち号が利用可能な最長区間。 `undefined` の場合は利用可能な区間がない。
- */
-const getLongestHighSpeedSection = (
-  line: Line,
-  section: Section
-): Section | undefined => {
-  const [departure, arrival] = section;
-  if (departure.index < arrival.index) {
-    return getLongestHighSpeedSection0(line, section);
-  } else {
-    const longestHighSpeedSection = getLongestHighSpeedSection0(line, [
-      arrival,
-      departure,
-    ]);
-    return longestHighSpeedSection
-      ? [longestHighSpeedSection[1], longestHighSpeedSection[0]]
-      : undefined;
-  }
 };
 
 /*
@@ -1771,24 +1748,19 @@ M              x xx
 /**
  * はやぶさ号やこまち号が利用可能な区間かどうか調べる。
  * @param line
- * @param section
+ * @param section `arrival` は `departure` より終点に近い駅である必要がある。
  * @returns はやぶさ号やこまち号が利用可能な区間ならtrue
  */
-const isHighSpeedAvailableSection = (line: Line, section: Section) => {
-  const [a, b] = maybeReverseSection(section);
-
-  return (
-    (line === line0 || line === line1) &&
-    ((a.index <=
-      line0.stations.findIndex((station) => station.name === "大宮") &&
-      b.index >=
-        line0.stations.findIndex((station) => station.name === "仙台")) ||
-      (a.index <
-        line0.stations.findIndex((station) => station.name === "盛岡") &&
-        b.index >
-          line0.stations.findIndex((station) => station.name === "仙台")))
-  );
-};
+const isHighSpeedAvailableSection = (line: Line, section: Section) =>
+  (line === line0 || line === line1) &&
+  ((section[0].index <=
+    line0.stations.findIndex((station) => station.name === "大宮") &&
+    section[1].index >=
+      line0.stations.findIndex((station) => station.name === "仙台")) ||
+    (section[0].index <
+      line0.stations.findIndex((station) => station.name === "盛岡") &&
+      section[1].index >
+        line0.stations.findIndex((station) => station.name === "仙台")));
 
 interface State {
   readonly line: Line;
@@ -1930,19 +1902,33 @@ const Home: React.VFC<{
 
   const { line, section } = state;
 
-  const longestHighSpeedSection = useMemo(
-    () => getLongestHighSpeedSection(line, section),
-    [line, section]
-  );
+  const reversalRequired = section[0].index > section[1].index;
+  const sortedSection: Section = reversalRequired
+    ? reverseSection(section)
+    : section;
+
+  const longestHighSpeedSection = useMemo(() => {
+    const longestHighSpeedSection = getLongestHighSpeedSection(
+      line,
+      sortedSection
+    );
+    return reversalRequired
+      ? longestHighSpeedSection && reverseSection(longestHighSpeedSection)
+      : longestHighSpeedSection;
+  }, [line, reversalRequired, sortedSection]);
+
   const highSpeedAvailable = useMemo(
-    () => isHighSpeedAvailableSection(line, section),
-    [line, section]
+    () => isHighSpeedAvailableSection(line, sortedSection),
+    [line, sortedSection]
   );
 
-  const highSpeed: Section | undefined = longestHighSpeedSection && [
-    state.highSpeed?.[0] ?? longestHighSpeedSection[0],
-    state.highSpeed?.[1] ?? longestHighSpeedSection[1],
-  ];
+  const highSpeed: Section | undefined =
+    longestHighSpeedSection && highSpeedAvailable
+      ? [
+          state.highSpeed?.[0] ?? longestHighSpeedSection[0],
+          state.highSpeed?.[1] ?? longestHighSpeedSection[1],
+        ]
+      : undefined;
 
   const [departure, arrival] = section;
 
@@ -2011,7 +1997,7 @@ const Home: React.VFC<{
           </Col>
         </Row>
       </Card>
-      {highSpeedAvailable && highSpeed && longestHighSpeedSection ? (
+      {highSpeed && longestHighSpeedSection ? (
         <Accordion className="mb-3">
           <ContextAwareItem
             eventKey="0"
@@ -2034,7 +2020,7 @@ const Home: React.VFC<{
       <Result
         line={line}
         section={section}
-        highSpeed={highSpeedAvailable ? highSpeed : undefined}
+        highSpeed={highSpeed}
         longestHighSpeedSection={longestHighSpeedSection}
         rankedFares={rankedFares}
         season={season}
@@ -2264,7 +2250,7 @@ const App: React.VFC = () => {
         return line.stations.flatMap((a, index, stations) =>
           stations.slice(Math.max(index, junction?.index ?? 0) + 1).map((b) => {
             const section: Section = [a, b];
-            const highSpeed = getLongestHighSpeedSection0(line, section);
+            const highSpeed = getLongestHighSpeedSection(line, section);
             return {
               section,
               ...getFares(line, section, highSpeed, season),
