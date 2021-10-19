@@ -521,11 +521,11 @@ const getDistance1 = (distance: number) =>
 
 /**
  * 指定した区間の距離を返す。丸め誤差は取り除く。
- * @param section 距離を求める区間。 `arrival` は `departure` より終点に近い駅である必要がある。
+ * @param section 距離を求める区間
  * @returns 距離
  */
-const getDistance0 = (...section: Section) =>
-  round(section[1].distance - section[0].distance, 1);
+const getDistance0 = (section: SortedSection) =>
+  round(section.arrival.distance - section.departure.distance, 1);
 
 /**
  * **幹線**内相互発着となる場合の大人片道普通旅客運賃を計算する
@@ -728,8 +728,13 @@ const getLimitedExpressFares1 = (distance: number, season: Season) => {
  * @param section 区間。 `arrival` は `departure` より終点に近い駅である必要がある
  * @returns 指定席特急料金
  */
-const getSuperExpressFare = (table: FareTable, section: Section): number =>
-  +table.find((row) => row["駅名"] === section[1].name)![section[0].name]!;
+const getSuperExpressFare = (
+  table: FareTable,
+  section: SortedSection
+): number =>
+  +table.find((row) => row["駅名"] === section.arrival.name)![
+    section.departure.name
+  ]!;
 
 /**
  * 新幹線の指定した区間の特急料金を計算する
@@ -741,8 +746,8 @@ const getSuperExpressFare = (table: FareTable, section: Section): number =>
  */
 const getSuperExpressFares = (
   line: Line,
-  section: Section,
-  highSpeed: Section | undefined,
+  section: SortedSection,
+  highSpeed: SortedSection | undefined,
   season: Season
 ): Readonly<{
   reserved: ExpressTicket;
@@ -750,7 +755,7 @@ const getSuperExpressFares = (
   reservedHighSpeed: ExpressTicket | undefined;
   standingOnly: ExpressTicket | undefined;
 }> => {
-  const [departure, arrival] = section;
+  const { departure, arrival } = section;
 
   const reservedExpressFare = getSuperExpressFare(tables.get(line)!, section);
 
@@ -778,7 +783,7 @@ const getSuperExpressFares = (
           ["北上", "盛岡"],
           ["熊谷", "高崎"],
         ].some(([a, b]) => departure.name === a && arrival.name === b)
-      ? getDistance0(...section) > 50
+      ? getDistance0(section) > 50
         ? 1000
         : 880
       : undefined;
@@ -825,7 +830,7 @@ const getSuperExpressFares = (
 
   const reservedHighSpeedFare =
     highSpeed &&
-    (highSpeed[0] === departure && highSpeed[1] === arrival
+    (highSpeed.departure === departure && highSpeed.arrival === arrival
       ? getSuperExpressFare(table, section)
       : reservedExpressFare +
         getSuperExpressFare(table, highSpeed) -
@@ -865,7 +870,7 @@ const getSuperExpressFares = (
  */
 const getLimitedExpressFares = (
   line: Line,
-  section: Section,
+  section: SortedSection,
   getLimitedExpressFares0: (
     distance: number,
     season: Season
@@ -882,7 +887,7 @@ const getLimitedExpressFares = (
   const {
     reserved: reservedExpressFare,
     nonReservedOrStandingOnly: nonReservedOrStandingOnlyExpressFare,
-  } = getLimitedExpressFares0(getDistance0(...section), season);
+  } = getLimitedExpressFares0(getDistance0(section), season);
 
   const reservedExpressTicket: ExpressTicket = {
     type: reserved,
@@ -948,10 +953,10 @@ const ExpressFaresLabel: React.VFC<{
             <Popover.Header>特急料金の内訳</Popover.Header>
             <Popover.Body>
               {tickets.map(({ section, fare, type, availableSeat }) => (
-                <Row key={`${section[0].name}-${section[1].name}`}>
+                <Row key={`${section.departure.name}-${section.arrival.name}`}>
                   <Col xs="auto">
-                    {section[0].name} <i className="bi bi-arrow-right" />{" "}
-                    {section[1].name}{" "}
+                    {section.departure.name} <i className="bi bi-arrow-right" />{" "}
+                    {section.arrival.name}{" "}
                     {type !== availableSeat ? <Badge>{type}</Badge> : <></>}
                   </Col>
                   <Col xs="auto" className="ms-auto">
@@ -988,10 +993,10 @@ const SeatsLabel: React.VFC<{
           <Popover.Header>区間ごとの利用座席</Popover.Header>
           <Popover.Body>
             {tickets.map(({ section, availableSeat }) => (
-              <Row key={`${section[0].name}-${section[1].name}`}>
+              <Row key={`${section.departure.name}-${section.arrival.name}`}>
                 <Col xs="auto">
-                  {section[0].name} <i className="bi bi-arrow-right" />{" "}
-                  {section[1].name}
+                  {section.departure.name} <i className="bi bi-arrow-right" />{" "}
+                  {section.arrival.name}
                 </Col>
                 <Col xs="auto" className="ms-auto">
                   {availableSeat}
@@ -1014,20 +1019,21 @@ const SeatsLabel: React.VFC<{
 /**
  * 指定した区間の運賃を計算する
  * @param line
- * @param section 運賃を計算する区間。 `arrival` は `departure` より終点に近い駅である必要がある。
+ * @param section 運賃を計算する区間
  * @returns 運賃
  */
-const getBasicFare = (line: Line, section: Section) => {
-  const [a, b] = section;
-  const distance = getDistance0(...section);
+const getBasicFare = (line: Line, section: SortedSection) => {
+  const { departure, arrival } = section;
+  const distance = getDistance0(section);
 
-  return b.index <=
+  return arrival.index <=
     line.stations.findIndex((station) => station.name === "大宮")
     ? getBasicFare2(distance)
     : line === line1 &&
-      a.index >=
+      departure.index >=
         line.stations.findIndex((station) => station.name === "盛岡") &&
-      b.index <= line.stations.findIndex((station) => station.name === "大曲")
+      arrival.index <=
+        line.stations.findIndex((station) => station.name === "大曲")
     ? getBasicFare1(distance)
     : getBasicFare0(
         line === line1 &&
@@ -1035,22 +1041,29 @@ const getBasicFare = (line: Line, section: Section) => {
             .map((name) =>
               line.stations.findIndex((station) => station.name === name)
             )
-            .some((i) => a.index < i && i < b.index)
+            .some((i) => departure.index < i && i < arrival.index)
           ? distance +
               round(
-                getDistance0(
-                  a.index <
+                getDistance0({
+                  sorted: true,
+                  departure:
+                    departure.index <
                     line.stations.findIndex(
                       (station) => station.name === "盛岡"
                     )
-                    ? line.stations.find((station) => station.name === "盛岡")!
-                    : a,
-                  line.stations.findIndex(
-                    (station) => station.name === "大曲"
-                  ) < b.index
-                    ? line.stations.find((station) => station.name === "大曲")!
-                    : b
-                ) *
+                      ? line.stations.find(
+                          (station) => station.name === "盛岡"
+                        )!
+                      : departure,
+                  arrival:
+                    line.stations.findIndex(
+                      (station) => station.name === "大曲"
+                    ) < arrival.index
+                      ? line.stations.find(
+                          (station) => station.name === "大曲"
+                        )!
+                      : arrival,
+                }) *
                   (17.8 / 16.2 - 1),
                 1
               )
@@ -1114,9 +1127,9 @@ const isTicketType1Available = (
 ) =>
   !expressTickets.some(({ availableSeat }) => availableSeat === reserved) &&
   ((line !== line0 && line !== line1) ||
-    expressTickets[0]!.section[0].index >=
+    expressTickets[0]!.section.departure.index >=
       line.stations.findIndex((station) => station.name === "盛岡") ||
-    expressTickets.slice(-1)[0]!.section[1].index <=
+    expressTickets.slice(-1)[0]!.section.arrival.index <=
       line.stations.findIndex((station) => station.name === "盛岡"));
 
 const isTicketType2Available = (expressTickets: readonly ExpressTicket[]) =>
@@ -1179,18 +1192,18 @@ const getFareTotalWithSomeTicketType = (
 /**
  * 指定した区間の運賃・特急料金を計算する
  * @param line
- * @param section 運賃・特急料金を計算する区間。 `arrival` は `departure` より終点に近い駅である必要がある。
+ * @param section 運賃・特急料金を計算する区間
  * @param highSpeed はやぶさ号やこまち号を利用する区間
  */
 const getFares = (
   line: Line,
-  section: Section,
-  highSpeed: Section | undefined,
+  section: SortedSection,
+  highSpeed: SortedSection | undefined,
   season: Season
 ) => {
-  const [a, b] = section;
+  const { departure, arrival } = section;
 
-  const distance = getDistance0(...section);
+  const distance = getDistance0(section);
   const points =
     distance > 400
       ? 12110
@@ -1204,13 +1217,19 @@ const getFares = (
 
   const superExpressTickets =
     (line === line1 || line === line2) && junction
-      ? a.index < junction.index
+      ? departure.index < junction.index
         ? getSuperExpressFares(
             line0,
-            junction.index < b.index ? [a, junction] : section,
+            junction.index < arrival.index
+              ? { sorted: true, departure, arrival: junction }
+              : section,
             highSpeed &&
-              (junction.index < highSpeed[1].index
-                ? [highSpeed[0], junction]
+              (junction.index < highSpeed.arrival.index
+                ? {
+                    sorted: true,
+                    departure: highSpeed.departure,
+                    arrival: junction,
+                  }
                 : highSpeed),
             season
           )
@@ -1218,12 +1237,14 @@ const getFares = (
       : getSuperExpressFares(line, section, highSpeed, season);
 
   const limitedExpressFares =
-    (line === line1 || line === line2) && junction && b.index > junction.index
-      ? a.index >= junction.index
+    (line === line1 || line === line2) &&
+    junction &&
+    arrival.index > junction.index
+      ? departure.index >= junction.index
         ? getLimitedExpressFares(line, section, getLimitedExpressFares0, season)
         : getLimitedExpressFares(
             line,
-            [junction, b],
+            { departure: junction, arrival, sorted: true },
             getLimitedExpressFares1,
             season
           )
@@ -1258,23 +1279,31 @@ const getFares = (
       limitedExpressFares?.reserved,
     ].filter((ticket): ticket is ExpressTicket => ticket !== undefined);
 
-  const section200: Section = [
-    cityZones.find(({ stations }) => stations.has(section[0]))?.central ??
-      section[0],
-    cityZones.find(({ stations }) => stations.has(section[1]))?.central ??
-      section[1],
-  ];
-  const section100: Section = [
-    zone0.stations.has(section[0]) ? zone0.central : section[0],
-    zone0.stations.has(section[1]) ? zone0.central : section[1],
-  ];
+  const section200: SortedSection = {
+    sorted: true,
+    departure:
+      cityZones.find(({ stations }) => stations.has(section.departure))
+        ?.central ?? section.departure,
+    arrival:
+      cityZones.find(({ stations }) => stations.has(section.arrival))
+        ?.central ?? section.arrival,
+  };
+  const section100: SortedSection = {
+    sorted: true,
+    departure: zone0.stations.has(section.departure)
+      ? zone0.central
+      : section.departure,
+    arrival: zone0.stations.has(section.arrival)
+      ? zone0.central
+      : section.arrival,
+  };
 
   const basicFare0 = getBasicFare(line, section);
 
   const basicFare1 =
-    getDistance0(...section200) > 200
+    getDistance0(section200) > 200
       ? getBasicFare(line, section200)
-      : getDistance0(...section100) > 100
+      : getDistance0(section100) > 100
       ? getBasicFare(line, section100)
       : basicFare0;
 
@@ -1316,9 +1345,13 @@ const getFares = (
   } as const;
 };
 
-const isEquivalent = (a: Section, b: Section) => a[0] === b[0] && a[1] === b[1];
+const isEquivalent = (a: Section, b: Section) =>
+  a.departure === b.departure && a.arrival === b.arrival;
 
-const reverseSection = (section: Section): Section => [section[1], section[0]];
+const reverseSection = (section: Section): Section => ({
+  departure: section.arrival,
+  arrival: section.departure,
+});
 const reverseTicket = (ticket: ExpressTicket): ExpressTicket => ({
   ...ticket,
   section: reverseSection(ticket.section),
@@ -1345,6 +1378,13 @@ const jpySymbolFormatter = new Intl.NumberFormat(undefined, {
   currencyDisplay: "symbol",
 });
 
+const sortSection = (
+  section: Section
+): Readonly<{ section: SortedSection; reversed: boolean }> =>
+  section.departure.index < section.arrival.index
+    ? { section: { ...section, sorted: true }, reversed: false }
+    : { section: { ...reverseSection(section), sorted: true }, reversed: true };
+
 const Result: React.VFC<{
   line: Line;
   section: Section;
@@ -1368,15 +1408,8 @@ const Result: React.VFC<{
   rankedFares,
   season,
 }) => {
-  const [a, b] = section;
-
-  const reversalRequired = a.index > b.index;
-
-  const sortedSection: Section = reversalRequired
-    ? reverseSection(section)
-    : section;
-  const sortedHighSpeed: Section | undefined =
-    highSpeed && reversalRequired ? reverseSection(highSpeed) : highSpeed;
+  const { section: sortedSection, reversed } = sortSection(section);
+  const sortedHighSpeed = highSpeed && sortSection(highSpeed).section;
 
   const { distance, points, ...others } = getFares(
     line,
@@ -1396,10 +1429,8 @@ const Result: React.VFC<{
           {
             ...totalFare,
             key,
-            ...(reversalRequired
-              ? {
-                  expressTickets: reverseTickets(...totalFare.expressTickets),
-                }
+            ...(reversed
+              ? { expressTickets: reverseTickets(...totalFare.expressTickets) }
               : {}),
           },
         ]
@@ -1594,9 +1625,9 @@ const ContextAwareItem: React.VFC<{
 
   const isCurrentEventKey = activeEventKey === eventKey;
   const stations1 = (
-    section[0].index < section[1].index
-      ? line.stations.slice(section[0].index, section[1].index + 1)
-      : line.stations.slice(section[1].index, section[0].index + 1)
+    section.departure.index < section.arrival.index
+      ? line.stations.slice(section.departure.index, section.arrival.index + 1)
+      : line.stations.slice(section.arrival.index, section.departure.index + 1)
   ).filter((station) => isHighSpeedAvailableStation(line, station));
   const items = stations1.map((station) => ({
     station,
@@ -1619,8 +1650,9 @@ const ContextAwareItem: React.VFC<{
               className="ms-4 overflow-hidden text-nowrap"
               style={{ textOverflow: "ellipsis" }}
             >
-              <b>{highSpeed[0].name}</b> <i className="bi bi-arrow-right" />{" "}
-              <b>{highSpeed[1].name}</b>
+              <b>{highSpeed.departure.name}</b>{" "}
+              <i className="bi bi-arrow-right" />{" "}
+              <b>{highSpeed.arrival.name}</b>
             </span>
           </Fade>
         </div>
@@ -1629,15 +1661,15 @@ const ContextAwareItem: React.VFC<{
         <Row className="gy-2 gx-3">
           <Col>
             <StationDropdown
-              value={highSpeed[0]}
+              value={highSpeed.departure}
               onChange={onDepartureChange}
               header={`${train}号の乗車駅`}
               items={items.map(({ station, disabled }) => ({
                 station,
                 disabled:
-                  station === longestHighSpeedSection[1] ||
-                  (disabled && station !== section[0]),
-                active: station === highSpeed[0],
+                  station === longestHighSpeedSection.arrival ||
+                  (disabled && station !== section.departure),
+                active: station === highSpeed.departure,
               }))}
             />
           </Col>
@@ -1646,15 +1678,15 @@ const ContextAwareItem: React.VFC<{
           </Col>
           <Col>
             <StationDropdown
-              value={highSpeed[1]}
+              value={highSpeed.arrival}
               onChange={onArrivalChange}
               header={`${train}号の降車駅`}
               items={items.map(({ station, disabled }) => ({
                 station,
                 disabled:
-                  station === longestHighSpeedSection[0] ||
-                  (disabled && station !== section[1]),
-                active: station === highSpeed[1],
+                  station === longestHighSpeedSection.departure ||
+                  (disabled && station !== section.arrival),
+                active: station === highSpeed.arrival,
               }))}
             />
           </Col>
@@ -1667,12 +1699,12 @@ const ContextAwareItem: React.VFC<{
             id="toggle-check"
             value="1"
             disabled={
-              highSpeed[0] === longestHighSpeedSection?.[0] &&
-              highSpeed[1] === longestHighSpeedSection?.[1]
+              highSpeed.departure === longestHighSpeedSection?.departure &&
+              highSpeed.arrival === longestHighSpeedSection?.arrival
             }
             checked={
-              highSpeed[0] === longestHighSpeedSection?.[0] &&
-              highSpeed[1] === longestHighSpeedSection?.[1]
+              highSpeed.departure === longestHighSpeedSection?.departure &&
+              highSpeed.arrival === longestHighSpeedSection?.arrival
             }
           >
             デフォルト
@@ -1699,29 +1731,29 @@ const isHighSpeedAvailableStation = (line: Line, station: Station) =>
 /**
  * 全乗車区間のうち、はやぶさ号やこまち号が利用可能な最長区間を求める。
  * @param line
- * @param section 全乗車区間。 `arrival` は `departure` より終点に近い駅である必要がある。
+ * @param section 全乗車区間
  * @returns はやぶさ号やこまち号が利用可能な最長区間。 `undefined` の場合は利用可能な区間がない。
  */
 const getLongestHighSpeedSection = (
   line: Line,
-  section: Section
-): Section | undefined => {
-  const [a, b] = section;
+  section: SortedSection
+): SortedSection | undefined => {
+  const { departure, arrival } = section;
   const highSpeedAvailableStations = line.stations
-    .slice(a.index, b.index + 1)
+    .slice(departure.index, arrival.index + 1)
     .filter((station) => isHighSpeedAvailableStation(line, station));
 
-  const [highSpeedDeparture, highSpeedArrival] = [
-    highSpeedAvailableStations.find(({ index }) => index >= a.index),
-    highSpeedAvailableStations
-      .filter(({ index }) => index <= b.index)
-      .slice(-1)[0],
-  ];
+  const highSpeedDeparture = highSpeedAvailableStations.find(
+    ({ index }) => index >= departure.index
+  );
+  const highSpeedArrival = highSpeedAvailableStations
+    .filter(({ index }) => index <= arrival.index)
+    .slice(-1)[0];
 
   return highSpeedDeparture &&
     highSpeedArrival &&
     highSpeedDeparture !== highSpeedArrival
-    ? [highSpeedDeparture, highSpeedArrival]
+    ? { departure: highSpeedDeparture, arrival: highSpeedArrival, sorted: true }
     : undefined;
 };
 
@@ -1748,25 +1780,28 @@ M              x xx
 /**
  * はやぶさ号やこまち号が利用可能な区間かどうか調べる。
  * @param line
- * @param section `arrival` は `departure` より終点に近い駅である必要がある。
+ * @param section
  * @returns はやぶさ号やこまち号が利用可能な区間ならtrue
  */
-const isHighSpeedAvailableSection = (line: Line, section: Section) =>
+const isHighSpeedAvailableSection = (line: Line, section: SortedSection) =>
   (line === line0 || line === line1) &&
-  ((section[0].index <=
+  ((section.departure.index <=
     line0.stations.findIndex((station) => station.name === "大宮") &&
-    section[1].index >=
+    section.arrival.index >=
       line0.stations.findIndex((station) => station.name === "仙台")) ||
-    (section[0].index <
+    (section.departure.index <
       line0.stations.findIndex((station) => station.name === "盛岡") &&
-      section[1].index >
+      section.arrival.index >
         line0.stations.findIndex((station) => station.name === "仙台")));
 
 interface State {
   readonly line: Line;
   readonly section: Section;
   readonly highSpeed:
-    | readonly [departure: Station | undefined, arrival: Station | undefined]
+    | {
+        readonly departure: Station | undefined;
+        readonly arrival: Station | undefined;
+      }
     | undefined;
 }
 
@@ -1796,23 +1831,39 @@ type Action = Readonly<
     }
 >;
 
-type Section = readonly [departure: Station, arrival: Station];
+interface Section {
+  departure: Station;
+  arrival: Station;
+}
+
+/**
+ * `arrival` が `departure` よりも終点に近いことが保証された `Section`
+ */
+interface SortedSection extends Section {
+  sorted: true;
+}
 
 const reducer: Reducer<State, Action> = (state, action): State => {
   switch (action.type) {
     case "setLine": {
       const line = action.payload;
-      const [departure, arrival] = state.section;
+      const { departure, arrival } = state.section;
       const firstOfLine = line.stations[0]!;
       const lastOfLine = line.stations.slice(-1)[0]!;
 
       const section: Section = line.stations.includes(departure)
         ? line.stations.includes(arrival)
-          ? [departure, arrival]
-          : [departure, lastOfLine === departure ? firstOfLine : lastOfLine]
+          ? state.section
+          : {
+              departure,
+              arrival: lastOfLine === departure ? firstOfLine : lastOfLine,
+            }
         : line.stations.includes(arrival)
-        ? [firstOfLine === arrival ? lastOfLine : firstOfLine, arrival]
-        : [firstOfLine, lastOfLine];
+        ? {
+            departure: firstOfLine === arrival ? lastOfLine : firstOfLine,
+            arrival,
+          }
+        : { departure: firstOfLine, arrival: lastOfLine };
 
       return {
         ...state,
@@ -1823,7 +1874,10 @@ const reducer: Reducer<State, Action> = (state, action): State => {
     }
 
     case "setDeparture": {
-      const section = [action.payload, state.section[1]] as const;
+      const section = {
+        departure: action.payload,
+        arrival: state.section.arrival,
+      };
 
       return {
         ...state,
@@ -1833,7 +1887,10 @@ const reducer: Reducer<State, Action> = (state, action): State => {
     }
 
     case "setArrival": {
-      const section = [state.section[0], action.payload] as const;
+      const section = {
+        departure: state.section.departure,
+        arrival: action.payload,
+      };
 
       return {
         ...state,
@@ -1845,29 +1902,29 @@ const reducer: Reducer<State, Action> = (state, action): State => {
     case "setHighSpeedDeparture":
       return {
         ...state,
-        highSpeed: state.highSpeed
-          ? [
-              action.payload,
-              state.highSpeed[1] &&
-              action.payload.index < state.highSpeed[1].index
-                ? state.highSpeed[1]
-                : undefined,
-            ]
-          : [action.payload, undefined],
+        highSpeed: {
+          departure: action.payload,
+          arrival:
+            state.highSpeed &&
+            state.highSpeed.arrival &&
+            action.payload.index < state.highSpeed.arrival.index
+              ? state.highSpeed.arrival
+              : undefined,
+        },
       };
 
     case "setHighSpeedArrival":
       return {
         ...state,
-        highSpeed: state.highSpeed
-          ? [
-              state.highSpeed[0] &&
-              state.highSpeed[0].index < action.payload.index
-                ? state.highSpeed[0]
-                : undefined,
-              action.payload,
-            ]
-          : [undefined, action.payload],
+        highSpeed: {
+          departure:
+            state.highSpeed &&
+            state.highSpeed.departure &&
+            state.highSpeed.departure.index < action.payload.index
+              ? state.highSpeed.departure
+              : undefined,
+          arrival: action.payload,
+        },
       };
 
     case "resetHighSpeed":
@@ -1880,7 +1937,10 @@ const reducer: Reducer<State, Action> = (state, action): State => {
 
 const init = (): State => {
   const line = line0;
-  const section: Section = [line.stations[0]!, line.stations.slice(-1)[0]!];
+  const section: Section = {
+    departure: line.stations[0]!,
+    arrival: line.stations.slice(-1)[0]!,
+  };
   return {
     line,
     section,
@@ -1902,20 +1962,20 @@ const Home: React.VFC<{
 
   const { line, section } = state;
 
-  const reversalRequired = section[0].index > section[1].index;
-  const sortedSection: Section = reversalRequired
-    ? reverseSection(section)
-    : section;
+  const { section: sortedSection, reversed } = useMemo(
+    () => sortSection(section),
+    [section]
+  );
 
   const longestHighSpeedSection = useMemo(() => {
     const longestHighSpeedSection = getLongestHighSpeedSection(
       line,
       sortedSection
     );
-    return reversalRequired
+    return reversed
       ? longestHighSpeedSection && reverseSection(longestHighSpeedSection)
       : longestHighSpeedSection;
-  }, [line, reversalRequired, sortedSection]);
+  }, [line, reversed, sortedSection]);
 
   const highSpeedAvailable = useMemo(
     () => isHighSpeedAvailableSection(line, sortedSection),
@@ -1924,13 +1984,14 @@ const Home: React.VFC<{
 
   const highSpeed: Section | undefined =
     longestHighSpeedSection && highSpeedAvailable
-      ? [
-          state.highSpeed?.[0] ?? longestHighSpeedSection[0],
-          state.highSpeed?.[1] ?? longestHighSpeedSection[1],
-        ]
+      ? {
+          departure:
+            state.highSpeed?.departure ?? longestHighSpeedSection.departure,
+          arrival: state.highSpeed?.arrival ?? longestHighSpeedSection.arrival,
+        }
       : undefined;
 
-  const [departure, arrival] = section;
+  const { departure, arrival } = section;
 
   return (
     <main>
@@ -2164,10 +2225,10 @@ const Ranking: React.VFC<{
               reserved,
               reservedHighSpeed,
             }) => (
-              <tr key={`${section[0].name}-${section[1].name}`}>
+              <tr key={`${section.departure.name}-${section.arrival.name}`}>
                 <th scope="row">{rank + 1}</th>
-                <th scope="row">{section[0].name}</th>
-                <th scope="row">{section[1].name}</th>
+                <th scope="row">{section.departure.name}</th>
+                <th scope="row">{section.arrival.name}</th>
                 <td className="text-end">
                   {kilometerFormatter.format(distance)}
                 </td>
@@ -2247,15 +2308,21 @@ const App: React.VFC = () => {
     () =>
       [...lines.values()].flatMap((line) => {
         const junction = junctions.get(line);
-        return line.stations.flatMap((a, index, stations) =>
-          stations.slice(Math.max(index, junction?.index ?? 0) + 1).map((b) => {
-            const section: Section = [a, b];
-            const highSpeed = getLongestHighSpeedSection(line, section);
-            return {
-              section,
-              ...getFares(line, section, highSpeed, season),
-            };
-          })
+        return line.stations.flatMap((departure, index, stations) =>
+          stations
+            .slice(Math.max(index, junction?.index ?? 0) + 1)
+            .map((arrival) => {
+              const section: SortedSection = {
+                departure,
+                arrival,
+                sorted: true,
+              };
+              const highSpeed = getLongestHighSpeedSection(line, section);
+              return {
+                section,
+                ...getFares(line, section, highSpeed, season),
+              };
+            })
         );
       }),
     [season]
