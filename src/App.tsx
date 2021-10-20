@@ -92,8 +92,8 @@ const line1: Line = {
   name: "秋田新幹線",
   stations: [
     ...line0.stations.slice(
-      line0.stations.findIndex((station) => station.name === "東京"),
-      line0.stations.findIndex((station) => station.name === "盛岡") + 1
+      line0.stations.findIndex(({ name }) => name === "東京"),
+      line0.stations.findIndex(({ name }) => name === "盛岡") + 1
     ),
     ...[
       { name: "雫石", distance: 551.3 },
@@ -104,9 +104,7 @@ const line1: Line = {
     ].map((value, index) => ({
       ...value,
       index:
-        index +
-        line0.stations.findIndex((station) => station.name === "盛岡") +
-        1,
+        index + line0.stations.findIndex(({ name }) => name === "盛岡") + 1,
     })),
   ],
 };
@@ -115,8 +113,8 @@ const line2: Line = {
   name: "山形新幹線",
   stations: [
     ...line0.stations.slice(
-      line0.stations.findIndex((station) => station.name === "東京"),
-      line0.stations.findIndex((station) => station.name === "福島") + 1
+      line0.stations.findIndex(({ name }) => name === "東京"),
+      line0.stations.findIndex(({ name }) => name === "福島") + 1
     ),
     ...[
       { name: "米沢", distance: 312.9 },
@@ -132,9 +130,7 @@ const line2: Line = {
     ].map((value, index) => ({
       ...value,
       index:
-        index +
-        line0.stations.findIndex((station) => station.name === "福島") +
-        1,
+        index + line0.stations.findIndex(({ name }) => name === "福島") + 1,
     })),
   ],
 };
@@ -143,8 +139,8 @@ const line3: Line = {
   name: "上越新幹線",
   stations: [
     ...line0.stations.slice(
-      line0.stations.findIndex((station) => station.name === "東京"),
-      line0.stations.findIndex((station) => station.name === "大宮") + 1
+      line0.stations.findIndex(({ name }) => name === "東京"),
+      line0.stations.findIndex(({ name }) => name === "大宮") + 1
     ),
     ...[
       { name: "熊谷", distance: 64.7 },
@@ -159,9 +155,7 @@ const line3: Line = {
     ].map((value, index) => ({
       ...value,
       index:
-        index +
-        line0.stations.findIndex((station) => station.name === "大宮") +
-        1,
+        index + line0.stations.findIndex(({ name }) => name === "大宮") + 1,
     })),
   ],
 };
@@ -170,12 +164,12 @@ const line4: Line = {
   name: "北陸新幹線",
   stations: [
     ...line0.stations.slice(
-      line0.stations.findIndex((station) => station.name === "東京"),
-      line0.stations.findIndex((station) => station.name === "大宮") + 1
+      line0.stations.findIndex(({ name }) => name === "東京"),
+      line0.stations.findIndex(({ name }) => name === "大宮") + 1
     ),
     ...line3.stations.slice(
-      line3.stations.findIndex((station) => station.name === "熊谷"),
-      line3.stations.findIndex((station) => station.name === "高崎") + 1
+      line3.stations.findIndex(({ name }) => name === "熊谷"),
+      line3.stations.findIndex(({ name }) => name === "高崎") + 1
     ),
     ...[
       { name: "安中榛名", distance: 123.5 },
@@ -193,9 +187,7 @@ const line4: Line = {
     ].map((value, index) => ({
       ...value,
       index:
-        index +
-        line3.stations.findIndex((station) => station.name === "高崎") +
-        1,
+        index + line3.stations.findIndex(({ name }) => name === "高崎") + 1,
     })),
   ],
 };
@@ -210,28 +202,26 @@ const lines: ReadonlyMap<string, Line> = new Map([
 
 const zone0: Zone = {
   name: "東京山手線内",
-  central: line0.stations.find((station) => station.name === "東京")!,
+  central: line0.stations.find(({ name }) => name === "東京")!,
   stations: new Set([
-    line0.stations.find((station) => station.name === "東京")!,
-    line0.stations.find((station) => station.name === "上野")!,
+    line0.stations.find(({ name }) => name === "東京")!,
+    line0.stations.find(({ name }) => name === "上野")!,
   ]),
 };
 
 const zone1: Zone = {
   name: "東京都区内",
-  central: line0.stations.find((station) => station.name === "東京")!,
+  central: line0.stations.find(({ name }) => name === "東京")!,
   stations: new Set([
-    line0.stations.find((station) => station.name === "東京")!,
-    line0.stations.find((station) => station.name === "上野")!,
+    line0.stations.find(({ name }) => name === "東京")!,
+    line0.stations.find(({ name }) => name === "上野")!,
   ]),
 };
 
 const zone2: Zone = {
   name: "仙台市内",
-  central: line0.stations.find((station) => station.name === "仙台")!,
-  stations: new Set([
-    line0.stations.find((station) => station.name === "仙台")!,
-  ]),
+  central: line0.stations.find(({ name }) => name === "仙台")!,
+  stations: new Set([line0.stations.find(({ name }) => name === "仙台")!]),
 };
 
 const cityZones: readonly Zone[] = [zone1, zone2];
@@ -782,7 +772,11 @@ const getSuperExpressFares = (
           ["一ノ関", "北上"],
           ["北上", "盛岡"],
           ["熊谷", "高崎"],
-        ].some(([a, b]) => departure.name === a && arrival.name === b)
+        ].some(
+          ([a, b]) =>
+            departure === line.stations.find(({ name }) => a === name) &&
+            arrival === line.stations.find(({ name }) => b === name)
+        )
       ? getDistance0(section) > 50
         ? 1000
         : 880
@@ -793,16 +787,14 @@ const getSuperExpressFares = (
    */
   const nonReservedAvailable =
     line !== line0 ||
-    arrival.index <=
-      line.stations.findIndex((station) => station.name === "盛岡");
+    arrival.index <= line.stations.findIndex(({ name }) => name === "盛岡");
 
   /**
    * 立席が利用可能な区間であれば、 `true`
    */
   const standingOnlyAvailable =
     line === line0 &&
-    departure.index >=
-      line.stations.findIndex((station) => station.name === "盛岡");
+    departure.index >= line.stations.findIndex(({ name }) => name === "盛岡");
 
   const nonReservedExpressTicket: ExpressTicket | undefined =
     nonReservedAvailable
@@ -1026,14 +1018,12 @@ const getBasicFare = (line: Line, section: SortedSection) => {
   const { departure, arrival } = section;
   const distance = getDistance0(section);
 
-  return arrival.index <=
-    line.stations.findIndex((station) => station.name === "大宮")
+  return arrival.index <= line.stations.findIndex(({ name }) => name === "大宮")
     ? getBasicFare2(distance)
     : line === line1 &&
       departure.index >=
-        line.stations.findIndex((station) => station.name === "盛岡") &&
-      arrival.index <=
-        line.stations.findIndex((station) => station.name === "大曲")
+        line.stations.findIndex(({ name }) => name === "盛岡") &&
+      arrival.index <= line.stations.findIndex(({ name }) => name === "大曲")
     ? getBasicFare1(distance)
     : getBasicFare0(
         line === line1 &&
@@ -1048,20 +1038,13 @@ const getBasicFare = (line: Line, section: SortedSection) => {
                   sorted: true,
                   departure:
                     departure.index <
-                    line.stations.findIndex(
-                      (station) => station.name === "盛岡"
-                    )
-                      ? line.stations.find(
-                          (station) => station.name === "盛岡"
-                        )!
+                    line.stations.findIndex(({ name }) => name === "盛岡")
+                      ? line.stations.find(({ name }) => name === "盛岡")!
                       : departure,
                   arrival:
-                    line.stations.findIndex(
-                      (station) => station.name === "大曲"
-                    ) < arrival.index
-                      ? line.stations.find(
-                          (station) => station.name === "大曲"
-                        )!
+                    line.stations.findIndex(({ name }) => name === "大曲") <
+                    arrival.index
+                      ? line.stations.find(({ name }) => name === "大曲")!
                       : arrival,
                 }) *
                   (17.8 / 16.2 - 1),
@@ -1128,12 +1111,19 @@ const isTicketType1Available = (
   !expressTickets.some(({ availableSeat }) => availableSeat === reserved) &&
   ((line !== line0 && line !== line1) ||
     expressTickets[0]!.section.departure.index >=
-      line.stations.findIndex((station) => station.name === "盛岡") ||
+      line.stations.findIndex(({ name }) => name === "盛岡") ||
     expressTickets.slice(-1)[0]!.section.arrival.index <=
-      line.stations.findIndex((station) => station.name === "盛岡"));
+      line.stations.findIndex(({ name }) => name === "盛岡"));
 
-const isTicketType2Available = (expressTickets: readonly ExpressTicket[]) =>
-  !expressTickets.some(({ availableSeat }) => availableSeat === standingOnly);
+const isTicketType2Available = (
+  line: Line,
+  expressTickets: readonly ExpressTicket[]
+) =>
+  !expressTickets.some(({ availableSeat }) => availableSeat === standingOnly) &&
+  (expressTickets[0]!.section.departure !==
+    line.stations.find(({ name }) => name === "東京") ||
+    expressTickets.slice(-1)[0]!.section.arrival !==
+      line.stations.find(({ name }) => name === "上野"));
 
 const totalFares = <
   F extends {
@@ -1171,7 +1161,7 @@ const getFareTotalWithSomeTicketType = (
           },
         ]
       : []),
-    ...(isTicketType2Available(expressTickets)
+    ...(isTicketType2Available(line, expressTickets)
       ? [
           {
             basicFare: basicFares[0],
@@ -1475,16 +1465,18 @@ const Result: React.VFC<{
               </td>
             ))}
           </tr>
-          <tr>
-            <th scope="row">割引</th>
-            {totalFares.map(({ discount, key }) => (
-              <td key={key}>
-                {discount !== undefined
-                  ? jpyNameFormatter.format(discount)
-                  : undefined}
-              </td>
-            ))}
-          </tr>
+          {totalFares.some(({ discount }) => discount !== undefined) ? (
+            <tr>
+              <th scope="row">割引</th>
+              {totalFares.map(({ discount, key }) => (
+                <td key={key}>
+                  {discount !== undefined
+                    ? jpyNameFormatter.format(discount)
+                    : undefined}
+                </td>
+              ))}
+            </tr>
+          ) : undefined}
         </tbody>
         <tfoot>
           <tr>
