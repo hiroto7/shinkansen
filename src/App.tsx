@@ -2169,7 +2169,7 @@ const Ranking: React.VFC<{
         >
           <option value="nonReservedOrStandingOnly">自由席・立席</option>
           <option value="reserved">指定席</option>
-          <option value="reservedHighSpeed">はやぶさ・こまち号 指定席</option>
+          <option value="reservedHighSpeed">はやぶさ号・こまち号 指定席</option>
         </Form.Select>
       </FloatingLabel>
       <Table
