@@ -59,6 +59,7 @@ interface Line {
 }
 
 // (\d+(?:\.\d)?)\t(.+)
+/** 東北新幹線 */
 const line0: Line = {
   name: "東北新幹線",
   stations: [
@@ -88,6 +89,7 @@ const line0: Line = {
   ].map((value, index) => ({ ...value, index })),
 };
 
+/** 秋田新幹線 */
 const line1: Line = {
   name: "秋田新幹線",
   stations: [
@@ -109,6 +111,7 @@ const line1: Line = {
   ],
 };
 
+/** 山形新幹線 */
 const line2: Line = {
   name: "山形新幹線",
   stations: [
@@ -135,6 +138,7 @@ const line2: Line = {
   ],
 };
 
+/** 上越新幹線 */
 const line3: Line = {
   name: "上越新幹線",
   stations: [
@@ -160,6 +164,7 @@ const line3: Line = {
   ],
 };
 
+/** 北陸新幹線 */
 const line4: Line = {
   name: "北陸新幹線",
   stations: [
@@ -772,10 +777,11 @@ const getSuperExpressFares = (
           ["一ノ関", "北上"],
           ["北上", "盛岡"],
           ["熊谷", "高崎"],
-        ].some(
-          ([a, b]) =>
-            departure === line.stations.find(({ name }) => a === name) &&
-            arrival === line.stations.find(({ name }) => b === name)
+        ].some(([a, b]) =>
+          isEquivalent(section, {
+            departure: line.stations.find(({ name }) => a === name)!,
+            arrival: line.stations.find(({ name }) => b === name)!,
+          })
         )
       ? getDistance0(section) > 50
         ? 1000
@@ -949,7 +955,7 @@ const ExpressFaresLabel: React.VFC<{
                   <Col xs="auto">
                     {section.departure.name} <i className="bi bi-arrow-right" />{" "}
                     {section.arrival.name}{" "}
-                    {type !== availableSeat ? <Badge>{type}</Badge> : <></>}
+                    {type !== availableSeat ? <Badge>{type}</Badge> : undefined}
                   </Col>
                   <Col xs="auto" className="ms-auto">
                     {jpyNameFormatter.format(fare)}
@@ -1081,7 +1087,6 @@ interface TotalFare {
    * 運賃・特急料金・割引の合計
    */
   readonly total: number;
-  readonly rate: number;
   readonly types: readonly TicketType[];
 }
 
@@ -1124,6 +1129,15 @@ const isTicketType2Available = (
     line.stations.find(({ name }) => name === "東京") ||
     expressTickets.slice(-1)[0]!.section.arrival !==
       line.stations.find(({ name }) => name === "上野"));
+
+const isPointAvailable = (line: Line, section: SortedSection) =>
+  !isEquivalent(section, {
+    departure: line.stations.find(({ name }) => name === "東京")!,
+    arrival: line.stations.find(({ name }) => name === "上野")!,
+  }) &&
+  (line !== line4 ||
+    section.arrival.index <=
+      line.stations.findIndex(({ name }) => name === "上越妙高"));
 
 const totalFares = <
   F extends {
@@ -1194,14 +1208,15 @@ const getFares = (
   const { departure, arrival } = section;
 
   const distance = getDistance0(section);
-  const points =
-    distance > 400
+  const points = isPointAvailable(line, section)
+    ? distance > 400
       ? 12110
       : distance > 200
       ? 7940
       : distance > 100
       ? 4620
-      : 2160;
+      : 2160
+    : undefined;
 
   const junction = junctions.get(line);
 
@@ -1297,19 +1312,19 @@ const getFares = (
       ? getBasicFare(line, section100)
       : basicFare0;
 
-  const nonReservedOrStandingOnly: Omit<TotalFare, "rate"> | undefined =
+  const nonReservedOrStandingOnly: TotalFare | undefined =
     nonReservedOrStandingOnlyExpressTickets &&
     getFareTotalWithSomeTicketType(
       line,
       [basicFare0, basicFare1],
       nonReservedOrStandingOnlyExpressTickets
     );
-  const reserved: Omit<TotalFare, "rate"> = getFareTotalWithSomeTicketType(
+  const reserved: TotalFare = getFareTotalWithSomeTicketType(
     line,
     [basicFare0, basicFare1],
     reservedExpressTickets
   );
-  const reservedHighSpeed: Omit<TotalFare, "rate"> | undefined =
+  const reservedHighSpeed: TotalFare | undefined =
     reservedHighSpeedExpressTickets &&
     getFareTotalWithSomeTicketType(
       line,
@@ -1319,18 +1334,9 @@ const getFares = (
 
   return {
     distance,
-    nonReservedOrStandingOnly: nonReservedOrStandingOnly && {
-      ...nonReservedOrStandingOnly,
-      rate: nonReservedOrStandingOnly.total / points,
-    },
-    reserved: {
-      ...reserved,
-      rate: reserved.total / points,
-    },
-    reservedHighSpeed: reservedHighSpeed && {
-      ...reservedHighSpeed,
-      rate: reservedHighSpeed.total / points,
-    },
+    nonReservedOrStandingOnly: nonReservedOrStandingOnly,
+    reserved,
+    reservedHighSpeed,
     points,
   } as const;
 };
@@ -1384,10 +1390,10 @@ const Result: React.VFC<{
     readonly [P in
       | "nonReservedOrStandingOnly"
       | "reserved"
-      | "reservedHighSpeed"]: readonly ({
+      | "reservedHighSpeed"]: readonly {
       readonly section: Section;
       readonly rank: number;
-    } & ReturnType<typeof getFares>)[];
+    }[];
   };
   season: Season;
 }> = ({
@@ -1520,76 +1526,80 @@ const Result: React.VFC<{
           ))}
         </dl>
       </details>
-      <h2 className="h4 mt-4">JRE POINT 特典チケット</h2>
-      <h3 className="h6">交換ポイント</h3>
-      <p>{points.toLocaleString()}ポイント</p>
-      <h3 className="h6">レート</h3>
-      <p>
-        所定額（運賃・特急料金・割引の合計）のそれぞれを交換ポイントで割った値です。
-      </p>
-      <Table bordered>
-        <thead>
-          <tr>
-            <td></td>
-            {cells0}
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <th scope="row">レート</th>
-            {totalFares.map(({ rate, key }) => (
-              <td key={key}>{rate.toFixed(2)}</td>
-            ))}
-          </tr>
-          <tr>
-            <th scope="row">順位</th>
-            {nonReservedOrStandingOnly && (
-              <td>
-                {rankedFares.nonReservedOrStandingOnly.find(({ section }) =>
-                  isEquivalent(section, sortedSection)
-                )!.rank + 1}
-                位
-              </td>
-            )}
-            <td>
-              {nonReservedOrStandingOnly === undefined
-                ? `${
-                    rankedFares.nonReservedOrStandingOnly.find(({ section }) =>
-                      isEquivalent(section, sortedSection)
-                    )!.rank + 1
-                  }位または`
-                : undefined}
-              {rankedFares.reserved.find(({ section }) =>
-                isEquivalent(section, sortedSection)
-              )!.rank + 1}
-              位
-              {reservedHighSpeed === undefined
-                ? `または${
-                    rankedFares.reservedHighSpeed.find(({ section }) =>
-                      isEquivalent(section, sortedSection)
-                    )!.rank + 1
-                  }位`
-                : undefined}
-            </td>
-            {reservedHighSpeed && (
-              <td>
-                {highSpeed &&
-                longestHighSpeedSection &&
-                isEquivalent(highSpeed, longestHighSpeedSection) ? (
-                  <>
-                    {rankedFares.reservedHighSpeed.find(({ section }) =>
+      <h2 className="h4 mt-4">JRE POINT特典チケット</h2>
+      {points !== undefined ? (
+        <>
+          <h3 className="h6">交換ポイント</h3>
+          <p>{points.toLocaleString()}ポイント</p>
+          <h3 className="h6">レート</h3>
+          <p>
+            所定額（運賃・特急料金・割引の合計）のそれぞれを交換ポイントで割った値です。
+          </p>
+          <Table bordered>
+            <thead>
+              <tr>
+                <td></td>
+                {cells0}
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">レート</th>
+                {totalFares.map(({ total, key }) => (
+                  <td key={key}>{(total / points).toFixed(2)}</td>
+                ))}
+              </tr>
+              <tr>
+                <th scope="row">順位</th>
+                {nonReservedOrStandingOnly && (
+                  <td>
+                    {rankedFares.nonReservedOrStandingOnly.find(({ section }) =>
                       isEquivalent(section, sortedSection)
                     )!.rank + 1}
                     位
-                  </>
-                ) : (
-                  <></>
+                  </td>
                 )}
-              </td>
-            )}
-          </tr>
-        </tbody>
-      </Table>
+                <td>
+                  {nonReservedOrStandingOnly === undefined
+                    ? `${
+                        rankedFares.nonReservedOrStandingOnly.find(
+                          ({ section }) => isEquivalent(section, sortedSection)
+                        )!.rank + 1
+                      }位または`
+                    : undefined}
+                  {rankedFares.reserved.find(({ section }) =>
+                    isEquivalent(section, sortedSection)
+                  )!.rank + 1}
+                  位
+                  {reservedHighSpeed === undefined
+                    ? `または${
+                        rankedFares.reservedHighSpeed.find(({ section }) =>
+                          isEquivalent(section, sortedSection)
+                        )!.rank + 1
+                      }位`
+                    : undefined}
+                </td>
+                {reservedHighSpeed && (
+                  <td>
+                    {highSpeed &&
+                    longestHighSpeedSection &&
+                    isEquivalent(highSpeed, longestHighSpeedSection) ? (
+                      <>
+                        {rankedFares.reservedHighSpeed.find(({ section }) =>
+                          isEquivalent(section, sortedSection)
+                        )!.rank + 1}
+                        位
+                      </>
+                    ) : undefined}
+                  </td>
+                )}
+              </tr>
+            </tbody>
+          </Table>
+        </>
+      ) : (
+        <Alert variant="warning">指定した区間では利用できません。</Alert>
+      )}
     </>
   );
 };
@@ -1944,10 +1954,10 @@ const Home: React.VFC<{
   season: Season;
   rankedFares: Record<
     "nonReservedOrStandingOnly" | "reserved" | "reservedHighSpeed",
-    readonly ({
+    readonly {
       readonly section: Section;
       readonly rank: number;
-    } & ReturnType<typeof getFares>)[]
+    }[]
   >;
 }> = ({ season, rankedFares }) => {
   const [state, dispatch] = useReducer(reducer, undefined, init);
@@ -2067,9 +2077,7 @@ const Home: React.VFC<{
             onReset={() => dispatch({ type: "resetHighSpeed" })}
           />
         </Accordion>
-      ) : (
-        <></>
-      )}
+      ) : undefined}
       <Result
         line={line}
         section={section}
@@ -2108,15 +2116,22 @@ const rank = <T,>(
     ).array;
 
 const Ranking: React.VFC<{
-  rankedFares: {
-    readonly [P in
-      | "nonReservedOrStandingOnly"
-      | "reserved"
-      | "reservedHighSpeed"]: readonly ({
+  rankedFares: Record<
+    "nonReservedOrStandingOnly" | "reserved" | "reservedHighSpeed",
+    readonly {
       readonly section: Section;
       readonly rank: number;
-    } & ReturnType<typeof getFares>)[];
-  };
+      readonly points: number;
+      readonly distance: number;
+      readonly nonReservedOrStandingOnly:
+        | (TotalFare & { readonly rate: number })
+        | undefined;
+      readonly reserved: TotalFare & { readonly rate: number };
+      readonly reservedHighSpeed:
+        | (TotalFare & { readonly rate: number })
+        | undefined;
+    }[]
+  >;
 }> = ({ rankedFares }) => {
   const [seat, setSeat] = useState<
     "nonReservedOrStandingOnly" | "reserved" | "reservedHighSpeed"
@@ -2198,11 +2213,11 @@ const Ranking: React.VFC<{
             </th>
           </tr>
           <tr>
-            <th scope="col">所定</th>
+            <th scope="col">所定額</th>
             <th scope="col">レート</th>
-            <th scope="col">所定</th>
+            <th scope="col">所定額</th>
             <th scope="col">レート</th>
-            <th scope="col">所定</th>
+            <th scope="col">所定額</th>
             <th scope="col">レート</th>
           </tr>
         </thead>
@@ -2303,17 +2318,39 @@ const App: React.VFC = () => {
         return line.stations.flatMap((departure, index, stations) =>
           stations
             .slice(Math.max(index, junction?.index ?? 0) + 1)
-            .map((arrival) => {
+            .flatMap((arrival) => {
               const section: SortedSection = {
                 departure,
                 arrival,
                 sorted: true,
               };
               const highSpeed = getLongestHighSpeedSection(line, section);
-              return {
-                section,
-                ...getFares(line, section, highSpeed, season),
-              };
+              const {
+                points,
+                distance,
+                nonReservedOrStandingOnly,
+                reserved,
+                reservedHighSpeed,
+              } = getFares(line, section, highSpeed, season);
+
+              return points !== undefined
+                ? [
+                    {
+                      section,
+                      points,
+                      distance,
+                      nonReservedOrStandingOnly: nonReservedOrStandingOnly && {
+                        ...nonReservedOrStandingOnly,
+                        rate: nonReservedOrStandingOnly.total / points,
+                      },
+                      reserved: { ...reserved, rate: reserved.total / points },
+                      reservedHighSpeed: reservedHighSpeed && {
+                        ...reservedHighSpeed,
+                        rate: reservedHighSpeed.total / points,
+                      },
+                    },
+                  ]
+                : [];
             })
         );
       }),
