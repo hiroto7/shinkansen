@@ -164,8 +164,24 @@ const line3: Line = {
   ],
 };
 
-/** 北陸新幹線 */
+/** 上越新幹線・上越線 */
 const line4: Line = {
+  name: "上越新幹線・上越線",
+  stations: [
+    ...line3.stations.slice(
+      line3.stations.findIndex(({ name }) => name === "東京"),
+      line3.stations.findIndex(({ name }) => name === "越後湯沢") + 1
+    ),
+    {
+      name: "ガーラ湯沢",
+      distance: 201.0,
+      index: line3.stations.findIndex(({ name }) => name === "越後湯沢") + 1,
+    },
+  ],
+};
+
+/** 北陸新幹線 */
+const line5: Line = {
   name: "北陸新幹線",
   stations: [
     ...line0.stations.slice(
@@ -197,13 +213,9 @@ const line4: Line = {
   ],
 };
 
-const lines: ReadonlyMap<string, Line> = new Map([
-  [line0.name, line0],
-  [line1.name, line1],
-  [line2.name, line2],
-  [line3.name, line3],
-  [line4.name, line4],
-]);
+const lines: ReadonlyMap<string, Line> = new Map(
+  [line0, line1, line2, line3, line4, line5].map((line) => [line.name, line])
+);
 
 const zone0: Zone = {
   name: "東京山手線内",
@@ -242,7 +254,8 @@ const junctions: ReadonlyMap<Line, Station> = new Map(
       [line1, "盛岡"],
       [line2, "福島"],
       [line3, "大宮"],
-      [line4, "高崎"],
+      [line4, "越後湯沢"],
+      [line5, "高崎"],
     ] as const
   ).map(([line, station]) => [
     line,
@@ -299,7 +312,7 @@ const csvs: readonly (readonly [Line, string])[] = [
 `,
   ],
   [
-    line4,
+    line5,
     `
 駅名,東京,上野,大宮,熊谷,本庄早稲田,高崎,安中榛名,軽井沢,佐久平,上田,長野,飯山,上越妙高,糸魚川,黒部宇奈月温泉,富山,新高岡
 上野,2400,,,,,,,,,,,,,,,,
@@ -678,6 +691,14 @@ const getLimitedExpressFare1 = (distance: number) =>
   distance > 100 ? 1680 : distance > 100 ? 1230 : 910;
 
 /**
+ * 上越線に運転する特別急行列車の越後湯沢・ガーラ湯沢相互間に発売する指定席特急券及び自由席特急券に対する特急料金
+ */
+const limitedExpressFares2 = {
+  nonReservedOrStandingOnly: 100,
+  reserved: 100,
+};
+
+/**
  * 新幹線以外の線区の特急料金（A特急料金）を計算する
  * @param distance 営業キロ
  * @returns 指定席特急料金、立席特急料金及び自由席特急料金
@@ -739,7 +760,7 @@ const getSuperExpressFare = (
  * @param season シーズン
  * @returns 自由席特急料金、特定特急料金、指定席特急料金
  */
-const getSuperExpressFares = (
+const getSuperExpressTickets = (
   line: Line,
   section: SortedSection,
   highSpeed: SortedSection | undefined,
@@ -862,15 +883,29 @@ const getSuperExpressFares = (
 
 /**
  * 新幹線以外の線区の指定した区間の特急料金を計算する
- * @param line 秋田新幹線または山形新幹線
+ * @param line 秋田新幹線、山形新幹線、上越線のいずれか
  * @param section 特急料金を計算する区間。 `arrival` は `departure` より終点に近い駅である必要がある。
- * @param getLimitedExpressFares `getLimitedExpressFares0` または `getLimitedExpressFares1`
  */
-const getLimitedExpressFares = (
+const getLimitedExpressFares2 = (
   line: Line,
   section: SortedSection,
-  getLimitedExpressFares0: (
-    distance: number,
+  season: Season
+) =>
+  line === line4
+    ? limitedExpressFares2
+    : getLimitedExpressFares0(getDistance0(section), season);
+
+/**
+ * 新幹線以外の線区の指定した区間の特急料金を計算する
+ * @param line 秋田新幹線、山形新幹線、上越線のいずれか
+ * @param section 特急料金を計算する区間。 `arrival` は `departure` より終点に近い駅である必要がある。
+ */
+const getLimitedExpressTickets = (
+  line: Line,
+  section: SortedSection,
+  getLimitedExpressFares: (
+    line: Line,
+    section: SortedSection,
     season: Season
   ) => {
     readonly reserved: number;
@@ -885,7 +920,7 @@ const getLimitedExpressFares = (
   const {
     reserved: reservedExpressFare,
     nonReservedOrStandingOnly: nonReservedOrStandingOnlyExpressFare,
-  } = getLimitedExpressFares0(getDistance0(section), season);
+  } = getLimitedExpressFares(line, section, season);
 
   const reservedExpressTicket: ExpressTicket = {
     type: reserved,
@@ -897,7 +932,7 @@ const getLimitedExpressFares = (
   /**
    * 自由席が利用可能な区間であれば、 `true`
    */
-  const nonReservedAvailable = line === line2;
+  const nonReservedAvailable = line === line2 || line === line4;
 
   /**
    * 立席が利用可能な区間であれば、 `true`
@@ -1128,14 +1163,22 @@ const isTicketType2Available = (
   (expressTickets[0]!.section.departure !==
     line.stations.find(({ name }) => name === "東京") ||
     expressTickets.slice(-1)[0]!.section.arrival !==
-      line.stations.find(({ name }) => name === "上野"));
+      line.stations.find(({ name }) => name === "上野")) &&
+  (expressTickets[0]!.section.departure !==
+    line.stations.find(({ name }) => name === "越後湯沢") ||
+    expressTickets.slice(-1)[0]!.section.arrival !==
+      line.stations.find(({ name }) => name === "ガーラ湯沢"));
 
 const isPointAvailable = (line: Line, section: SortedSection) =>
   !isEquivalent(section, {
     departure: line.stations.find(({ name }) => name === "東京")!,
     arrival: line.stations.find(({ name }) => name === "上野")!,
   }) &&
-  (line !== line4 ||
+  !isEquivalent(section, {
+    departure: line.stations.find(({ name }) => name === "越後湯沢")!,
+    arrival: line.stations.find(({ name }) => name === "ガーラ湯沢")!,
+  }) &&
+  (line !== line5 ||
     section.arrival.index <=
       line.stations.findIndex(({ name }) => name === "上越妙高"));
 
@@ -1221,10 +1264,10 @@ const getFares = (
   const junction = junctions.get(line);
 
   const superExpressTickets =
-    (line === line1 || line === line2) && junction
+    (line === line1 || line === line2 || line === line4) && junction
       ? departure.index < junction.index
-        ? getSuperExpressFares(
-            line0,
+        ? getSuperExpressTickets(
+            line === line4 ? line3 : line0,
             junction.index < arrival.index
               ? { sorted: true, departure, arrival: junction }
               : section,
@@ -1239,18 +1282,26 @@ const getFares = (
             season
           )
         : undefined
-      : getSuperExpressFares(line, section, highSpeed, season);
+      : getSuperExpressTickets(line, section, highSpeed, season);
 
   const limitedExpressFares =
-    (line === line1 || line === line2) &&
+    (line === line1 || line === line2 || line === line4) &&
     junction &&
     arrival.index > junction.index
       ? departure.index >= junction.index
-        ? getLimitedExpressFares(line, section, getLimitedExpressFares0, season)
-        : getLimitedExpressFares(
+        ? getLimitedExpressTickets(
+            line,
+            section,
+            getLimitedExpressFares2,
+            season
+          )
+        : getLimitedExpressTickets(
             line,
             { departure: junction, arrival, sorted: true },
-            getLimitedExpressFares1,
+            line === line4
+              ? getLimitedExpressFares2
+              : (_, section, season) =>
+                  getLimitedExpressFares1(getDistance0(section), season),
             season
           )
       : undefined;
@@ -1386,15 +1437,13 @@ const Result: React.VFC<{
   section: Section;
   highSpeed: Section | undefined;
   longestHighSpeedSection: Section | undefined;
-  rankedFares: {
-    readonly [P in
-      | "nonReservedOrStandingOnly"
-      | "reserved"
-      | "reservedHighSpeed"]: readonly {
+  rankedFares: Record<
+    "nonReservedOrStandingOnly" | "reserved" | "reservedHighSpeed",
+    readonly {
       readonly section: Section;
       readonly rank: number;
-    }[];
-  };
+    }[]
+  >;
   season: Season;
 }> = ({
   line,
@@ -1725,7 +1774,7 @@ const ContextAwareItem: React.VFC<{
  */
 const isHighSpeedAvailableStation = (line: Line, station: Station) =>
   station.index <=
-    line0.stations.findIndex((station) => station.name === "大宮") ||
+    line.stations.findIndex((station) => station.name === "大宮") ||
   ((line === line0 || line === line1) &&
     station.index >=
       line0.stations.findIndex((station) => station.name === "仙台"));
@@ -1830,6 +1879,7 @@ type Action = Readonly<
     }
   | {
       type: "resetHighSpeed";
+      payload?: undefined;
     }
 >;
 
@@ -1845,22 +1895,21 @@ interface SortedSection extends Section {
   sorted: true;
 }
 
-const reducer: Reducer<State, Action> = (state, action): State => {
-  switch (action.type) {
+const reducer: Reducer<State, Action> = (state, { type, payload }): State => {
+  switch (type) {
     case "setLine": {
-      const line = action.payload;
       const { departure, arrival } = state.section;
-      const firstOfLine = line.stations[0]!;
-      const lastOfLine = line.stations.slice(-1)[0]!;
+      const firstOfLine = payload.stations[0]!;
+      const lastOfLine = payload.stations.slice(-1)[0]!;
 
-      const section: Section = line.stations.includes(departure)
-        ? line.stations.includes(arrival)
+      const section: Section = payload.stations.includes(departure)
+        ? payload.stations.includes(arrival)
           ? state.section
           : {
               departure,
               arrival: lastOfLine === departure ? firstOfLine : lastOfLine,
             }
-        : line.stations.includes(arrival)
+        : payload.stations.includes(arrival)
         ? {
             departure: firstOfLine === arrival ? lastOfLine : firstOfLine,
             arrival,
@@ -1869,7 +1918,7 @@ const reducer: Reducer<State, Action> = (state, action): State => {
 
       return {
         ...state,
-        line,
+        line: payload,
         section,
         highSpeed: undefined,
       };
@@ -1877,7 +1926,7 @@ const reducer: Reducer<State, Action> = (state, action): State => {
 
     case "setDeparture": {
       const section = {
-        departure: action.payload,
+        departure: payload,
         arrival: state.section.arrival,
       };
 
@@ -1891,7 +1940,7 @@ const reducer: Reducer<State, Action> = (state, action): State => {
     case "setArrival": {
       const section = {
         departure: state.section.departure,
-        arrival: action.payload,
+        arrival: payload,
       };
 
       return {
@@ -1905,11 +1954,11 @@ const reducer: Reducer<State, Action> = (state, action): State => {
       return {
         ...state,
         highSpeed: {
-          departure: action.payload,
+          departure: payload,
           arrival:
             state.highSpeed &&
             state.highSpeed.arrival &&
-            action.payload.index < state.highSpeed.arrival.index
+            payload.index < state.highSpeed.arrival.index
               ? state.highSpeed.arrival
               : undefined,
         },
@@ -1922,10 +1971,10 @@ const reducer: Reducer<State, Action> = (state, action): State => {
           departure:
             state.highSpeed &&
             state.highSpeed.departure &&
-            state.highSpeed.departure.index < action.payload.index
+            state.highSpeed.departure.index < payload.index
               ? state.highSpeed.departure
               : undefined,
-          arrival: action.payload,
+          arrival: payload,
         },
       };
 
@@ -2023,6 +2072,7 @@ const Home: React.VFC<{
             <option>秋田新幹線</option>
             <option>山形新幹線</option>
             <option>上越新幹線</option>
+            <option>上越新幹線・上越線</option>
             <option>北陸新幹線</option>
           </Form.Select>
         </FloatingLabel>
