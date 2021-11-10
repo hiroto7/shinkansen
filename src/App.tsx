@@ -1077,7 +1077,7 @@ const getBasicFare = (line: Line, section: SortedSection) => {
 
 interface TicketType {
   readonly name: string;
-  readonly href?: string;
+  readonly url?: URL;
   isAvailable(line: Line, expressTickets: readonly ExpressTicket[]): boolean;
 }
 
@@ -1090,7 +1090,7 @@ const ticketTypes: readonly [TicketType, TicketType, TicketType] = [
   },
   {
     name: "タッチでGo!新幹線",
-    href: "https://www.jreast.co.jp/touchdego/",
+    url: new URL("https://www.jreast.co.jp/touchdego/"),
     isAvailable(line: Line, expressTickets: readonly ExpressTicket[]) {
       return (
         !expressTickets.some(
@@ -1106,7 +1106,7 @@ const ticketTypes: readonly [TicketType, TicketType, TicketType] = [
   },
   {
     name: "新幹線eチケット",
-    href: "https://www.eki-net.com/top/e-ticket/",
+    url: new URL("https://www.eki-net.com/top/e-ticket/"),
     isAvailable(line: Line, expressTickets: readonly ExpressTicket[]) {
       return (
         !expressTickets.some(
@@ -1230,29 +1230,64 @@ const getFareTotalWithSomeTicketType = (
     .map(totalFares)
     .reduce(chooseOneOrBothTicketType);
 
+interface PointTicketType {
+  readonly name: string;
+  readonly url?: URL;
+  getPoints(distance: number): number;
+}
+
+const pointTicketTypes: readonly [PointTicketType, PointTicketType] = [
+  {
+    name: "通常",
+    getPoints(distance: number) {
+      return distance > 400
+        ? 12110
+        : distance > 200
+        ? 7940
+        : distance > 100
+        ? 4620
+        : 2160;
+    },
+  },
+  {
+    name: "新幹線YEARスペシャル",
+    url: new URL("https://www.jreast.co.jp/press/2021/20211109_ho02.pdf"),
+    getPoints(distance: number) {
+      return distance > 400
+        ? 6000
+        : distance > 200
+        ? 3900
+        : distance > 100
+        ? 2300
+        : 1000;
+    },
+  },
+];
+
 /**
  * 指定した区間の運賃・特急料金を計算する
  * @param line
  * @param section 運賃・特急料金を計算する区間
  * @param highSpeed はやぶさ号やこまち号を利用する区間
  */
-const getFares = (
-  line: Line,
-  section: SortedSection,
-  highSpeed: SortedSection | undefined,
-  season: Season
-) => {
+const getFares = ({
+  line,
+  section,
+  highSpeed,
+  season,
+  getPoints,
+}: {
+  line: Line;
+  section: SortedSection;
+  highSpeed: SortedSection | undefined;
+  season: Season;
+  getPoints: (distance: number) => number;
+}) => {
   const { departure, arrival } = section;
 
   const distance = getDistance0(section);
   const points = isPointAvailable(line, section)
-    ? distance > 400
-      ? 12110
-      : distance > 200
-      ? 7940
-      : distance > 100
-      ? 4620
-      : 2160
+    ? getPoints(distance)
     : undefined;
 
   const junction = junctions.get(line);
@@ -1439,6 +1474,7 @@ const Result: React.VFC<{
     }[]
   >;
   season: Season;
+  getPoints(distance: number): number;
 }> = ({
   line,
   section,
@@ -1446,16 +1482,18 @@ const Result: React.VFC<{
   longestHighSpeedSection,
   rankedFares,
   season,
+  getPoints,
 }) => {
   const { section: sortedSection, reversed } = sortSection(section);
   const sortedHighSpeed = highSpeed && sortSection(highSpeed).section;
 
-  const { distance, points, ...others } = getFares(
+  const { distance, points, ...others } = getFares({
     line,
-    sortedSection,
-    sortedHighSpeed,
-    season
-  );
+    section: sortedSection,
+    highSpeed: sortedHighSpeed,
+    season,
+    getPoints,
+  });
 
   const { nonReservedOrStandingOnly, reservedHighSpeed } = others;
 
@@ -1551,10 +1589,10 @@ const Result: React.VFC<{
                 <SeatsLabel tickets={expressTickets} />
               </Col>
               <Col as="dd" xs>
-                {types.map(({ name, href }, index) => (
+                {types.map(({ name, url }, index) => (
                   <Fragment key={name}>
-                    {href !== undefined ? (
-                      <a href={href} target="_blank" rel="noreferrer">
+                    {url !== undefined ? (
+                      <a href={url.href} target="_blank" rel="noreferrer">
                         {name}
                       </a>
                     ) : (
@@ -2027,7 +2065,8 @@ const Home: React.VFC<{
       readonly rank: number;
     }[]
   >;
-}> = ({ season, rankedFares }) => {
+  getPoints(distance: number): number;
+}> = ({ season, rankedFares, getPoints }) => {
   const [state, dispatch] = useReducer(reducer, undefined, init);
 
   const { group, line, section } = state;
@@ -2157,6 +2196,7 @@ const Home: React.VFC<{
         longestHighSpeedSection={longestHighSpeedSection}
         rankedFares={rankedFares}
         season={season}
+        getPoints={getPoints}
       />
     </main>
   );
@@ -2382,6 +2422,7 @@ type Season = typeof seasons[number];
 
 const App: React.VFC = () => {
   const [season, setSeason] = useState<Season>(average);
+  const [pointTicketType, setPointTicketType] = useState(pointTicketTypes[0]!);
 
   const faresForEachSection = useMemo(
     () =>
@@ -2405,7 +2446,13 @@ const App: React.VFC = () => {
                   nonReservedOrStandingOnly,
                   reserved,
                   reservedHighSpeed,
-                } = getFares(line, section, highSpeed, season);
+                } = getFares({
+                  line,
+                  section,
+                  highSpeed,
+                  season,
+                  getPoints: pointTicketType.getPoints,
+                });
 
                 return points !== undefined
                   ? [
@@ -2432,7 +2479,7 @@ const App: React.VFC = () => {
               })
           );
         }),
-    [season]
+    [pointTicketType.getPoints, season]
   );
 
   const rankedFares = useMemo(
@@ -2469,16 +2516,6 @@ const App: React.VFC = () => {
                 ランキング
               </Nav.Link>
             </Nav>
-            <FloatingLabel label="シーズン">
-              <Form.Select
-                value={season}
-                onChange={(e) => setSeason(e.currentTarget.value as Season)}
-              >
-                {seasons.map((season) => (
-                  <option key={season}>{season}</option>
-                ))}
-              </Form.Select>
-            </FloatingLabel>
           </Navbar.Collapse>
         </Container>
       </Navbar>
@@ -2494,6 +2531,45 @@ const App: React.VFC = () => {
             </li>
           </ul>
         </Alert>
+        <Row className="mb-3 gy-2">
+          <Col md>
+            <FloatingLabel label="シーズン">
+              <Form.Select
+                value={season}
+                onChange={(e) => setSeason(e.currentTarget.value as Season)}
+              >
+                {seasons.map((season) => (
+                  <option key={season}>{season}</option>
+                ))}
+              </Form.Select>
+            </FloatingLabel>
+          </Col>
+          <Col md>
+            <FloatingLabel label="JRE POINT特典チケット 交換ポイント">
+              <Form.Select
+                value={pointTicketType.name}
+                onChange={(e) =>
+                  setPointTicketType(
+                    pointTicketTypes.find(
+                      ({ name }) => name === e.currentTarget.value
+                    )!
+                  )
+                }
+              >
+                {pointTicketTypes.map((nextPointTicketType) => (
+                  <option key={nextPointTicketType.name}>
+                    {nextPointTicketType.name}
+                  </option>
+                ))}
+              </Form.Select>
+              {pointTicketType.url && (
+                <Form.Text>
+                  <a href={pointTicketType.url.href}>詳細</a>
+                </Form.Text>
+              )}
+            </FloatingLabel>
+          </Col>
+        </Row>
         <Routes>
           <Route
             path="ranking"
@@ -2501,7 +2577,13 @@ const App: React.VFC = () => {
           />
           <Route
             path="/"
-            element={<Home season={season} rankedFares={rankedFares} />}
+            element={
+              <Home
+                season={season}
+                rankedFares={rankedFares}
+                getPoints={pointTicketType.getPoints}
+              />
+            }
           />
         </Routes>
       </Container>
