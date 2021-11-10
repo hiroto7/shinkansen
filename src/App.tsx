@@ -2058,6 +2058,9 @@ const init = (): State => {
 
 const Home: React.VFC<{
   season: Season;
+  onSeasonChange: (season: Season) => void;
+  pointTicketType: PointTicketType;
+  onPointTicketTypeChange: (type: PointTicketType) => void;
   rankedFares: Record<
     "nonReservedOrStandingOnly" | "reserved" | "reservedHighSpeed",
     readonly {
@@ -2065,8 +2068,13 @@ const Home: React.VFC<{
       readonly rank: number;
     }[]
   >;
-  getPoints(distance: number): number;
-}> = ({ season, rankedFares, getPoints }) => {
+}> = ({
+  season,
+  pointTicketType,
+  onSeasonChange,
+  onPointTicketTypeChange,
+  rankedFares,
+}) => {
   const [state, dispatch] = useReducer(reducer, undefined, init);
 
   const { group, line, section } = state;
@@ -2140,7 +2148,7 @@ const Home: React.VFC<{
               onChange={(station) =>
                 dispatch({ type: "setDeparture", payload: station })
               }
-              header="出発駅"
+              header="発駅"
               items={[...new Set(group.lines.flat())]
                 .sort((a, b) => a.distance - b.distance)
                 .map((station) => ({
@@ -2159,7 +2167,7 @@ const Home: React.VFC<{
               onChange={(station) =>
                 dispatch({ type: "setArrival", payload: station })
               }
-              header="到着駅"
+              header="着駅"
               items={[...new Set(group.lines.flat())]
                 .sort((a, b) => a.distance - b.distance)
                 .map((station) => ({
@@ -2189,6 +2197,20 @@ const Home: React.VFC<{
           />
         </Accordion>
       ) : undefined}
+      <Row className="gy-2 mb-3">
+        <Col md>
+          <SeasonSelect
+            season={season}
+            onChange={(season) => onSeasonChange(season)}
+          />
+        </Col>
+        <Col md>
+          <PointTicketTypeSelect
+            type={pointTicketType}
+            onChange={(type) => onPointTicketTypeChange(type)}
+          />
+        </Col>
+      </Row>
       <Result
         line={line}
         section={section}
@@ -2196,7 +2218,7 @@ const Home: React.VFC<{
         longestHighSpeedSection={longestHighSpeedSection}
         rankedFares={rankedFares}
         season={season}
-        getPoints={getPoints}
+        getPoints={pointTicketType.getPoints}
       />
     </main>
   );
@@ -2244,7 +2266,17 @@ const Ranking: React.VFC<{
         | undefined;
     }[]
   >;
-}> = ({ rankedFares }) => {
+  season: Season;
+  onSeasonChange: (season: Season) => void;
+  pointTicketType: PointTicketType;
+  onPointTicketTypeChange: (type: PointTicketType) => void;
+}> = ({
+  rankedFares,
+  season,
+  onSeasonChange,
+  pointTicketType,
+  onPointTicketTypeChange,
+}) => {
   const [seat, setSeat] = useState<
     "nonReservedOrStandingOnly" | "reserved" | "reservedHighSpeed"
   >("nonReservedOrStandingOnly");
@@ -2271,26 +2303,41 @@ const Ranking: React.VFC<{
           onChange={(e) => setSmall(e.currentTarget.checked)}
         />
       </Form.Group>
-      <FloatingLabel
-        label="次の所定額に対するレートで並び替える"
-        className="mb-3"
-      >
-        <Form.Select
-          value={seat}
-          onChange={(e) =>
-            setSeat(
-              e.currentTarget.value as
-                | "nonReservedOrStandingOnly"
-                | "reserved"
-                | "reservedHighSpeed"
-            )
-          }
-        >
-          <option value="nonReservedOrStandingOnly">自由席・立席</option>
-          <option value="reserved">指定席</option>
-          <option value="reservedHighSpeed">はやぶさ号・こまち号 指定席</option>
-        </Form.Select>
-      </FloatingLabel>
+      <Row className="gy-2 mb-3">
+        <Col xl>
+          <FloatingLabel label="次の所定額に対するレートで並び替える">
+            <Form.Select
+              value={seat}
+              onChange={(e) =>
+                setSeat(
+                  e.currentTarget.value as
+                    | "nonReservedOrStandingOnly"
+                    | "reserved"
+                    | "reservedHighSpeed"
+                )
+              }
+            >
+              <option value="nonReservedOrStandingOnly">自由席・立席</option>
+              <option value="reserved">指定席</option>
+              <option value="reservedHighSpeed">
+                はやぶさ号・こまち号 指定席
+              </option>
+            </Form.Select>
+          </FloatingLabel>
+        </Col>
+        <Col xl>
+          <SeasonSelect
+            season={season}
+            onChange={(season) => onSeasonChange(season)}
+          />
+        </Col>
+        <Col xl>
+          <PointTicketTypeSelect
+            type={pointTicketType}
+            onChange={(type) => onPointTicketTypeChange(type)}
+          />
+        </Col>
+      </Row>
       <Table
         striped
         bordered
@@ -2420,6 +2467,49 @@ const seasons = [off, average, busy, busiest] as const;
 
 type Season = typeof seasons[number];
 
+const SeasonSelect: React.VFC<{
+  season: Season;
+  onChange: (season: Season) => void;
+}> = ({ season, onChange }) => (
+  <FloatingLabel label="シーズン">
+    <Form.Select
+      value={season}
+      onChange={(e) => onChange(e.currentTarget.value as Season)}
+    >
+      {seasons.map((season) => (
+        <option key={season}>{season}</option>
+      ))}
+    </Form.Select>
+  </FloatingLabel>
+);
+
+const PointTicketTypeSelect: React.VFC<{
+  type: PointTicketType;
+  onChange: (type: PointTicketType) => void;
+}> = ({ type, onChange }) => (
+  <FloatingLabel label="JRE POINT特典チケット 交換ポイント">
+    <Form.Select
+      value={type.name}
+      onChange={(e) =>
+        onChange(
+          pointTicketTypes.find(({ name }) => name === e.currentTarget.value)!
+        )
+      }
+    >
+      {pointTicketTypes.map((nextPointTicketType) => (
+        <option key={nextPointTicketType.name}>
+          {nextPointTicketType.name}
+        </option>
+      ))}
+    </Form.Select>
+    {type.url && (
+      <Form.Text>
+        <a href={type.url.href}>詳細</a>
+      </Form.Text>
+    )}
+  </FloatingLabel>
+);
+
 const App: React.VFC = () => {
   const [season, setSeason] = useState<Season>(average);
   const [pointTicketType, setPointTicketType] = useState(pointTicketTypes[0]!);
@@ -2531,61 +2621,34 @@ const App: React.VFC = () => {
             </li>
           </ul>
         </Alert>
-        <Row className="mb-3 gy-2">
-          <Col md>
-            <FloatingLabel label="シーズン">
-              <Form.Select
-                value={season}
-                onChange={(e) => setSeason(e.currentTarget.value as Season)}
-              >
-                {seasons.map((season) => (
-                  <option key={season}>{season}</option>
-                ))}
-              </Form.Select>
-            </FloatingLabel>
-          </Col>
-          <Col md>
-            <FloatingLabel label="JRE POINT特典チケット 交換ポイント">
-              <Form.Select
-                value={pointTicketType.name}
-                onChange={(e) =>
-                  setPointTicketType(
-                    pointTicketTypes.find(
-                      ({ name }) => name === e.currentTarget.value
-                    )!
-                  )
-                }
-              >
-                {pointTicketTypes.map((nextPointTicketType) => (
-                  <option key={nextPointTicketType.name}>
-                    {nextPointTicketType.name}
-                  </option>
-                ))}
-              </Form.Select>
-              {pointTicketType.url && (
-                <Form.Text>
-                  <a href={pointTicketType.url.href}>詳細</a>
-                </Form.Text>
-              )}
-            </FloatingLabel>
-          </Col>
-        </Row>
-        <Routes>
-          <Route
-            path="ranking"
-            element={<Ranking rankedFares={rankedFares} />}
-          />
-          <Route
-            path="/"
-            element={
-              <Home
-                season={season}
-                rankedFares={rankedFares}
-                getPoints={pointTicketType.getPoints}
-              />
-            }
-          />
-        </Routes>
+        <div className="mt-4">
+          <Routes>
+            <Route
+              path="ranking"
+              element={
+                <Ranking
+                  rankedFares={rankedFares}
+                  season={season}
+                  pointTicketType={pointTicketType}
+                  onSeasonChange={setSeason}
+                  onPointTicketTypeChange={setPointTicketType}
+                />
+              }
+            />
+            <Route
+              path="/"
+              element={
+                <Home
+                  season={season}
+                  pointTicketType={pointTicketType}
+                  onSeasonChange={setSeason}
+                  onPointTicketTypeChange={setPointTicketType}
+                  rankedFares={rankedFares}
+                />
+              }
+            />
+          </Routes>
+        </div>
       </Container>
     </>
   );
