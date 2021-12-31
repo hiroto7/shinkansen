@@ -1,6 +1,6 @@
 import "bootstrap-icons/font/bootstrap-icons.css";
 import "bootstrap/dist/css/bootstrap.min.css";
-import parse from "csv-parse/lib/sync";
+import { parse } from "csv-parse/browser/esm/sync";
 import { ceil, round, sum } from "lodash";
 import type * as React from "react";
 import {
@@ -2504,7 +2504,9 @@ const PointTicketTypeSelect: React.VFC<{
     </Form.Select>
     {type.url && (
       <Form.Text>
-        <a href={type.url.href}>詳細</a>
+        <a href={type.url.href} target="_blank" rel="noreferrer">
+          詳細
+        </a>
       </Form.Text>
     )}
   </FloatingLabel>
@@ -2616,8 +2618,10 @@ const App: React.VFC = () => {
               このページに表示される運賃・特急料金およびその他の内容について、正確性を保証しません。
             </li>
             <li>
-              <b>最繁忙期</b>
-              の特急料金のうち、秋田新幹線や山形新幹線のものは予想です。
+              <Alert.Link href="https://www.jreast.co.jp/press/2021/sendai/20211116_s01.pdf">
+                2022年春に改定が予定されている、秋田新幹線や山形新幹線の新しい特急料金体系
+              </Alert.Link>
+              には対応していません。
             </li>
           </ul>
         </Alert>
