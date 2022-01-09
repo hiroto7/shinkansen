@@ -1251,7 +1251,7 @@ const pointTicketTypes: readonly [PointTicketType, PointTicketType] = [
   },
   {
     name: "新幹線YEARスペシャル",
-    url: new URL("https://www.jreast.co.jp/press/2021/20211109_ho02.pdf"),
+    url: new URL("https://www.jreast.co.jp/shinkansenyear2022/tokuten_ticket/"),
     getPoints(distance: number) {
       return distance > 400
         ? 6000
