@@ -671,7 +671,7 @@ const getLimitedExpressFare0 = (distance: number) =>
  * @returns 指定席特急料金
  */
 const getLimitedExpressFare1 = (distance: number) =>
-  distance > 100 ? 1680 : distance > 100 ? 1230 : 910;
+  distance > 100 ? 1680 : distance > 50 ? 1230 : 910;
 
 /**
  * 上越線に運転する特別急行列車の越後湯沢・ガーラ湯沢相互間に発売する指定席特急券及び自由席特急券に対する特急料金
