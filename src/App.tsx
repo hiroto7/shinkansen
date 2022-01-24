@@ -644,34 +644,20 @@ interface ExpressTicket {
 }
 
 /**
- * 新幹線以外の線区の指定席特急料金（A特急料金）を計算する
- * @param distance 営業キロ
- * @returns 指定席特急料金
- */
-const getLimitedExpressFare0 = (distance: number) =>
-  distance > 600
-    ? 3830
-    : distance > 400
-    ? 3490
-    : distance > 300
-    ? 3170
-    : distance > 200
-    ? 2950
-    : distance > 150
-    ? 2730
-    : distance > 100
-    ? 2390
-    : distance > 50
-    ? 1730
-    : 1290;
-
-/**
  * 奥羽本線中福島・新庄間並びに田沢湖線及び奥羽本線中大曲・秋田間を、東北新幹線にまたがって利用する場合の指定席特急料金を計算する
  * @param distance 営業キロ
  * @returns 指定席特急料金
  */
 const getLimitedExpressFare1 = (distance: number) =>
-  distance > 100 ? 1680 : distance > 50 ? 1230 : 910;
+  getLimitedExpressFare3(distance) - 530;
+
+/**
+ * 奥羽本線中福島・新庄間並びに田沢湖線及び奥羽本線中大曲・秋田間の指定席特急料金を計算する
+ * @param distance 営業キロ
+ * @returns 指定席特急料金
+ */
+const getLimitedExpressFare3 = (distance: number) =>
+  distance > 100 ? 2110 : distance > 50 ? 1660 : 1290;
 
 /**
  * 上越線に運転する特別急行列車の越後湯沢・ガーラ湯沢相互間に発売する指定席特急券及び自由席特急券に対する特急料金
@@ -682,12 +668,12 @@ const limitedExpressFares2 = {
 };
 
 /**
- * 新幹線以外の線区の特急料金（A特急料金）を計算する
+ * 奥羽本線中福島・新庄間並びに田沢湖線及び奥羽本線中大曲・秋田間の特急料金を計算する
  * @param distance 営業キロ
  * @returns 指定席特急料金、立席特急料金及び自由席特急料金
  */
 const getLimitedExpressFares0 = (distance: number, season: Season) => {
-  const reserved = getLimitedExpressFare0(distance);
+  const reserved = getLimitedExpressFare3(distance);
   return {
     reserved:
       season === busiest
@@ -706,20 +692,11 @@ const getLimitedExpressFares0 = (distance: number, season: Season) => {
  * @param distance 営業キロ
  * @returns 指定席特急料金・立席特急料金及び自由席特急料金
  */
-const getLimitedExpressFares1 = (distance: number, season: Season) => {
-  const reserved = getLimitedExpressFare1(distance);
-  return {
-    reserved:
-      season === busiest
-        ? reserved + 280
-        : season === busy
-        ? reserved + 140
-        : season === off
-        ? reserved - 140
-        : reserved,
-    nonReservedOrStandingOnly: reserved - 380,
-  } as const;
-};
+const getLimitedExpressFares1 = (distance: number) =>
+  ({
+    reserved: getLimitedExpressFare1(distance),
+    nonReservedOrStandingOnly: getLimitedExpressFare3(distance) - 530,
+  } as const);
 
 /**
  * 新幹線の指定席特急料金を計算する
@@ -758,23 +735,21 @@ const getSuperExpressTickets = (
 
   const reservedExpressFare = getSuperExpressFare(tables.get(line)!, section);
 
-  const reservedExpressTicket: ExpressTicket = {
-    type: reserved,
-    availableSeat: reserved,
-    section,
-    fare:
-      season === busiest
-        ? reservedExpressFare + 400
-        : season === busy
-        ? reservedExpressFare + 200
-        : season === off
-        ? reservedExpressFare - 200
-        : reservedExpressFare,
-  };
-
-  const specificExpressFare =
-    departure.name === "東京" && arrival.name === "大宮"
-      ? 1090
+  const specificExpressFares =
+    departure.name === "郡山" && arrival.name === "福島"
+      ? {
+          nonReservedOrStandingOnly: 880,
+          reserved:
+            season === busiest
+              ? 1810
+              : season === busy
+              ? 1610
+              : season === off
+              ? 1210
+              : 1410,
+        }
+      : departure.name === "東京" && arrival.name === "大宮"
+      ? { nonReservedOrStandingOnly: 1090 }
       : arrival.index - departure.index === 1 ||
         [
           ["古川", "一ノ関"],
@@ -787,10 +762,29 @@ const getSuperExpressTickets = (
             arrival: line.find(({ name }) => b === name)!,
           })
         )
-      ? getDistance0(section) > 50
-        ? 1000
-        : 880
-      : undefined;
+      ? { nonReservedOrStandingOnly: getDistance0(section) > 50 ? 1000 : 880 }
+      : {};
+
+  const reservedExpressTicket: ExpressTicket = {
+    availableSeat: reserved,
+    section,
+    ...("reserved" in specificExpressFares
+      ? {
+          type: specific,
+          fare: specificExpressFares.reserved,
+        }
+      : {
+          type: reserved,
+          fare:
+            season === busiest
+              ? reservedExpressFare + 400
+              : season === busy
+              ? reservedExpressFare + 200
+              : season === off
+              ? reservedExpressFare - 200
+              : reservedExpressFare,
+        }),
+  };
 
   /**
    * 自由席が利用可能な区間であれば、 `true`
@@ -811,8 +805,11 @@ const getSuperExpressTickets = (
       ? {
           availableSeat: nonReserved,
           section,
-          ...(specificExpressFare !== undefined
-            ? { type: specific, fare: specificExpressFare }
+          ...("nonReservedOrStandingOnly" in specificExpressFares
+            ? {
+                type: specific,
+                fare: specificExpressFares.nonReservedOrStandingOnly,
+              }
             : { type: nonReserved, fare: reservedExpressFare - 530 }),
         }
       : undefined;
@@ -824,8 +821,8 @@ const getSuperExpressTickets = (
           availableSeat: standingOnly,
           section,
           fare:
-            specificExpressFare !== undefined
-              ? specificExpressFare
+            "nonReservedOrStandingOnly" in specificExpressFares
+              ? specificExpressFares.nonReservedOrStandingOnly
               : reservedExpressFare - 530,
         }
       : undefined;
@@ -915,12 +912,12 @@ const getLimitedExpressTickets = (
   /**
    * 自由席が利用可能な区間であれば、 `true`
    */
-  const nonReservedAvailable = line === line2 || line === line4;
+  const nonReservedAvailable = line === line4;
 
   /**
    * 立席が利用可能な区間であれば、 `true`
    */
-  const standingOnlyAvailable = line === line1;
+  const standingOnlyAvailable = line === line1 || line === line2;
 
   const nonReservedExpressTicket: ExpressTicket | undefined =
     nonReservedAvailable
@@ -1329,8 +1326,7 @@ const getFares = ({
             { departure: junction, arrival, sorted: true },
             line === line4
               ? getLimitedExpressFares2
-              : (_, section, season) =>
-                  getLimitedExpressFares1(getDistance0(section), season),
+              : (_, section) => getLimitedExpressFares1(getDistance0(section)),
             season
           )
       : undefined;
