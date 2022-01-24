@@ -1089,15 +1089,20 @@ const ticketTypes: readonly [TicketType, TicketType, TicketType] = [
     name: "タッチでGo!新幹線",
     url: new URL("https://www.jreast.co.jp/touchdego/"),
     isAvailable(line: Line, expressTickets: readonly ExpressTicket[]) {
-      return (
-        !expressTickets.some(
+      return !(
+        expressTickets.some(
           ({ availableSeat }) => availableSeat === reserved
-        ) &&
-        ((line !== line0 && line !== line1) ||
-          expressTickets[0]!.section.departure.index >=
-            line.findIndex(({ name }) => name === "盛岡") ||
-          expressTickets.slice(-1)[0]!.section.arrival.index <=
-            line.findIndex(({ name }) => name === "盛岡"))
+        ) ||
+        ((line === line0 || line === line1) &&
+          expressTickets[0]!.section.departure.index <
+            line.findIndex(({ name }) => name === "盛岡") &&
+          expressTickets.slice(-1)[0]!.section.arrival.index >
+            line.findIndex(({ name }) => name === "盛岡")) ||
+        (line === line2 &&
+          expressTickets[0]!.section.departure.index <
+            line.findIndex(({ name }) => name === "福島") &&
+          expressTickets.slice(-1)[0]!.section.arrival.index >
+            line.findIndex(({ name }) => name === "福島"))
       );
     },
   },
