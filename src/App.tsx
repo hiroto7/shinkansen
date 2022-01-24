@@ -2619,10 +2619,10 @@ const App: React.VFC = () => {
               このページに表示される運賃・特急料金およびその他の内容について、正確性を保証しません。
             </li>
             <li>
-              <Alert.Link href="https://www.jreast.co.jp/press/2021/sendai/20211116_s01.pdf">
-                2022年春に改定が予定されている、秋田新幹線や山形新幹線の新しい特急料金体系
+              <Alert.Link href="https://www.jreast.co.jp/press/2021/20211005_ho04.pdf">
+                2022年4月1日乗車分から導入される最繁忙期の特急料金
               </Alert.Link>
-              には対応していません。
+              には、開発者の予想が含まれます。
             </li>
           </ul>
         </Alert>
