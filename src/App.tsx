@@ -1616,6 +1616,7 @@ const Result: React.VFC<{
           <h3 className="h6">レート</h3>
           <p>
             所定額（運賃・特急料金・割引の合計）のそれぞれを交換ポイントで割った値です。
+            レートが高ければ高いほど、割引なしのきっぷに比べてお得であるといえます。
           </p>
           <Table bordered>
             <thead>
@@ -2115,14 +2116,16 @@ const Home: React.VFC<{
     <main>
       <h1>区間を指定して調べる</h1>
       <p>
+        えきねっとで交換できる
         <a
           href="https://www.eki-net.com/top/point/guide/tokuten_section.html#headerM2_01"
           target="_blank"
           rel="noreferrer"
         >
-          えきねっとでJRE POINTと交換できる特典チケット
+          JRE POINT特典チケット
         </a>
-        が、割引なしのきっぷと比べてどのくらい割がいいのか（レート）を計算します。
+        のレート（1ポイントあたり何円相当か）を、区間ごとに調べられます。
+        自由席と指定席など、それぞれの所定額に対するレートと順位が同時に表示されるため、さまざまな観点で検討できます。
       </p>
       <Card body className="my-3" as="fieldset">
         <FloatingLabel controlId="floatingSelect" label="路線" className="mb-3">
@@ -2287,6 +2290,7 @@ const Ranking: React.VFC<{
     <main>
       <h1>ランキング</h1>
       <p>
+        えきねっとで交換できる
         <a
           href="https://www.eki-net.com/top/point/guide/tokuten_section.html#headerM2_01"
           target="_blank"
@@ -2294,7 +2298,9 @@ const Ranking: React.VFC<{
         >
           JRE POINT特典チケット
         </a>
-        を交換するのに割がいい（レートが高い）区間を調べます。
+        のレート（1ポイントあたり何円相当か）のランキングです。
+        割引なしのきっぷと比べたとき、どの区間でJRE POINT
+        特典チケットを利用するのがお得かを調べられます。
       </p>
       <Form.Group className="mb-3" controlId="SmallTableCheckbox">
         <Form.Check
@@ -2609,6 +2615,15 @@ const App: React.VFC = () => {
                 ランキング
               </Nav.Link>
             </Nav>
+            <Nav>
+              <Nav.Link
+                href="https://github.com/hiroto7/shinkansen"
+                target="_blank"
+                rel="noreferrer"
+              >
+                <i className="bi bi-github" /> GitHub
+              </Nav.Link>
+            </Nav>
           </Navbar.Collapse>
         </Container>
       </Navbar>
@@ -2619,7 +2634,12 @@ const App: React.VFC = () => {
               このページに表示される運賃・特急料金およびその他の内容について、正確性を保証しません。
             </li>
             <li>
-              <Alert.Link href="https://www.jreast.co.jp/press/2021/20211005_ho04.pdf">
+              <Alert.Link
+                as="a"
+                href="https://www.jreast.co.jp/press/2021/20211005_ho04.pdf"
+                target="_blank"
+                rel="noreferrer"
+              >
                 2022年4月1日乗車分から導入される最繁忙期の特急料金
               </Alert.Link>
               には、開発者の予想が含まれます。
