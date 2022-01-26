@@ -2614,6 +2614,15 @@ const App: React.VFC = () => {
                 ランキング
               </Nav.Link>
             </Nav>
+            <Nav>
+              <Nav.Link
+                href="https://github.com/hiroto7/shinkansen"
+                target="_blank"
+                rel="noreferrer"
+              >
+                <i className="bi bi-github" /> GitHub
+              </Nav.Link>
+            </Nav>
           </Navbar.Collapse>
         </Container>
       </Navbar>
@@ -2624,7 +2633,12 @@ const App: React.VFC = () => {
               このページに表示される運賃・特急料金およびその他の内容について、正確性を保証しません。
             </li>
             <li>
-              <Alert.Link href="https://www.jreast.co.jp/press/2021/sendai/20211116_s01.pdf">
+              <Alert.Link
+                as="a"
+                href="https://www.jreast.co.jp/press/2021/sendai/20211116_s01.pdf"
+                target="_blank"
+                rel="noreferrer"
+              >
                 2022年春に改定が予定されている、秋田新幹線や山形新幹線の新しい特急料金体系
               </Alert.Link>
               には対応していません。
