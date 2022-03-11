@@ -2629,22 +2629,7 @@ const App: React.VFC = () => {
       </Navbar>
       <Container>
         <Alert variant="warning" className="mt-3">
-          <ul className="mb-0">
-            <li>
-              このページに表示される運賃・特急料金およびその他の内容について、正確性を保証しません。
-            </li>
-            <li>
-              <Alert.Link
-                as="a"
-                href="https://www.jreast.co.jp/press/2021/20211005_ho04.pdf"
-                target="_blank"
-                rel="noreferrer"
-              >
-                2022年4月1日乗車分から導入される最繁忙期の特急料金
-              </Alert.Link>
-              には、開発者の予想が含まれます。
-            </li>
-          </ul>
+          このページに表示される運賃・特急料金およびその他の内容について、正確性を保証しません。
         </Alert>
         <div className="mt-4">
           <Routes>
