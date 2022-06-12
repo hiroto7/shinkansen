@@ -33,6 +33,7 @@ import {
 import { Route, Routes } from "react-router-dom";
 import "./App.css";
 import Header from "./Header";
+import Others from "./Others";
 
 interface Station {
   readonly index: number;
@@ -2620,6 +2621,7 @@ const App: React.VFC = () => {
                 />
               }
             />
+            <Route path="others" element={<Others />} />
             <Route
               path="/"
               element={

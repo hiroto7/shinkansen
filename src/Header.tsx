@@ -17,6 +17,9 @@ const Header = () => (
           <Nav.Link as={NavLink} end to="/ranking">
             ランキング
           </Nav.Link>
+          <Nav.Link as={NavLink} end to="/others">
+            在来線特急
+          </Nav.Link>
         </Nav>
         <Nav>
           <Nav.Link
