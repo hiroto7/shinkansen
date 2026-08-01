@@ -532,21 +532,11 @@ const App = () => {
   return (
     <div className="app-shell">
       <header className="site-header">
-        <div>
-          <p className="eyebrow">JRE POINT / SHINKANSEN</p>
-          <h1>新幹線特典レート</h1>
-        </div>
-        <a href="https://github.com/hiroto7/shinkansen">GitHub ↗</a>
+        <h1>新幹線特典レート</h1>
+        <a href="https://github.com/hiroto7/shinkansen">GitHub</a>
       </header>
 
       <main>
-        <section className="hero">
-          <div>
-            <p className="eyebrow">POINT VALUE EXPLORER</p>
-            <h2>どこで使うと、<br />何円分になるか。</h2>
-          </div>
-        </section>
-
         <nav className="tabs" aria-label="表示切替">
           <button className={tab === "detail" ? "active" : ""} onClick={() => setTab("detail")}>区間を調べる</button>
           <button className={tab === "ranking" ? "active" : ""} onClick={() => setTab("ranking")}>ランキング</button>
@@ -578,7 +568,7 @@ const App = () => {
         {tab === "detail" ? (
           <div className="dashboard-grid">
             <section className="panel journey-panel">
-              <div className="panel-heading"><span>01</span><div><p>JOURNEY</p><h3>乗車区間</h3></div></div>
+              <div className="panel-heading"><h3>乗車区間</h3></div>
               <div className="field-grid">
                 <label>路線
                   <select value={groupName} onChange={(event) => resetRoute(event.target.value)}>
@@ -653,11 +643,11 @@ const App = () => {
                   )}
                 </div>
               )}
-              <p className="constraint-note">各利用区間は、途中で分断しない1つの連続区間として指定します。グランクラスを選んだ場合は、グリーン車・グランクラスを利用する全体区間と、そのうちグランクラスに乗る区間を指定します。</p>
+              <p className="constraint-note">設備ごとの利用区間は、それぞれ1つの連続区間として指定してください。</p>
             </section>
 
             <section className="panel result-panel">
-              <div className="panel-heading"><span>02</span><div><p>RESULT</p><h3>計算結果</h3></div></div>
+              <div className="panel-heading"><h3>計算結果</h3></div>
               {quote.points === undefined ? (
                 <div className="unavailable"><strong>この組み合わせは年版の対象外です</strong><p>2022年版は旧アプリが扱っていた普通車指定席のみ参照できます。35%特別レートは飲料・軽食ありのグランクラスを対象外としています。</p></div>
               ) : (
@@ -683,7 +673,7 @@ const App = () => {
           </div>
         ) : (
           <section className="panel ranking-panel">
-            <div className="panel-heading"><span>R</span><div><p>{rankingLimit === "all" ? "ALL" : `TOP ${rankingLimit}`}</p><h3>{facilityLabels[rankingFacility]}レート</h3></div></div>
+            <div className="panel-heading"><h3>{facilityLabels[rankingFacility]}レート</h3></div>
             <div className="ranking-tools">
               <label>設備
                 <select value={rankingFacility} onChange={(event) => setRankingFacility(event.target.value as RankingFacility)}>
@@ -703,7 +693,7 @@ const App = () => {
                 </select>
               </label>
             </div>
-            <p className="ranking-note">全{integer.format(rankingRows.length)}件中、{integer.format(ranking.length)}件を表示しています。ランキングは設備ごとの標準行程で比較します。グリーン車は全区間、グランクラスは設定可能な範囲を連続して利用する条件です。一部区間の組み合わせは区間詳細で確認できます。</p>
+            <p className="ranking-note">全{integer.format(rankingRows.length)}件中、{integer.format(ranking.length)}件を表示。グリーン車は全区間、グランクラスは設定可能な区間を利用した場合の比較です。</p>
             <div className="ranking-table-wrap"><table className="ranking-table"><thead><tr><th>#</th><th>区間</th><th>距離</th><th>ポイント</th><th>所定額</th><th>円/pt</th></tr></thead><tbody>
               {ranking.map((row, index) => <tr key={row.key}><td>{index + 1}</td><td><small>{row.group}</small><strong>{row.departure} → {row.arrival}</strong></td><td>{row.distanceKm.toFixed(1)} km</td><td>{row.points === undefined ? "—" : integer.format(row.points)}</td><td>{row.paperFare === undefined ? "—" : yen.format(row.paperFare)}</td><td><strong>{row.value.toFixed(2)}</strong></td></tr>)}
             </tbody></table></div>
@@ -711,7 +701,7 @@ const App = () => {
         )}
 
         <section className="campaign-section">
-          <div className="section-title"><p>MANUAL ARCHIVE</p><h3>キャンペーン</h3></div>
+          <div className="section-title"><h3>キャンペーン</h3></div>
           <div className="campaign-grid">{campaigns.map((item) => <article key={item.id}><span>{item.status}</span><h4>{item.title}</h4><p>{item.dates}</p></article>)}</div>
         </section>
 
@@ -720,7 +710,6 @@ const App = () => {
           <p>運賃・料金はJRの規則と公式表、交換ポイントはえきねっとの公式表から計算します。時刻表・列車編成・残席・実際の発売可否は判定しません。表示額は購入を保証するものではありません。最新情報はご自身でお調べください。</p>
         </aside>
       </main>
-      <footer><span>DATA: 2022 / 2026</span><span>RULE-BASED, NOT ROUTE-PLANNER DATA</span></footer>
     </div>
   );
 };
