@@ -17,9 +17,8 @@ button, select { color: inherit; }
 .eyebrow, .panel-heading p, .section-title > p { margin: 0; color: #65746b; font: 700 10px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .18em; }
 
 main { width: min(1180px, 92vw); margin: 0 auto; }
-.hero { min-height: 280px; display: flex; align-items: center; border-bottom: 1px solid #bcc5bd; }
+.hero { min-height: 240px; display: flex; align-items: center; border-bottom: 1px solid #bcc5bd; }
 .hero h2 { margin: 16px 0 20px; font-size: clamp(40px, 7vw, 82px); line-height: .98; letter-spacing: -.07em; }
-.hero p:not(.eyebrow) { max-width: 570px; color: #55645b; line-height: 1.8; }
 
 .tabs { display: flex; gap: 32px; border-bottom: 1px solid #bcc5bd; }
 .tabs button { appearance: none; background: none; border: 0; padding: 22px 0 18px; color: #65746b; cursor: pointer; position: relative; }

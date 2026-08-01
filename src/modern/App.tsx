@@ -544,7 +544,6 @@ const App = () => {
           <div>
             <p className="eyebrow">POINT VALUE EXPLORER</p>
             <h2>どこで使うと、<br />何円分になるか。</h2>
-            <p>運賃・料金はJRの規則と公式表、交換ポイントはえきねっとの公式表から計算します。</p>
           </div>
         </section>
 
@@ -718,7 +717,7 @@ const App = () => {
 
         <aside className="notice">
           <strong>計算の前提</strong>
-          <p>時刻表・列車編成・残席・実際の発売可否は判定しません。表示額は購入を保証するものではありません。最新情報はご自身でお調べください。</p>
+          <p>運賃・料金はJRの規則と公式表、交換ポイントはえきねっとの公式表から計算します。時刻表・列車編成・残席・実際の発売可否は判定しません。表示額は購入を保証するものではありません。最新情報はご自身でお調べください。</p>
         </aside>
       </main>
       <footer><span>DATA: 2022 / 2026</span><span>RULE-BASED, NOT ROUTE-PLANNER DATA</span></footer>
