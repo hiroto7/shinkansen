@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
 import {
-  calculator2022,
+  routes,
   type Line,
-  type Season,
   type SortedSection,
   type Station,
-} from "./domain/versions/2022";
+} from "./domain/routes";
+import { average, seasons, type Season } from "./domain/seasons";
 import type { DataVersion, Facility, Interval } from "./domain/types";
 import { createQuote, type Campaign, type ExclusionReason } from "./domain/quote";
 import "./App.css";
@@ -61,10 +61,10 @@ export const intervalWithin = (
 };
 
 const granClassLastIndex = (line: Line) => {
-  if (line === calculator2022.line1) {
+  if (line === routes.akitaLine) {
     return line.find(({ name }) => name === "盛岡")!.index;
   }
-  if (line === calculator2022.line2) {
+  if (line === routes.yamagataLine) {
     return line.find(({ name }) => name === "福島")!.index;
   }
   return line.length - 1;
@@ -216,12 +216,12 @@ const App = () => {
   const [version, setVersion] = useState<DataVersion>("2026-03-14");
   const [campaign, setCampaign] = useState<Campaign>("regular");
   const [groupName, setGroupName] = useState("東北新幹線");
-  const group = calculator2022.lineGroups.get(groupName)!;
+  const group = routes.lineGroups.get(groupName)!;
   const [routeIndex, setRouteIndex] = useState(0);
   const line = group.lines[Math.min(routeIndex, group.lines.length - 1)]!;
   const [departureIndex, setDepartureIndex] = useState(0);
   const [arrivalIndex, setArrivalIndex] = useState(line.length - 1);
-  const [season, setSeason] = useState<Season>(calculator2022.average);
+  const [season, setSeason] = useState<Season>(average);
   const [highSpeedEnabled, setHighSpeedEnabled] = useState(false);
   const [highSpeedStart, setHighSpeedStart] = useState(0);
   const [highSpeedEnd, setHighSpeedEnd] = useState(line.length - 1);
@@ -239,7 +239,7 @@ const App = () => {
     useState<OrdinaryRankingBasis>("nonReserved");
 
   const resetRoute = (nextGroupName: string, nextRouteIndex = 0) => {
-    const nextLine = calculator2022.lineGroups.get(nextGroupName)!.lines[nextRouteIndex]!;
+    const nextLine = routes.lineGroups.get(nextGroupName)!.lines[nextRouteIndex]!;
     setGroupName(nextGroupName);
     setRouteIndex(nextRouteIndex);
     setDepartureIndex(0);
@@ -252,7 +252,7 @@ const App = () => {
     setGranClassEnd(nextLine.length - 1);
   };
 
-  const sorted = calculator2022.sortSection({
+  const sorted = routes.sortSection({
     departure: line[Math.min(departureIndex, line.length - 2)]!,
     arrival: line[Math.max(1, Math.min(arrivalIndex, line.length - 1))]!,
   }).section;
@@ -316,7 +316,7 @@ const App = () => {
 
   const rankingRows = useMemo(() => {
     if (tab !== "ranking") return [];
-    const rows = [...calculator2022.lineGroups.entries()].flatMap(
+    const rows = [...routes.lineGroups.entries()].flatMap(
       ([rankingGroupName, rankingGroup]) =>
         rankingGroup.lines.flatMap((rankingLine) =>
           rankingLine.flatMap((departure, departureOffset) =>
@@ -456,7 +456,7 @@ const App = () => {
           </label>
           <label>シーズン
             <select value={season} onChange={(event) => setSeason(event.target.value as Season)}>
-              {calculator2022.seasons.map((value) => <option key={value} value={value}>{seasonLabels[value]}</option>)}
+              {seasons.map((value) => <option key={value} value={value}>{seasonLabels[value]}</option>)}
             </select>
           </label>
         </section>
@@ -473,7 +473,7 @@ const App = () => {
               <div className="field-grid">
                 <label>路線
                   <select value={groupName} onChange={(event) => resetRoute(event.target.value)}>
-                    {[...calculator2022.lineGroups.keys()].map((name) => <option key={name}>{name}</option>)}
+                    {[...routes.lineGroups.keys()].map((name) => <option key={name}>{name}</option>)}
                   </select>
                 </label>
                 {group.lines.length > 1 && (
@@ -486,7 +486,7 @@ const App = () => {
               </div>
               <RangeSelect label="全乗車区間" stations={line} start={departureIndex} end={arrivalIndex} onStart={setDepartureIndex} onEnd={setArrivalIndex} />
 
-              {(line === calculator2022.line0 || line === calculator2022.line1) && (
+              {(line === routes.tohokuLine || line === routes.akitaLine) && (
                 <div className="segment-control">
                   <label className="switch"><input type="checkbox" checked={highSpeedEnabled} onChange={(event) => { setHighSpeedEnabled(event.target.checked); if (event.target.checked) { setHighSpeedStart(tripStart); setHighSpeedEnd(tripEnd); } }} /><span>「はやぶさ」「こまち」を利用する</span></label>
                   {highSpeedEnabled && highSpeed && <RangeSelect label="はやぶさ・こまち利用区間" stations={tripStations} start={highSpeed.start} end={highSpeed.end} onStart={setHighSpeedStart} onEnd={setHighSpeedEnd} />}

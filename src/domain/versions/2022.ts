@@ -1,34 +1,29 @@
 import { parse } from "csv-parse/browser/esm/sync";
 import { ceil, round, sum } from "lodash";
+import {
+  akitaLine as line1,
+  galaYuzawaLine as line4,
+  hokurikuLine as line5,
+  isSameSection as isEquivalent,
+  joetsuLine as line3,
+  sectionDistance as getDistance0,
+  tohokuLine as line0,
+  yamagataLine as line2,
+  type Line,
+  type Section,
+  type SortedSection,
+  type Station,
+} from "../routes";
+import {
+  average,
+  busiest,
+  busy,
+  off,
+  seasons,
+  type Season,
+} from "../seasons";
 import type { DistanceBand } from "../types";
 import { valueForDistance } from "../types";
-
-interface Section {
-  departure: Station;
-  arrival: Station;
-}
-
-interface SortedSection extends Section {
-  sorted: true;
-}
-
-const average = "通常期";
-const busy = "繁忙期";
-const busiest = "最繁忙期";
-const off = "閑散期";
-
-const seasons = [off, average, busy, busiest] as const;
-
-type Season = (typeof seasons)[number];
-
-interface Station {
-  readonly index: number;
-  readonly name: string;
-  /**
-   * 起点からの営業キロ
-   */
-  readonly distance: number;
-}
 
 /**
  * 特定都区市内または東京山手線内
@@ -38,156 +33,6 @@ interface Zone {
   readonly central: Station;
   readonly stations: ReadonlySet<Station>;
 }
-
-type Line = readonly Station[];
-
-interface LineGroup {
-  readonly name: string;
-  readonly lines: readonly Line[];
-}
-
-// (\d+(?:\.\d)?)\t(.+)
-/** 東北新幹線 */
-const line0: Line = [
-  { name: "東京", distance: 0 },
-  { name: "上野", distance: 3.6 },
-  { name: "大宮", distance: 30.3 },
-  { name: "小山", distance: 80.6 },
-  { name: "宇都宮", distance: 109.5 },
-  { name: "那須塩原", distance: 157.8 },
-  { name: "新白河", distance: 185.4 },
-  { name: "郡山", distance: 226.7 },
-  { name: "福島", distance: 272.8 },
-  { name: "白石蔵王", distance: 306.8 },
-  { name: "仙台", distance: 351.8 },
-  { name: "古川", distance: 395 },
-  { name: "くりこま高原", distance: 416.2 },
-  { name: "一ノ関", distance: 445.1 },
-  { name: "水沢江刺", distance: 470.1 },
-  { name: "北上", distance: 487.5 },
-  { name: "新花巻", distance: 500 },
-  { name: "盛岡", distance: 535.3 },
-  { name: "いわて沼宮内", distance: 566.4 },
-  { name: "二戸", distance: 601 },
-  { name: "八戸", distance: 631.9 },
-  { name: "七戸十和田", distance: 668 },
-  { name: "新青森", distance: 713.7 },
-].map((value, index) => ({ ...value, index }));
-
-/** 秋田新幹線 */
-const line1: Line = [
-  ...line0.slice(
-    line0.findIndex(({ name }) => name === "東京"),
-    line0.findIndex(({ name }) => name === "盛岡") + 1
-  ),
-  ...[
-    { name: "雫石", distance: 551.3 },
-    { name: "田沢湖", distance: 575.4 },
-    { name: "角館", distance: 594.1 },
-    { name: "大曲", distance: 610.9 },
-    { name: "秋田", distance: 662.6 },
-  ].map((value, index) => ({
-    ...value,
-    index: index + line0.findIndex(({ name }) => name === "盛岡") + 1,
-  })),
-];
-
-/** 山形新幹線 */
-const line2: Line = [
-  ...line0.slice(
-    line0.findIndex(({ name }) => name === "東京"),
-    line0.findIndex(({ name }) => name === "福島") + 1
-  ),
-  ...[
-    { name: "米沢", distance: 312.9 },
-    { name: "高畠", distance: 322.7 },
-    { name: "赤湯", distance: 328.9 },
-    { name: "かみのやま温泉", distance: 347.8 },
-    { name: "山形", distance: 359.9 },
-    { name: "天童", distance: 373.2 },
-    { name: "さくらんぼ東根", distance: 380.9 },
-    { name: "村山", distance: 386.3 },
-    { name: "大石田", distance: 399.7 },
-    { name: "新庄", distance: 421.4 },
-  ].map((value, index) => ({
-    ...value,
-    index: index + line0.findIndex(({ name }) => name === "福島") + 1,
-  })),
-];
-
-/** 上越新幹線（新潟方面） */
-const line3: Line = [
-  ...line0.slice(
-    line0.findIndex(({ name }) => name === "東京"),
-    line0.findIndex(({ name }) => name === "大宮") + 1
-  ),
-  ...[
-    { name: "熊谷", distance: 64.7 },
-    { name: "本庄早稲田", distance: 86 },
-    { name: "高崎", distance: 105 },
-    { name: "上毛高原", distance: 151.6 },
-    { name: "越後湯沢", distance: 199.2 },
-    { name: "浦佐", distance: 228.9 },
-    { name: "長岡", distance: 270.6 },
-    { name: "燕三条", distance: 293.8 },
-    { name: "新潟", distance: 333.9 },
-  ].map((value, index) => ({
-    ...value,
-    index: index + line0.findIndex(({ name }) => name === "大宮") + 1,
-  })),
-];
-
-/** 上越新幹線（ガーラ湯沢方面） */
-const line4: Line = [
-  ...line3.slice(
-    line3.findIndex(({ name }) => name === "東京"),
-    line3.findIndex(({ name }) => name === "越後湯沢") + 1
-  ),
-  {
-    name: "ガーラ湯沢",
-    distance: 201.0,
-    index: line3.findIndex(({ name }) => name === "越後湯沢") + 1,
-  },
-];
-
-/** 北陸新幹線 */
-const line5 = [
-  ...line0.slice(
-    line0.findIndex(({ name }) => name === "東京"),
-    line0.findIndex(({ name }) => name === "大宮") + 1
-  ),
-  ...line3.slice(
-    line3.findIndex(({ name }) => name === "熊谷"),
-    line3.findIndex(({ name }) => name === "高崎") + 1
-  ),
-  ...[
-    { name: "安中榛名", distance: 123.5 },
-    { name: "軽井沢", distance: 146.8 },
-    { name: "佐久平", distance: 164.4 },
-    { name: "上田", distance: 189.2 },
-    { name: "長野", distance: 222.4 },
-    { name: "飯山", distance: 252.3 },
-    { name: "上越妙高", distance: 281.9 },
-    // { name: "糸魚川", distance: 318.9 },
-    // { name: "黒部宇奈月温泉", distance: 358.1 },
-    // { name: "富山", distance: 391.9 },
-    // { name: "新高岡", distance: 410.8 },
-    // { name: "金沢", distance: 450.5 },
-  ].map((value, index) => ({
-    ...value,
-    index: index + line3.findIndex(({ name }) => name === "高崎") + 1,
-  })),
-];
-
-const lineGroups: ReadonlyMap<string, LineGroup> = new Map(
-  [
-    { name: "東北新幹線", lines: [line0] },
-    { name: "秋田新幹線", lines: [line1] },
-    { name: "山形新幹線", lines: [line2] },
-    { name: "上越新幹線", lines: [line3, line4] },
-    { name: "北陸新幹線", lines: [line5] },
-  ].map((group) => [group.name, group])
-);
 
 const zone0: Zone = {
   name: "東京山手線内",
@@ -214,11 +59,6 @@ const zone2: Zone = {
 };
 
 const cityZones: readonly Zone[] = [zone1, zone2];
-
-const highSpeedTrains: ReadonlyMap<Line, string> = new Map([
-  [line0, "はやぶさ"],
-  [line1, "こまち"],
-]);
 
 const junctions: ReadonlyMap<Line, Station> = new Map(
   (
@@ -466,14 +306,6 @@ const getDistance1 = (distance: number) =>
     : distance > 50
     ? Math.ceil(distance / 10) * 10 - 5
     : Math.ceil(distance / 5) * 5 - 2;
-
-/**
- * 指定した区間の距離を返す。丸め誤差は取り除く。
- * @param section 距離を求める区間
- * @returns 距離
- */
-const getDistance0 = (section: SortedSection) =>
-  round(section.arrival.distance - section.departure.distance, 1);
 
 /**
  * **幹線**内相互発着となる場合の大人片道普通旅客運賃を計算する
@@ -1290,28 +1122,6 @@ const getFares = ({
   } as const;
 };
 
-const isEquivalent = (a: Section, b: Section) =>
-  a.departure === b.departure && a.arrival === b.arrival;
-
-const reverseSection = (section: Section): Section => ({
-  departure: section.arrival,
-  arrival: section.departure,
-});
-const reverseTicket = (ticket: ExpressTicket): ExpressTicket => ({
-  ...ticket,
-  section: reverseSection(ticket.section),
-});
-const reverseTickets = (
-  ...tickets: readonly ExpressTicket[]
-): readonly ExpressTicket[] => tickets.map(reverseTicket).reverse();
-
-const sortSection = (
-  section: Section
-): Readonly<{ section: SortedSection; reversed: boolean }> =>
-  section.departure.index < section.arrival.index
-    ? { section: { ...section, sorted: true }, reversed: false }
-    : { section: { ...reverseSection(section), sorted: true }, reversed: true };
-
 export const metadata2022 = {
   id: "2022-03-12",
   label: "2022年3月12日時点",
@@ -1349,23 +1159,11 @@ export const get2022Points = (
 
 export type {
   ExpressTicket,
-  Line,
-  Season,
-  SortedSection,
-  Station,
   TotalFare,
 };
 
 export const calculator2022 = {
   metadata: metadata2022,
-  lineGroups,
-  line0,
-  line1,
-  line2,
-  average,
-  busy,
-  seasons,
   getPoints: get2022Points,
   getFares,
-  sortSection,
 } as const;

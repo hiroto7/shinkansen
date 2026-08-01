@@ -1,11 +1,10 @@
-import type {
-  ExpressTicket,
-  Line,
-  Season,
-  SortedSection,
-  Station,
-  TotalFare,
-} from "./versions/2022";
+import {
+  distanceBetween,
+  routes,
+  type Line,
+  type SortedSection,
+} from "./routes";
+import type { Season } from "./seasons";
 import { calculator2022 } from "./versions/2022";
 import type { DataVersion, Facility, Interval, JourneySelection } from "./types";
 import { highestFacility } from "./types";
@@ -23,15 +22,12 @@ export type ExclusionReason =
   | "shinshuPreDc"
   | "invalidJourney";
 
-const distanceBetween = (a: Station, b: Station) =>
-  Math.round(Math.abs(b.distance - a.distance) * 10) / 10;
-
 const getCurrentBasicFare = (
   line: Line,
   section: SortedSection,
 ): number => {
   const distanceKm = distanceBetween(section.departure, section.arrival);
-  if (line !== calculator2022.line1) {
+  if (line !== routes.akitaLine) {
     return calculator2026.getBasicFare(distanceKm);
   }
 
@@ -51,7 +47,9 @@ const getCurrentBasicFare = (
     localStart.index < localEnd.index ? distanceBetween(localStart, localEnd) : 0;
   return calculator2026.getBasicFare(distanceKm, localKm);
 };
-const fareTickets = (fare: TotalFare): readonly ExpressTicket[] =>
+const fareTickets = (fare: {
+  readonly expressTickets: readonly { readonly fare: number }[];
+}) =>
   fare.expressTickets;
 
 interface QuoteInput {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { routes, sectionDistance } from "../routes";
 import { validateJourneySelection } from "../types";
 import { get2022Points } from "./2022";
 import {
@@ -11,6 +12,16 @@ import {
   get2026SpecialVehicleFare,
   get2026TrunkBasicFare,
 } from "./2026";
+
+describe("共通の路線情報", () => {
+  it("年版に依存しない駅と営業キロを提供する", () => {
+    const line = routes.lineGroups.get("山形新幹線")!.lines[0]!;
+    const tokyo = line.find(({ name }) => name === "東京")!;
+    const shinjo = line.find(({ name }) => name === "新庄")!;
+
+    expect(sectionDistance({ departure: tokyo, arrival: shinjo })).toBe(421.4);
+  });
+});
 
 describe("2022年版", () => {
   it("旧アプリの4距離帯を境界で維持する", () => {

@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
-import {
-  calculator2022,
-  type Line,
-  type SortedSection,
-} from "./domain/versions/2022";
+import type { Line, SortedSection } from "./domain/routes";
+import { routes } from "./domain/routes";
+import { average, busy } from "./domain/seasons";
 import {
   intervalWithin,
   rangeAfterEndChange,
@@ -18,7 +16,7 @@ const section = (line: Line, departure: string, arrival: string): SortedSection 
 });
 
 const route = (group: string, index = 0) =>
-  calculator2022.lineGroups.get(group)!.lines[index]!;
+  routes.lineGroups.get(group)!.lines[index]!;
 
 describe("2026年版の通し特急料金", () => {
   it("宇都宮―那須塩原のポイントと比較額を維持する", () => {
@@ -28,7 +26,7 @@ describe("2026年版の通し特急料金", () => {
       campaign: "regular",
       line,
       section: section(line, "宇都宮", "那須塩原"),
-      season: calculator2022.average,
+      season: average,
     });
 
     expect(quote.points).toBe(2_000);
@@ -43,7 +41,7 @@ describe("2026年版の通し特急料金", () => {
       campaign: "regular",
       line,
       section: section(line, "東京", "新庄"),
-      season: calculator2022.busy,
+      season: busy,
     });
 
     expect(quote.basicFare).toBe(7_480);
@@ -60,7 +58,7 @@ describe("2026年版の通し特急料金", () => {
       line,
       section: trip,
       green: { start: trip.departure.index, end: trip.arrival.index },
-      season: calculator2022.busy,
+      season: busy,
     });
 
     expect(quote.expressFare).toBe(5_520);
@@ -75,7 +73,7 @@ describe("2026年版の通し特急料金", () => {
       campaign: "regular",
       line,
       section: section(line, "福島", "新庄"),
-      season: calculator2022.busy,
+      season: busy,
     });
 
     expect(quote.expressFare).toBe(2_310);
@@ -88,7 +86,7 @@ describe("2026年版の通し特急料金", () => {
       campaign: "regular",
       line,
       section: section(line, "東京", "ガーラ湯沢"),
-      season: calculator2022.average,
+      season: average,
     });
 
     expect(quote.expressFare).toBe(3_480);
@@ -101,7 +99,7 @@ describe("2026年版の通し特急料金", () => {
       campaign: "regular",
       line,
       section: section(line, "水沢江刺", "秋田"),
-      season: calculator2022.average,
+      season: average,
     });
 
     expect(quote.basicFare).toBe(3_850);
@@ -115,7 +113,7 @@ describe("2026年版の通し特急料金", () => {
       line,
       section: section(line, "東京", "仙台"),
       green: { start: 0, end: line.length },
-      season: calculator2022.average,
+      season: average,
     });
 
     expect(quote.points).toBeUndefined();
@@ -147,7 +145,7 @@ describe("信州プレDCの画面用計算", () => {
       campaign: "shinshuPreDc",
       line,
       section: section(line, "東京", "長野"),
-      season: calculator2022.average,
+      season: average,
     });
     const greenQuote = createQuote({
       version: "2026-03-14",
@@ -158,7 +156,7 @@ describe("信州プレDCの画面用計算", () => {
         start: line.find((station) => station.name === "東京")!.index,
         end: line.find((station) => station.name === "長野")!.index,
       },
-      season: calculator2022.average,
+      season: average,
     });
 
     expect(quote.points).toBe(4_500);
