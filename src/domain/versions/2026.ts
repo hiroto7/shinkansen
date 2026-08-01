@@ -14,8 +14,12 @@ export const current2026 = {
   label: "2026年3月14日以降",
   sources: {
     points: "https://www.eki-net.com/top/product/shinkansen/e-tokuten.html",
+    shinshuPreDc:
+      "https://www.eki-net.com/top/point/pdf/shinshu_predc2026.pdf",
     fares: "https://www.jreast.co.jp/2026unchin-kaitei/",
-    rules:
+    expressRules:
+      "https://www.jreast.co.jp/ryokaku/02_hen/03_syo/07_setsu/",
+    specialVehicleRules:
       "https://www.jreast.co.jp/ryokaku/02_hen/03_syo/08_setsu/",
   },
 } as const;
@@ -81,6 +85,48 @@ export const get2026JourneyPoints = (
   journey: JourneySelection,
   campaign: "regular" | "limited35Percent" = "regular",
 ) => get2026Points(distanceKm, highestFacility(journey), campaign);
+
+const shinshuPreDcPoints = new Map<string, number>([
+  ["東京|軽井沢", 3_000],
+  ["東京|佐久平", 4_000],
+  ["東京|上田", 4_000],
+  ["東京|長野", 4_500],
+  ["東京|飯山", 5_000],
+  ["上野|軽井沢", 3_000],
+  ["上野|佐久平", 4_000],
+  ["上野|上田", 4_000],
+  ["上野|長野", 4_500],
+  ["上野|飯山", 4_500],
+  ["大宮|軽井沢", 3_000],
+  ["大宮|佐久平", 3_000],
+  ["大宮|上田", 4_000],
+  ["大宮|長野", 4_000],
+  ["大宮|飯山", 4_500],
+]);
+
+/** 信州プレDC公式表に掲載された北陸新幹線・普通車指定席の交換ポイント。 */
+export const get2026ShinshuPreDcPoints = (
+  departure: string,
+  arrival: string,
+  facility: Facility,
+): number | undefined => {
+  if (facility !== "ordinary") return undefined;
+  return (
+    shinshuPreDcPoints.get(`${departure}|${arrival}`) ??
+    shinshuPreDcPoints.get(`${arrival}|${departure}`)
+  );
+};
+
+/**
+ * 1枚の指定席特急券に対応する料金を合計する。
+ * 特別車両利用時の指定席料金低減は、構成区間ごとではなく全体で1回だけ行う。
+ */
+export const get2026ExpressFare = (
+  tickets: readonly { readonly fare: number }[],
+  usesSpecialVehicle: boolean,
+) =>
+  tickets.reduce((total, ticket) => total + ticket.fare, 0) -
+  (usesSpecialVehicle ? 530 : 0);
 
 interface FareBand {
   readonly minKm: number;

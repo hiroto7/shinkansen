@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import { validateJourneySelection } from "../types";
 import { get2022Points } from "./2022";
 import {
+  get2026ExpressFare,
   get2026JourneyPoints,
   get2026LocalBasicFare,
   get2026Points,
+  get2026ShinshuPreDcPoints,
   get2026SpecialVehicleFare,
   get2026TrunkBasicFare,
 } from "./2026";
@@ -110,5 +112,34 @@ describe("2026年版の規則由来料金", () => {
         granClassWithRefreshmentsKm: 351.8,
       }),
     ).toBe(12_400);
+  });
+
+  it("特別車両利用時の530円低減を特急券全体で1回だけ適用する", () => {
+    const tickets = [{ fare: 4_470 }, { fare: 1_580 }];
+    expect(get2026ExpressFare(tickets, false)).toBe(6_050);
+    expect(get2026ExpressFare(tickets, true)).toBe(5_520);
+  });
+});
+
+describe("2026年信州プレDC", () => {
+  const cases = [
+    ["東京", "軽井沢", 3_000], ["東京", "佐久平", 4_000],
+    ["東京", "上田", 4_000], ["東京", "長野", 4_500],
+    ["東京", "飯山", 5_000], ["上野", "軽井沢", 3_000],
+    ["上野", "佐久平", 4_000], ["上野", "上田", 4_000],
+    ["上野", "長野", 4_500], ["上野", "飯山", 4_500],
+    ["大宮", "軽井沢", 3_000], ["大宮", "佐久平", 3_000],
+    ["大宮", "上田", 4_000], ["大宮", "長野", 4_000],
+    ["大宮", "飯山", 4_500],
+  ] as const;
+
+  it.each(cases)("%s―%sを%sポイントにする", (departure, arrival, points) => {
+    expect(get2026ShinshuPreDcPoints(departure, arrival, "ordinary")).toBe(points);
+  });
+
+  it("逆方向を許可し、対象外区間と上位設備を拒否する", () => {
+    expect(get2026ShinshuPreDcPoints("長野", "東京", "ordinary")).toBe(4_500);
+    expect(get2026ShinshuPreDcPoints("東京", "上越妙高", "ordinary")).toBeUndefined();
+    expect(get2026ShinshuPreDcPoints("東京", "長野", "green")).toBeUndefined();
   });
 });

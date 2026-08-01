@@ -17,14 +17,20 @@ import type {
 import { highestFacility } from "../domain/types";
 import { get2022Points } from "../domain/versions/2022";
 import {
+  get2026ExpressFare,
   get2026JourneyPoints,
   get2026LocalBasicFare,
+  get2026ShinshuPreDcPoints,
   get2026SpecialVehicleFare,
   get2026TrunkBasicFare,
 } from "../domain/versions/2026";
 import "./modern.css";
 
-type Campaign = "regular" | "shinkansenYear" | "limited35Percent";
+type Campaign =
+  | "regular"
+  | "shinkansenYear"
+  | "limited35Percent"
+  | "shinshuPreDc";
 type Tab = "detail" | "ranking";
 type RankingFacility =
   | "ordinary"
@@ -60,37 +66,8 @@ const seasonLabels: Readonly<Record<Season, string>> = {
   最繁忙期: "最繁忙期",
 };
 
-const campaigns = [
-  {
-    id: "limited35Percent",
-    title: "JR東日本新幹線全線 35%特別レート",
-    dates: "2026/6/22–7/6、9/25–10/9、2027/1/18–1/31",
-    status: "2026年度・3回",
-  },
-  {
-    id: "shinshu",
-    title: "信州DC プレキャンペーン",
-    dates: "2026/9/1–9/17",
-    status: "対象列車・区間限定",
-  },
-] as const;
-
 const distanceBetween = (a: Station, b: Station) =>
   Math.round(Math.abs(b.distance - a.distance) * 10) / 10;
-
-const overlap = (a: Interval, b: Interval) => a.start < b.end && b.start < a.end;
-
-const seasonal = (base: number, season: Season) =>
-  season === legacy2022Engine.busiest
-    ? base + 400
-    : season === legacy2022Engine.busy
-      ? base + 200
-      : season === legacy2022Engine.off
-        ? base - 200
-        : base;
-
-const currentLimitedExpressFare = (distanceKm: number, season: Season) =>
-  seasonal(distanceKm <= 50 ? 1_290 : distanceKm <= 100 ? 1_730 : 2_390, season);
 
 const getCurrentBasicFare = (
   line: Line,
@@ -123,45 +100,6 @@ const getCurrentBasicFare = (
 const fareTickets = (fare: TotalFare): readonly ExpressTicket[] =>
   fare.expressTickets;
 
-const currentExpressFare = (
-  line: Line,
-  section: SortedSection,
-  tickets: readonly ExpressTicket[],
-  season: Season,
-  green: Interval | undefined,
-  seat: "reserved" | "nonReserved" = "reserved",
-) => {
-  const junction = legacy2022Engine.junctions.get(line);
-  const throughMiniShinkansen =
-    (line === legacy2022Engine.line1 || line === legacy2022Engine.line2) &&
-    junction !== undefined &&
-    section.departure.index < junction.index &&
-    junction.index < section.arrival.index;
-
-  return tickets.reduce((total, ticket) => {
-    const ticketInterval = {
-      start: ticket.section.departure.index,
-      end: ticket.section.arrival.index,
-    };
-    const usesGreen = green !== undefined && overlap(green, ticketInterval);
-    const isMiniSection =
-      junction !== undefined && ticket.section.departure.index >= junction.index;
-
-    if (isMiniSection) {
-      if (throughMiniShinkansen) {
-        return total + (usesGreen || seat === "nonReserved" ? 880 : seasonal(1_410, season));
-      }
-      const base = currentLimitedExpressFare(
-        distanceBetween(ticket.section.departure, ticket.section.arrival),
-        seat === "nonReserved" ? legacy2022Engine.average : season,
-      );
-      return total + (usesGreen || seat === "nonReserved" ? base - 530 : base);
-    }
-
-    return total + (usesGreen ? ticket.fare - 530 : ticket.fare);
-  }, 0);
-};
-
 interface QuoteInput {
   readonly version: DataVersion;
   readonly campaign: Campaign;
@@ -185,7 +123,7 @@ interface Quote {
   readonly facility: Facility;
 }
 
-const createQuote = ({
+export const createQuote = ({
   version,
   campaign,
   line,
@@ -249,18 +187,22 @@ const createQuote = ({
     };
   }
 
-  const points = get2026JourneyPoints(
-    distanceKm,
-    journey,
-    campaign === "limited35Percent" ? "limited35Percent" : "regular",
-  );
+  const points =
+    campaign === "shinshuPreDc"
+      ? get2026ShinshuPreDcPoints(
+          section.departure.name,
+          section.arrival.name,
+          facility,
+        )
+      : get2026JourneyPoints(
+          distanceKm,
+          journey,
+          campaign === "limited35Percent" ? "limited35Percent" : "regular",
+        );
   const basicFare = getCurrentBasicFare(line, section);
-  const expressFare = currentExpressFare(
-    line,
-    section,
+  const expressFare = get2026ExpressFare(
     fareTickets(selectedLegacyFare),
-    season,
-    green,
+    green !== undefined,
   );
   const specialVehicleFare = green
     ? get2026SpecialVehicleFare({
@@ -282,13 +224,9 @@ const createQuote = ({
   const nonReservedFare =
     facility === "ordinary" && legacy.nonReservedOrStandingOnly
       ? basicFare +
-        currentExpressFare(
-          line,
-          section,
+        get2026ExpressFare(
           fareTickets(legacy.nonReservedOrStandingOnly),
-          season,
-          undefined,
-          "nonReserved",
+          false,
         )
       : undefined;
 
@@ -351,10 +289,19 @@ const canonicalFacilitySections = (
 const rate = (fare: number | undefined, points: number | undefined) =>
   fare !== undefined && points !== undefined ? fare / points : undefined;
 
-const RateCard = ({ label, value }: { label: string; value?: number | undefined }) => (
+const RateCard = ({
+  label,
+  fare,
+  points,
+}: {
+  label: string;
+  fare?: number | undefined;
+  points?: number | undefined;
+}) => (
   <article className="rate-card">
     <span>{label}</span>
-    <strong>{value === undefined ? "—" : `${value.toFixed(2)} 円/pt`}</strong>
+    <strong>{fare === undefined ? "—" : yen.format(fare)}</strong>
+    <small>{rate(fare, points)?.toFixed(2) ?? "—"} 円/pt</small>
   </article>
 );
 
@@ -540,6 +487,16 @@ const App = () => {
     }
   };
 
+  const onCampaignChange = (next: Campaign) => {
+    setCampaign(next);
+    if (next === "shinshuPreDc") {
+      setRankingFacility("ordinary");
+      setGreenEnabled(false);
+      setGranClassEnabled(false);
+      setRefreshments(false);
+    }
+  };
+
   const onFacilityChange = (next: Facility) => {
     const usesGreen = next !== "ordinary";
     const usesGranClass =
@@ -578,12 +535,15 @@ const App = () => {
             </select>
           </label>
           <label>交換レート
-            <select value={campaign} onChange={(event) => setCampaign(event.target.value as Campaign)}>
+            <select value={campaign} onChange={(event) => onCampaignChange(event.target.value as Campaign)}>
               <option value="regular">通常</option>
               {version === "2022-03-12" ? (
                 <option value="shinkansenYear">新幹線YEARスペシャル</option>
               ) : (
-                <option value="limited35Percent">全線35%特別レート</option>
+                <>
+                  <option value="limited35Percent">全線35%特別レート</option>
+                  <option value="shinshuPreDc">信州プレDC（対象区間のみ）</option>
+                </>
               )}
             </select>
           </label>
@@ -632,6 +592,8 @@ const App = () => {
                       ["granClassWithRefreshments", "グランクラス", "飲料・軽食あり"],
                     ] as const).map(([value, title, description]) => {
                       const isGranClass = value.startsWith("granClass");
+                      const campaignUnavailable =
+                        campaign === "shinshuPreDc" && value !== "ordinary";
                       return (
                         <label className="facility-option" key={value}>
                           <input
@@ -639,11 +601,17 @@ const App = () => {
                             name="facility"
                             value={value}
                             checked={selectedFacility === value}
-                            disabled={isGranClass && !granClassAvailable}
+                            disabled={campaignUnavailable || (isGranClass && !granClassAvailable)}
                             onChange={() => onFacilityChange(value)}
                           />
                           <strong>{title}</strong>
-                          <span>{isGranClass && !granClassAvailable ? "この区間では選択不可" : description}</span>
+                          <span>
+                            {campaignUnavailable
+                              ? "信州プレDC対象外"
+                              : isGranClass && !granClassAvailable
+                                ? "この区間では選択不可"
+                                : description}
+                          </span>
                         </label>
                       );
                     })}
@@ -678,29 +646,48 @@ const App = () => {
             <section className="panel result-panel">
               <div className="panel-heading"><h3>計算結果</h3></div>
               {quote.points === undefined ? (
-                <div className="unavailable"><strong>この組み合わせは年版の対象外です</strong><p>2022年版は旧アプリが扱っていた普通車指定席のみ参照できます。35%特別レートは飲料・軽食ありのグランクラスを対象外としています。</p></div>
+                <div className="unavailable">
+                  <strong>この組み合わせは選択した交換レートの対象外です</strong>
+                  <p>
+                    {campaign === "shinshuPreDc"
+                      ? "信州プレDCは、公式表に掲載された北陸新幹線の対象駅間・普通車指定席のみ計算できます。"
+                      : "2022年版は旧アプリが扱っていた普通車指定席のみ参照できます。35%特別レートは飲料・軽食ありのグランクラスを対象外としています。"}
+                  </p>
+                </div>
               ) : (
                 <>
                   <div className="result-route">
                     <strong>{sorted.departure.name} → {sorted.arrival.name}</strong>
                     <span>{quote.distanceKm.toFixed(1)} km</span>
                   </div>
-                  <div className="points-total"><span>{facilityLabels[quote.facility]}</span><strong>{integer.format(quote.points)}<small> pt</small></strong></div>
-                  <div className={`rate-grid${quote.facility === "ordinary" ? "" : " single"}`}>
-                    {quote.facility === "ordinary" && (
-                      <RateCard label="自由席・立席の所定額" value={rate(quote.nonReservedFare, quote.points)} />
-                    )}
-                    <RateCard
-                      label={quote.facility === "ordinary" ? "普通車指定席の所定額" : "同じ設備・行程の所定額"}
-                      value={rate(quote.paperFare, quote.points)}
-                    />
-                  </div>
-                  <dl className="breakdown">
-                    <div><dt>普通運賃</dt><dd>{quote.basicFare === undefined ? "—" : yen.format(quote.basicFare)}</dd></div>
-                    <div><dt>特急料金</dt><dd>{quote.expressFare === undefined ? "—" : yen.format(quote.expressFare)}</dd></div>
-                    <div><dt>特別車両料金</dt><dd>{quote.specialVehicleFare === undefined ? "—" : yen.format(quote.specialVehicleFare)}</dd></div>
-                    <div className="total"><dt>所定額 合計</dt><dd>{quote.paperFare === undefined ? "—" : yen.format(quote.paperFare)}</dd></div>
-                  </dl>
+                  <section className="result-section" aria-labelledby="points-heading">
+                    <h4 id="points-heading">必要ポイント</h4>
+                    <div className="points-total"><span>{facilityLabels[quote.facility]}</span><strong>{integer.format(quote.points)}<small> pt</small></strong></div>
+                  </section>
+                  <section className="result-section" aria-labelledby="comparison-heading">
+                    <h4 id="comparison-heading">所定額との比較</h4>
+                    <div className={`rate-grid${quote.facility === "ordinary" && quote.nonReservedFare !== undefined ? "" : " single"}`}>
+                      {quote.facility === "ordinary" && quote.nonReservedFare !== undefined && (
+                        <RateCard label="自由席・立席" fare={quote.nonReservedFare} points={quote.points} />
+                      )}
+                      <RateCard
+                        label={quote.facility === "ordinary" ? "普通車指定席" : "同じ設備・行程"}
+                        fare={quote.paperFare}
+                        points={quote.points}
+                      />
+                    </div>
+                  </section>
+                  <section className="result-section" aria-labelledby="breakdown-heading">
+                    <h4 id="breakdown-heading">{facilityLabels[quote.facility]}の所定額内訳</h4>
+                    <dl className="breakdown">
+                      <div><dt>普通運賃</dt><dd>{quote.basicFare === undefined ? "—" : yen.format(quote.basicFare)}</dd></div>
+                      <div><dt>特急料金</dt><dd>{quote.expressFare === undefined ? "—" : yen.format(quote.expressFare)}</dd></div>
+                      {(quote.specialVehicleFare ?? 0) > 0 && (
+                        <div><dt>特別車両料金</dt><dd>{yen.format(quote.specialVehicleFare!)}</dd></div>
+                      )}
+                      <div className="total"><dt>合計</dt><dd>{quote.paperFare === undefined ? "—" : yen.format(quote.paperFare)}</dd></div>
+                    </dl>
+                  </section>
                 </>
               )}
             </section>
@@ -712,7 +699,7 @@ const App = () => {
               <label>設備
                 <select value={rankingFacility} onChange={(event) => setRankingFacility(event.target.value as RankingFacility)}>
                   <option value="ordinary">普通車指定席</option>
-                  {version === "2026-03-14" && <>
+                  {version === "2026-03-14" && campaign !== "shinshuPreDc" && <>
                     <option value="green">グリーン車</option>
                     <option value="granClassNoRefreshments">グランクラス（飲料・軽食なし）</option>
                     <option value="granClassWithRefreshments">グランクラス（飲料・軽食あり）</option>
@@ -741,11 +728,6 @@ const App = () => {
             </tbody></table></div>
           </section>
         )}
-
-        <section className="campaign-section">
-          <div className="section-title"><h3>キャンペーン</h3></div>
-          <div className="campaign-grid">{campaigns.map((item) => <article key={item.id}><span>{item.status}</span><h4>{item.title}</h4><p>{item.dates}</p></article>)}</div>
-        </section>
 
         <aside className="notice">
           <strong>計算の前提</strong>
