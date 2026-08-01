@@ -105,6 +105,20 @@ describe("2026年版の通し特急料金", () => {
     expect(quote.basicFare).toBe(3_850);
   });
 
+  it("特定都区市内の中心駅から普通運賃を計算する", () => {
+    const line = route("北陸新幹線");
+    const quote = createQuote({
+      version: "2026-03-14",
+      campaign: "regular",
+      line,
+      section: section(line, "上野", "長野"),
+      season: average,
+    });
+
+    expect(quote.distanceKm).toBe(218.8);
+    expect(quote.basicFare).toBe(4_180);
+  });
+
   it("不正な設備区間を例外にせず対象外として返す", () => {
     const line = route("東北新幹線");
     const quote = createQuote({

@@ -1,4 +1,5 @@
 import {
+  basicFareSection,
   distanceBetween,
   routes,
   type Line,
@@ -26,7 +27,11 @@ const getCurrentBasicFare = (
   line: Line,
   section: SortedSection,
 ): number => {
-  const distanceKm = distanceBetween(section.departure, section.arrival);
+  const fareSection = basicFareSection(section);
+  const distanceKm = distanceBetween(
+    fareSection.departure,
+    fareSection.arrival,
+  );
   if (line !== routes.akitaLine) {
     return calculator2026.getBasicFare(distanceKm);
   }
@@ -34,15 +39,20 @@ const getCurrentBasicFare = (
   const morioka = line.find(({ name }) => name === "盛岡")!;
   const omagari = line.find(({ name }) => name === "大曲")!;
   if (
-    morioka.index <= section.departure.index &&
-    section.arrival.index <= omagari.index
+    morioka.index <= fareSection.departure.index &&
+    fareSection.arrival.index <= omagari.index
   ) {
     return calculator2026.getBasicFare(distanceKm, distanceKm);
   }
 
   const localStart =
-    section.departure.index < morioka.index ? morioka : section.departure;
-  const localEnd = section.arrival.index > omagari.index ? omagari : section.arrival;
+    fareSection.departure.index < morioka.index
+      ? morioka
+      : fareSection.departure;
+  const localEnd =
+    fareSection.arrival.index > omagari.index
+      ? omagari
+      : fareSection.arrival;
   const localKm =
     localStart.index < localEnd.index ? distanceBetween(localStart, localEnd) : 0;
   return calculator2026.getBasicFare(distanceKm, localKm);

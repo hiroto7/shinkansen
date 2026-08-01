@@ -29,9 +29,9 @@ npm run build
 
 ## 計算データの方針
 
-- 運賃・料金は旅客営業規則とJR東日本の公式運賃表だけから実装します。
+- 運賃・料金は旅客営業規則の本文と別表だけから実装します。
 - 乗換案内サイトなどが表示する金額を、計算ロジックやデータとして取り込みません。
 - `2022-03-12` と `2026-03-14` を別の年版として保持します。
 - 「はやぶさ」「こまち」の利用区間と、各座席設備の利用区間は、それぞれ連続した1区間だけを扱います。
 
-2026年版の一次資料は、[JR東日本の運賃改定案内](https://www.jreast.co.jp/2026unchin-kaitei/)、[旅客営業規則](https://www.jreast.co.jp/ryokaku/)、[えきねっとの商品ページ](https://www.eki-net.com/top/product/shinkansen/e-tokuten.html)です。
+運賃・料金の一次資料は[旅客営業規則](https://www.jreast.co.jp/ryokaku/)です。交換ポイントは[えきねっとの商品ページ](https://www.eki-net.com/top/product/shinkansen/e-tokuten.html)と、そこで案内される公式表を使用します。

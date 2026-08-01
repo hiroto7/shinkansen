@@ -112,10 +112,25 @@ describe("2026年版の規則由来料金", () => {
     expect(get2026EastBasicFare(192.5, 75.6)).toBe(3_850);
   });
 
-  it("改定後の幹線・地方交通線運賃表を参照する", () => {
+  it("旅客営業規則の賃率・中央営業キロ・特定額から幹線運賃を求める", () => {
     expect(get2026TrunkBasicFare(3.6)).toBe(200);
+    expect(get2026TrunkBasicFare(11)).toBe(260);
+    expect(get2026TrunkBasicFare(210)).toBe(3_850);
+    expect(get2026TrunkBasicFare(250)).toBe(4_620);
+    expect(get2026TrunkBasicFare(330)).toBe(5_940);
     expect(get2026TrunkBasicFare(713.7)).toBe(10_780);
+  });
+
+  it("旅客営業規則の賃率・中央営業キロ・特定額から地方交通線運賃を求める", () => {
+    expect(get2026LocalBasicFare(7)).toBe(220);
+    expect(get2026LocalBasicFare(29)).toBe(620);
     expect(get2026LocalBasicFare(94.1)).toBe(1_980);
+    expect(get2026LocalBasicFare(137)).toBe(2_750);
+    expect(get2026LocalBasicFare(210)).toBe(4_180);
+  });
+
+  it("10km以内で幹線と地方交通線をまたぐ場合は地方交通線の特定額を使う", () => {
+    expect(get2026EastBasicFare(7, 2)).toBe(220);
   });
 
   it("一部GCをG全区間とGC差額で計算する", () => {

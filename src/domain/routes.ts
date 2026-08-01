@@ -21,6 +21,11 @@ export interface LineGroup {
   readonly lines: readonly Line[];
 }
 
+interface Zone {
+  readonly central: Station;
+  readonly stations: ReadonlySet<Station>;
+}
+
 /** 東北新幹線 */
 export const tohokuLine: Line = [
   { name: "東京", distance: 0 },
@@ -133,6 +138,21 @@ export const hokurikuLine: Line = [
   })),
 ];
 
+const tokyo = tohokuLine.find(({ name }) => name === "東京")!;
+const ueno = tohokuLine.find(({ name }) => name === "上野")!;
+const sendai = tohokuLine.find(({ name }) => name === "仙台")!;
+
+/** アプリで扱う新幹線駅のうち、特定都区市内等に属する駅。 */
+const tokyoYamanoteZone: Zone = {
+  central: tokyo,
+  stations: new Set([tokyo, ueno]),
+};
+
+const cityZones: readonly Zone[] = [
+  { central: tokyo, stations: new Set([tokyo, ueno]) },
+  { central: sendai, stations: new Set([sendai]) },
+];
+
 export const lineGroups: ReadonlyMap<string, LineGroup> = new Map(
   [
     { name: "東北新幹線", lines: [tohokuLine] },
@@ -148,6 +168,29 @@ export const distanceBetween = (a: Station, b: Station) =>
 
 export const sectionDistance = (section: Section | SortedSection) =>
   distanceBetween(section.departure, section.arrival);
+
+const replaceZoneStation = (station: Station, zones: readonly Zone[]) =>
+  zones.find(({ stations }) => stations.has(station))?.central ?? station;
+
+/**
+ * 特定都区市内または東京山手線内の規定を適用し、
+ * 普通運賃を計算する駅間を返す。
+ */
+export const basicFareSection = (section: SortedSection): SortedSection => {
+  const citySection: SortedSection = {
+    sorted: true,
+    departure: replaceZoneStation(section.departure, cityZones),
+    arrival: replaceZoneStation(section.arrival, cityZones),
+  };
+  if (sectionDistance(citySection) > 200) return citySection;
+
+  const yamanoteSection: SortedSection = {
+    sorted: true,
+    departure: replaceZoneStation(section.departure, [tokyoYamanoteZone]),
+    arrival: replaceZoneStation(section.arrival, [tokyoYamanoteZone]),
+  };
+  return sectionDistance(yamanoteSection) > 100 ? yamanoteSection : section;
+};
 
 export const isSameSection = (a: Section, b: Section) =>
   a.departure === b.departure && a.arrival === b.arrival;
@@ -175,5 +218,6 @@ export const routes = {
   galaYuzawaLine,
   hokurikuLine,
   sectionDistance,
+  basicFareSection,
   sortSection,
 } as const;

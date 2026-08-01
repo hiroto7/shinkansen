@@ -2,6 +2,7 @@ import { parse } from "csv-parse/browser/esm/sync";
 import { ceil, round, sum } from "lodash";
 import {
   akitaLine as line1,
+  basicFareSection,
   galaYuzawaLine as line4,
   hokurikuLine as line5,
   isSameSection as isEquivalent,
@@ -24,41 +25,6 @@ import {
 } from "../seasons";
 import type { DistanceBand } from "../types";
 import { valueForDistance } from "../types";
-
-/**
- * 特定都区市内または東京山手線内
- */
-interface Zone {
-  readonly name: string;
-  readonly central: Station;
-  readonly stations: ReadonlySet<Station>;
-}
-
-const zone0: Zone = {
-  name: "東京山手線内",
-  central: line0.find(({ name }) => name === "東京")!,
-  stations: new Set([
-    line0.find(({ name }) => name === "東京")!,
-    line0.find(({ name }) => name === "上野")!,
-  ]),
-};
-
-const zone1: Zone = {
-  name: "東京都区内",
-  central: line0.find(({ name }) => name === "東京")!,
-  stations: new Set([
-    line0.find(({ name }) => name === "東京")!,
-    line0.find(({ name }) => name === "上野")!,
-  ]),
-};
-
-const zone2: Zone = {
-  name: "仙台市内",
-  central: line0.find(({ name }) => name === "仙台")!,
-  stations: new Set([line0.find(({ name }) => name === "仙台")!]),
-};
-
-const cityZones: readonly Zone[] = [zone1, zone2];
 
 const junctions: ReadonlyMap<Line, Station> = new Map(
   (
@@ -1065,33 +1031,10 @@ const getFares = ({
       limitedExpressFares?.reserved,
     ].filter((ticket): ticket is ExpressTicket => ticket !== undefined);
 
-  const section200: SortedSection = {
-    sorted: true,
-    departure:
-      cityZones.find(({ stations }) => stations.has(section.departure))
-        ?.central ?? section.departure,
-    arrival:
-      cityZones.find(({ stations }) => stations.has(section.arrival))
-        ?.central ?? section.arrival,
-  };
-  const section100: SortedSection = {
-    sorted: true,
-    departure: zone0.stations.has(section.departure)
-      ? zone0.central
-      : section.departure,
-    arrival: zone0.stations.has(section.arrival)
-      ? zone0.central
-      : section.arrival,
-  };
-
   const basicFare0 = getBasicFare(line, section);
-
+  const fareSection = basicFareSection(section);
   const basicFare1 =
-    getDistance0(section200) > 200
-      ? getBasicFare(line, section200)
-      : getDistance0(section100) > 100
-      ? getBasicFare(line, section100)
-      : basicFare0;
+    fareSection === section ? basicFare0 : getBasicFare(line, fareSection);
 
   const nonReservedOrStandingOnly: TotalFare | undefined =
     nonReservedOrStandingOnlyExpressTickets &&
