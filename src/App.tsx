@@ -2632,28 +2632,9 @@ const App: React.VFC = () => {
           <h2 className="alert-heading h4">
             このサイトは更新を終了しています
           </h2>
-          <p>
-            このサイトの掲載内容・計算結果は、2022年3月12日改正時点の情報をもとにしており、その後の運賃改定、旅客営業規則、JRE
-            POINT特典チケットの交換ポイントなどの変更は反映していません。掲載内容は、現行の運賃・制度とは異なります。正確性を保証しないため、参考資料としてのみご覧ください。
-          </p>
           <p className="mb-0">
-            きっぷの購入や旅行の判断には使用せず、最新情報はJR東日本の
-            <a
-              href="https://www.jreast.co.jp/tokuten_ticket/"
-              target="_blank"
-              rel="noreferrer"
-            >
-              JRE POINT特典
-            </a>
-            および
-            <a
-              href="https://www.jreast.co.jp/ryokaku/"
-              target="_blank"
-              rel="noreferrer"
-            >
-              旅客営業規則
-            </a>
-            をご確認ください。
+            このサイトの掲載内容・計算結果は、2022年3月12日改正時点の情報をもとにしており、その後の運賃改定、旅客営業規則、JRE
+            POINT特典チケットの交換ポイントなどの変更は反映していません。掲載内容は、現行の運賃・制度とは異なります。正確性を保証しません。最新の情報はご自身でお調べください。
           </p>
         </Alert>
         <div className="mt-4">
