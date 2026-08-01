@@ -59,8 +59,8 @@ const assertInterval = (name: string, interval: Interval, trip: Interval) => {
 };
 
 /**
- * 入力欄を各1個に制限することで、飛び石となるHS・G・GC区間を表現不能にする。
- * GCは特別車両（G）の一種なので、必ずG区間に内包する。
+ * 入力欄を各1個に制限し、各設備の利用区間を1つの連続区間とする。
+ * グランクラスは特別車両なので、必ずグリーン車以上の利用区間に内包する。
  */
 export const validateJourneySelection = (journey: JourneySelection): void => {
   const trip = { start: journey.origin, end: journey.destination };
@@ -69,20 +69,20 @@ export const validateJourneySelection = (journey: JourneySelection): void => {
   }
 
   if (journey.highSpeed) {
-    assertInterval("HS区間", journey.highSpeed, trip);
+    assertInterval("はやぶさ・こまち利用区間", journey.highSpeed, trip);
   }
   if (journey.green) {
-    assertInterval("G区間", journey.green, trip);
+    assertInterval("グリーン車以上の利用区間", journey.green, trip);
   }
   if (journey.granClass) {
-    assertInterval("GC区間", journey.granClass, trip);
+    assertInterval("グランクラス利用区間", journey.granClass, trip);
     if (!journey.green || !contains(journey.green, journey.granClass)) {
-      throw new RangeError("GC区間はG区間に含まれる必要があります");
+      throw new RangeError("グランクラス利用区間はグリーン車以上の利用区間に含まれる必要があります");
     }
   }
   if (journey.granClassWithRefreshments) {
     assertInterval(
-      "飲料・軽食ありGC区間",
+      "飲料・軽食ありの利用区間",
       journey.granClassWithRefreshments,
       trip,
     );
@@ -91,7 +91,7 @@ export const validateJourneySelection = (journey: JourneySelection): void => {
       !contains(journey.granClass, journey.granClassWithRefreshments)
     ) {
       throw new RangeError(
-        "飲料・軽食ありGC区間はGC区間に含まれる必要があります",
+        "飲料・軽食ありの利用区間はグランクラス利用区間に含まれる必要があります",
       );
     }
   }

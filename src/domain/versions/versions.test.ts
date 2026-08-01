@@ -66,7 +66,7 @@ describe("2026年版の交換ポイント", () => {
     ).toBe(16_000);
   });
 
-  it("ケース2: 401〜500kmで一部GCならGC区間長によらず19,000ポイント", () => {
+  it("ケース2: 401〜500kmで一部グランクラスなら区間長によらず19,000ポイント", () => {
     const shortGc = get2026JourneyPoints(477.2, {
       origin: 0,
       destination: 3,
@@ -83,7 +83,7 @@ describe("2026年版の交換ポイント", () => {
     expect(longGc).toBe(19_000);
   });
 
-  it("ケース3: 501〜600kmで飲料・軽食ありGCなら25,500ポイント", () => {
+  it("ケース3: 501〜600kmで飲料・軽食ありのグランクラスなら25,500ポイント", () => {
     expect(
       get2026JourneyPoints(535.3, {
         origin: 0,
@@ -95,7 +95,19 @@ describe("2026年版の交換ポイント", () => {
     ).toBe(25_500);
   });
 
-  it("35%期間限定レートは飲料・軽食ありGCを対象外にする", () => {
+  it("グランクラス(A)と(B)の混在は最上位の(A)でポイントを求める", () => {
+    expect(
+      get2026JourneyPoints(604.2, {
+        origin: 0,
+        destination: 4,
+        green: { start: 0, end: 4 },
+        granClass: { start: 0, end: 4 },
+        granClassWithRefreshments: { start: 1, end: 3 },
+      }),
+    ).toBe(28_000);
+  });
+
+  it("35%期間限定レートは飲料・軽食ありのグランクラスを対象外にする", () => {
     expect(get2026Points(351.8, "ordinary", "limited35Percent")).toBe(6_000);
     expect(
       get2026Points(351.8, "granClassWithRefreshments", "limited35Percent"),
@@ -104,7 +116,7 @@ describe("2026年版の交換ポイント", () => {
 });
 
 describe("入力可能な区間", () => {
-  it("Gの中にGC、その中に飲料・軽食ありGCを許可する", () => {
+  it("グリーン車以上の区間内でグランクラス(A)と(B)の混在を許可する", () => {
     expect(() =>
       validateJourneySelection({
         origin: 0,
@@ -117,7 +129,7 @@ describe("入力可能な区間", () => {
     ).not.toThrow();
   });
 
-  it("G外のGCを拒否する", () => {
+  it("グリーン車以上の区間外にあるグランクラスを拒否する", () => {
     expect(() =>
       validateJourneySelection({
         origin: 0,
@@ -125,7 +137,7 @@ describe("入力可能な区間", () => {
         green: { start: 0, end: 2 },
         granClass: { start: 3, end: 4 },
       }),
-    ).toThrow("GC区間はG区間に含まれる必要があります");
+    ).toThrow("グランクラス利用区間はグリーン車以上の利用区間に含まれる必要があります");
   });
 });
 
@@ -179,14 +191,14 @@ describe("2026年版の規則由来料金", () => {
     expect(get2026EastBasicFare(7, 2)).toBe(220);
   });
 
-  it("一部GCをG全区間とGC差額で計算する", () => {
+  it("一部グランクラスをグリーン車全区間と差額で計算する", () => {
     expect(
       get2026SpecialVehicleFare({ greenKm: 477.2, granClassKm: 11 }),
     ).toBe(8_550);
     expect(
       get2026SpecialVehicleFare({
         greenKm: 535.3,
-        granClassKm: 351.8,
+        granClassKm: 535.3,
         granClassWithRefreshmentsKm: 351.8,
       }),
     ).toBe(12_400);

@@ -43,6 +43,13 @@ interface QuoteInput {
   readonly season: Season;
 }
 
+export interface FareBreakdown {
+  readonly basicFare: number;
+  readonly expressFare: number;
+  readonly specialVehicleFare: number;
+  readonly total: number;
+}
+
 interface Quote {
   readonly distanceKm: number;
   readonly points?: number | undefined;
@@ -51,9 +58,22 @@ interface Quote {
   readonly basicFare?: number | undefined;
   readonly expressFare?: number | undefined;
   readonly specialVehicleFare?: number | undefined;
+  readonly selectedFareBreakdown?: FareBreakdown | undefined;
+  readonly nonReservedFareBreakdown?: FareBreakdown | undefined;
   readonly facility: Facility;
   readonly exclusionReason?: ExclusionReason | undefined;
 }
+
+const fareBreakdown = (
+  basicFare: number,
+  expressFare: number,
+  specialVehicleFare = 0,
+): FareBreakdown => ({
+  basicFare,
+  expressFare,
+  specialVehicleFare,
+  total: basicFare + expressFare + specialVehicleFare,
+});
 
 const requestedFacility = (journey: JourneySelection): Facility =>
   journey.granClassWithRefreshments
@@ -133,6 +153,23 @@ export const createQuote = ({
       ? fareData.nonReservedOrStandingOnly.total -
         (fareData.nonReservedOrStandingOnly.discount ?? 0)
       : undefined;
+    const expressFare = fareTickets(selectedFare).reduce(
+      (total, ticket) => total + ticket.fare,
+      0,
+    );
+    const selectedFareBreakdown = fareBreakdown(
+      selectedFare.basicFare,
+      expressFare,
+    );
+    const nonReservedFareBreakdown = fareData.nonReservedOrStandingOnly
+      ? fareBreakdown(
+          fareData.nonReservedOrStandingOnly.basicFare,
+          fareTickets(fareData.nonReservedOrStandingOnly).reduce(
+            (total, ticket) => total + ticket.fare,
+            0,
+          ),
+        )
+      : undefined;
     return {
       distanceKm,
       facility,
@@ -140,11 +177,10 @@ export const createQuote = ({
       paperFare,
       ...(nonReservedFare !== undefined ? { nonReservedFare } : {}),
       basicFare: selectedFare.basicFare,
-      expressFare: fareTickets(selectedFare).reduce(
-        (total, ticket) => total + ticket.fare,
-        0,
-      ),
+      expressFare,
       specialVehicleFare: 0,
+      selectedFareBreakdown,
+      ...(nonReservedFareBreakdown ? { nonReservedFareBreakdown } : {}),
     };
   }
 
@@ -212,6 +248,21 @@ export const createQuote = ({
           false,
         )
       : undefined;
+  const selectedFareBreakdown = fareBreakdown(
+    basicFare,
+    expressFare,
+    specialVehicleFare,
+  );
+  const nonReservedFareBreakdown =
+    facility === "ordinary" && fareData.nonReservedOrStandingOnly
+      ? fareBreakdown(
+          basicFare,
+          calculator2026.getExpressFare(
+            fareTickets(fareData.nonReservedOrStandingOnly),
+            false,
+          ),
+        )
+      : undefined;
 
   return {
     distanceKm,
@@ -222,5 +273,7 @@ export const createQuote = ({
     basicFare,
     expressFare,
     specialVehicleFare,
+    selectedFareBreakdown,
+    ...(nonReservedFareBreakdown ? { nonReservedFareBreakdown } : {}),
   };
 };

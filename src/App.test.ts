@@ -32,6 +32,18 @@ describe("2026年版の通し特急料金", () => {
     expect(quote.points).toBe(2_000);
     expect(quote.nonReservedFare).toBe(1_790);
     expect(quote.paperFare).toBe(3_310);
+    expect(quote.nonReservedFareBreakdown).toEqual({
+      basicFare: 910,
+      expressFare: 880,
+      specialVehicleFare: 0,
+      total: 1_790,
+    });
+    expect(quote.selectedFareBreakdown).toEqual({
+      basicFare: 910,
+      expressFare: 2_400,
+      specialVehicleFare: 0,
+      total: 3_310,
+    });
   });
 
   it("東京―新庄の繁忙期普通車指定席を6,050円にする", () => {
@@ -64,6 +76,32 @@ describe("2026年版の通し特急料金", () => {
     expect(quote.expressFare).toBe(5_520);
     expect(quote.specialVehicleFare).toBe(5_400);
     expect(quote.paperFare).toBe(18_400);
+  });
+
+  it("グランクラス(A)と(B)の混在行程を(A)の所定額で計算する", () => {
+    const line = route("東北新幹線");
+    const trip = section(line, "宇都宮", "新青森");
+    const granClass = {
+      start: trip.departure.index,
+      end: trip.arrival.index,
+    };
+    const quote = createQuote({
+      version: "2026-03-14",
+      campaign: "regular",
+      line,
+      section: trip,
+      green: granClass,
+      granClass,
+      granClassWithRefreshments: {
+        start: line.find(({ name }) => name === "仙台")!.index,
+        end: trip.arrival.index,
+      },
+      season: average,
+    });
+
+    expect(quote.points).toBe(28_000);
+    expect(quote.facility).toBe("granClassWithRefreshments");
+    expect(quote.specialVehicleFare).toBe(12_600);
   });
 
   it("福島―新庄だけの利用には距離帯料金とシーズン加算を適用する", () => {

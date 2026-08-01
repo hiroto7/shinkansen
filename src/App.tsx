@@ -12,6 +12,7 @@ import {
   supportedSeasonsForVersion,
   type Campaign,
   type ExclusionReason,
+  type FareBreakdown,
 } from "./domain/quote";
 import "./App.css";
 
@@ -108,17 +109,26 @@ const rate = (fare: number | undefined, points: number | undefined) =>
 
 const RateCard = ({
   label,
-  fare,
+  breakdown,
   points,
 }: {
   label: string;
-  fare?: number | undefined;
+  breakdown?: FareBreakdown | undefined;
   points?: number | undefined;
 }) => (
   <article className="rate-card">
     <span>{label}</span>
-    <strong>{fare === undefined ? "—" : yen.format(fare)}</strong>
-    <small>{rate(fare, points)?.toFixed(2) ?? "—"} 円/pt</small>
+    <strong>{breakdown === undefined ? "—" : yen.format(breakdown.total)}</strong>
+    <small>{rate(breakdown?.total, points)?.toFixed(2) ?? "—"} 円/pt</small>
+    {breakdown && (
+      <dl className="rate-breakdown">
+        <div><dt>普通運賃</dt><dd>{yen.format(breakdown.basicFare)}</dd></div>
+        <div><dt>特急料金</dt><dd>{yen.format(breakdown.expressFare)}</dd></div>
+        {breakdown.specialVehicleFare > 0 && (
+          <div><dt>特別車両料金</dt><dd>{yen.format(breakdown.specialVehicleFare)}</dd></div>
+        )}
+      </dl>
+    )}
   </article>
 );
 
@@ -238,6 +248,8 @@ const App = () => {
   const [granClassStart, setGranClassStart] = useState(0);
   const [granClassEnd, setGranClassEnd] = useState(line.length - 1);
   const [refreshments, setRefreshments] = useState(false);
+  const [refreshmentStart, setRefreshmentStart] = useState(0);
+  const [refreshmentEnd, setRefreshmentEnd] = useState(line.length - 1);
   const [rankingFacility, setRankingFacility] =
     useState<RankingFacility>("ordinary");
   const [rankingLimit, setRankingLimit] = useState<RankingLimit>(50);
@@ -256,6 +268,8 @@ const App = () => {
     setGreenEnd(nextLine.length - 1);
     setGranClassStart(0);
     setGranClassEnd(nextLine.length - 1);
+    setRefreshmentStart(0);
+    setRefreshmentEnd(nextLine.length - 1);
   };
 
   const sorted = routes.sortSection({
@@ -294,8 +308,19 @@ const App = () => {
     granClassOuterStart,
     granClassOuterEnd,
   );
-  const refreshmentSection = refreshments && granClass ? granClass : undefined;
-  const selectedFacility: Facility = refreshments && granClass
+  const refreshmentStations = granClass
+    ? line.slice(granClass.start, granClass.end + 1)
+    : [];
+  const refreshmentSection = granClass
+    ? intervalWithin(
+        refreshments,
+        refreshmentStart,
+        refreshmentEnd,
+        granClass.start,
+        granClass.end,
+      )
+    : undefined;
+  const selectedFacility: Facility = refreshmentSection
     ? "granClassWithRefreshments"
     : granClass
       ? "granClassNoRefreshments"
@@ -408,6 +433,8 @@ const App = () => {
     if (usesGranClass) {
       setGranClassStart(tripStart);
       setGranClassEnd(Math.min(tripEnd, granClassLimit));
+      setRefreshmentStart(tripStart);
+      setRefreshmentEnd(Math.min(tripEnd, granClassLimit));
     }
   };
 
@@ -509,8 +536,8 @@ const App = () => {
                     {([
                       ["ordinary", "普通車指定席", "全区間で普通車指定席を利用"],
                       ["green", "グリーン車", "一部または全部で利用"],
-                      ["granClassNoRefreshments", "グランクラス", "飲料・軽食なし"],
-                      ["granClassWithRefreshments", "グランクラス", "飲料・軽食あり"],
+                      ["granClassNoRefreshments", "グランクラス", "全区間で飲料・軽食なし"],
+                      ["granClassWithRefreshments", "グランクラス", "一部または全部で飲料・軽食あり"],
                     ] as const).map(([value, title, description]) => {
                       const isGranClass = value.startsWith("granClass");
                       const campaignUnavailable =
@@ -540,7 +567,7 @@ const App = () => {
                   {greenEnabled && (
                     <div className="segment-control">
                       <RangeSelect
-                        label={granClassEnabled ? "グリーン車・グランクラス利用区間" : "グリーン車利用区間"}
+                        label={granClassEnabled ? "グリーン車またはグランクラスを利用する区間" : "グリーン車を利用する区間"}
                         stations={tripStations}
                         start={green?.start ?? tripStart}
                         end={green?.end ?? tripEnd}
@@ -548,20 +575,32 @@ const App = () => {
                         onEnd={setGreenEnd}
                       />
                       {granClassEnabled && granClassAvailable && (
-                        <RangeSelect
-                          label="グランクラス利用区間"
-                          stations={granClassStations}
-                          start={granClass?.start ?? granClassOuterStart}
-                          end={granClass?.end ?? granClassOuterEnd}
-                          onStart={setGranClassStart}
-                          onEnd={setGranClassEnd}
-                        />
+                        <>
+                          <RangeSelect
+                            label="そのうちグランクラスを利用する区間"
+                            stations={granClassStations}
+                            start={granClass?.start ?? granClassOuterStart}
+                            end={granClass?.end ?? granClassOuterEnd}
+                            onStart={setGranClassStart}
+                            onEnd={setGranClassEnd}
+                          />
+                          {refreshments && granClass && (
+                            <RangeSelect
+                              label="そのうち飲料・軽食ありの区間"
+                              stations={refreshmentStations}
+                              start={refreshmentSection?.start ?? granClass.start}
+                              end={refreshmentSection?.end ?? granClass.end}
+                              onStart={setRefreshmentStart}
+                              onEnd={setRefreshmentEnd}
+                            />
+                          )}
+                        </>
                       )}
                     </div>
                   )}
                 </div>
               )}
-              <p className="constraint-note">設備ごとの利用区間は、それぞれ1つの連続区間として指定してください。</p>
+              <p className="constraint-note">各入力欄では、途中で分かれない1つの区間を指定してください。</p>
             </section>
 
             <section className="panel result-panel">
@@ -587,25 +626,18 @@ const App = () => {
                     <h4 id="comparison-heading">所定額との比較</h4>
                     <div className={`rate-grid${quote.facility === "ordinary" && quote.nonReservedFare !== undefined ? "" : " single"}`}>
                       {quote.facility === "ordinary" && quote.nonReservedFare !== undefined && (
-                        <RateCard label="自由席・立席" fare={quote.nonReservedFare} points={quote.points} />
+                        <RateCard
+                          label="自由席・立席"
+                          breakdown={quote.nonReservedFareBreakdown}
+                          points={quote.points}
+                        />
                       )}
                       <RateCard
                         label={quote.facility === "ordinary" ? "普通車指定席" : "同じ設備・行程"}
-                        fare={quote.paperFare}
+                        breakdown={quote.selectedFareBreakdown}
                         points={quote.points}
                       />
                     </div>
-                  </section>
-                  <section className="result-section" aria-labelledby="breakdown-heading">
-                    <h4 id="breakdown-heading">{facilityLabels[quote.facility]}の所定額内訳</h4>
-                    <dl className="breakdown">
-                      <div><dt>普通運賃</dt><dd>{quote.basicFare === undefined ? "—" : yen.format(quote.basicFare)}</dd></div>
-                      <div><dt>特急料金</dt><dd>{quote.expressFare === undefined ? "—" : yen.format(quote.expressFare)}</dd></div>
-                      {(quote.specialVehicleFare ?? 0) > 0 && (
-                        <div><dt>特別車両料金</dt><dd>{yen.format(quote.specialVehicleFare!)}</dd></div>
-                      )}
-                      <div className="total"><dt>合計</dt><dd>{quote.paperFare === undefined ? "—" : yen.format(quote.paperFare)}</dd></div>
-                    </dl>
                   </section>
                 </>
               )}
@@ -646,7 +678,7 @@ const App = () => {
                 </select>
               </label>
             </div>
-            <p className="ranking-note">全{integer.format(rankingRows.length)}件中、{integer.format(ranking.length)}件を表示。{rankingFacility === "ordinary" ? `自由席・立席と普通車指定席の所定額を比較できます。${ordinaryRankingBasis === "nonReserved" ? "自由席・立席を設定しない区間は、指定席レートで並べます。" : ""}` : "指定した設備と同じ行程の所定額との比較です。"}</p>
+            <p className="ranking-note">全{integer.format(rankingRows.length)}件中、{integer.format(ranking.length)}件を表示</p>
             <div className="ranking-table-wrap"><table className={`ranking-table${rankingFacility === "ordinary" ? " ordinary" : ""}`}><thead><tr><th>#</th><th>区間</th><th>距離</th><th>ポイント</th>{rankingFacility === "ordinary" ? <><th>自由席・立席</th><th>円/pt</th><th>普通車指定席</th><th>円/pt</th></> : <><th>所定額</th><th>円/pt</th></>}</tr></thead><tbody>
               {ranking.map((row, index) => <tr key={row.key}><td>{index + 1}</td><td><small>{row.group}</small><strong>{row.departure} → {row.arrival}</strong></td><td>{row.distanceKm.toFixed(1)} km</td><td>{row.points === undefined ? "—" : integer.format(row.points)}</td>{rankingFacility === "ordinary" ? <><td>{row.nonReservedFare === undefined ? "—" : yen.format(row.nonReservedFare)}</td><td>{row.nonReservedFare === undefined ? "—" : <strong className={ordinaryRankingBasis === "nonReserved" ? "selected-rate" : ""}>{(rate(row.nonReservedFare, row.points) ?? 0).toFixed(2)}</strong>}</td><td>{row.paperFare === undefined ? "—" : yen.format(row.paperFare)}</td><td><strong className={ordinaryRankingBasis === "reserved" ? "selected-rate" : ""}>{(rate(row.paperFare, row.points) ?? 0).toFixed(2)}</strong></td></> : <><td>{row.paperFare === undefined ? "—" : yen.format(row.paperFare)}</td><td><strong className="selected-rate">{row.value.toFixed(2)}</strong></td></>}</tr>)}
             </tbody></table></div>
@@ -654,8 +686,7 @@ const App = () => {
         )}
 
         <aside className="notice">
-          <strong>計算の前提</strong>
-          <p>運賃・料金はJRの規則と公式表、交換ポイントはえきねっとの公式表から計算します。時刻表・列車編成・残席・実際の発売可否は判定しません。表示額は購入を保証するものではありません。最新情報はご自身でお調べください。</p>
+          <p>時刻表・列車編成・残席・発売可否は判定しません。最新情報はご自身でお調べください。</p>
         </aside>
       </main>
     </div>

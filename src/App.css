@@ -66,12 +66,10 @@ select { width: 100%; border: 0; border-bottom: 1px solid #94a198; background: t
 .rate-card span { display: block; color: #65746b; font-size: 11px; }
 .rate-card strong { display: block; margin-top: 9px; font: 800 19px ui-monospace, monospace; }
 .rate-card small { display: block; margin-top: 4px; color: #65746b; font: 700 12px ui-monospace, monospace; }
-.breakdown { margin: 0; }
-.breakdown div { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #dce1dc; }
-.breakdown dt { color: #65746b; }
-.breakdown dd { margin: 0; font-weight: 700; }
-.breakdown .total { border-bottom: 0; padding-top: 18px; font-size: 18px; }
-.breakdown .total dt { color: #13231d; font-weight: 700; }
+.rate-breakdown { margin: 14px 0 0; padding-top: 10px; border-top: 1px solid #dce1dc; }
+.rate-breakdown div { display: flex; justify-content: space-between; gap: 16px; padding: 3px 0; font-size: 11px; }
+.rate-breakdown dt { color: #65746b; }
+.rate-breakdown dd { margin: 0; font-weight: 700; }
 .unavailable { padding: 28px; background: #fff2e9; border-left: 4px solid #ff5a35; }
 .unavailable p { color: #6a5b51; line-height: 1.7; }
 
@@ -88,8 +86,8 @@ select { width: 100%; border: 0; border-bottom: 1px solid #94a198; background: t
 .ranking-table td strong { display: block; }
 .ranking-table .selected-rate { color: #087a52; font-size: 18px; }
 
-.notice { border: 1px solid #cf5b36; background: #fff3eb; padding: 20px 24px; margin-bottom: 56px; display: grid; grid-template-columns: 160px 1fr; gap: 20px; }
-.notice p { margin: 0; color: #624f45; line-height: 1.7; }
+.notice { margin: 28px 0 56px; }
+.notice p { margin: 0; color: #65746b; font-size: 12px; line-height: 1.7; }
 @media (max-width: 820px) {
   .control-bar, .dashboard-grid { grid-template-columns: 1fr; }
   .result-panel { position: static; }
@@ -103,5 +101,4 @@ select { width: 100%; border: 0; border-bottom: 1px solid #94a198; background: t
   .range-select { grid-template-columns: 1fr auto 1fr; }
   .range-select > span:first-child { grid-column: 1 / -1; }
   .journey-panel, .result-panel, .ranking-panel { padding: 20px; }
-  .notice { grid-template-columns: 1fr; }
 }

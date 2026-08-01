@@ -36,16 +36,16 @@ export const current2026 = {
       "https://www.jreast.co.jp/ryokaku/02_hen/03_syo/02_setsu/05.html",
     shortDistanceFareRules:
       "https://www.jreast.co.jp/ryokaku/02_hen/03_syo/02_setsu/09.html",
-    basicFareAppendix:
+    expressFareAppendix:
       "https://www.jreast.co.jp/ryokaku/beppyou/pdf/beppyou02.pdf",
     expressRules:
       "https://www.jreast.co.jp/ryokaku/02_hen/03_syo/07_setsu/",
     specialVehicleRules:
       "https://www.jreast.co.jp/ryokaku/02_hen/03_syo/08_setsu/",
     seasonRules:
-      "https://www.jreast.co.jp/press/2021/20211005_ho04.pdf",
+      "https://www.jreast.co.jp/ryokaku/02_hen/02_syo/07_setsu/05.html",
     specialVehicleSeasonRules:
-      "https://www.jreast.co.jp/press/2022/20221026_ho03.pdf",
+      "https://www.jreast.co.jp/ryokaku/02_hen/03_syo/07_setsu/",
   },
 } as const;
 
@@ -267,7 +267,10 @@ export const get2026ShinshuPreDcPoints = (
 export const specialVehicleExpressRules2023_04_01 = {
   effectiveFrom: "2023-04-01",
   reductionAfterSeasonAdjustment: 530,
-  source: "https://www.jreast.co.jp/press/2022/20221026_ho03.pdf",
+  sources: [
+    "https://www.jreast.co.jp/kippu/yakkan/pdf/history230220-3.pdf",
+    "https://www.jreast.co.jp/ryokaku/02_hen/03_syo/07_setsu/",
+  ],
 } as const;
 
 export const get2026ExpressFare = (
@@ -530,16 +533,16 @@ const granClassBBands: readonly DistanceBand<number>[] = [
 ];
 
 export interface FacilityDistances {
-  /** 最初にG以上へ乗ってから最後に降りるまで */
+  /** 最初にグリーン車以上へ乗ってから最後に降りるまで */
   readonly greenKm: number;
-  /** greenKmに内包されるGC区間 */
+  /** greenKmに内包されるグランクラス区間 */
   readonly granClassKm?: number;
-  /** 指定時はGC(A)を利用。A/B混在時も規則第130条第2項によりAとして計算 */
+  /** 指定時はグランクラス(A)を利用。A/B混在時も第130条第2項によりAとして計算 */
   readonly granClassWithRefreshmentsKm?: number;
 }
 
 /**
- * 旅客営業規則第130条第2項の「G全区間 + GC差額」で特別車両料金を計算する。
+ * 旅客営業規則第130条第2項の「グリーン車全区間 + グランクラス差額」で計算する。
  */
 export const get2026SpecialVehicleFare = ({
   greenKm,
@@ -547,16 +550,16 @@ export const get2026SpecialVehicleFare = ({
   granClassWithRefreshmentsKm,
 }: FacilityDistances): number => {
   if (!(greenKm > 0)) {
-    throw new RangeError("G区間は0kmより大きい必要があります");
+    throw new RangeError("グリーン車以上の区間は0kmより大きい必要があります");
   }
   if (granClassKm !== undefined && granClassKm > greenKm) {
-    throw new RangeError("GC区間はG区間以内である必要があります");
+    throw new RangeError("グランクラス区間はグリーン車以上の区間以内である必要があります");
   }
   if (
     granClassWithRefreshmentsKm !== undefined &&
     (granClassKm === undefined || granClassWithRefreshmentsKm > granClassKm)
   ) {
-    throw new RangeError("飲料・軽食ありGC区間はGC区間以内である必要があります");
+    throw new RangeError("飲料・軽食ありの区間はグランクラス区間以内である必要があります");
   }
 
   const greenFare = valueForDistance(greenKm, greenBands);

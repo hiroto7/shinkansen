@@ -19,6 +19,7 @@ import type { Season } from "./seasons";
 
 export interface SeasonRules {
   readonly effectiveFrom: string;
+  readonly sources: readonly string[];
   readonly supportedSeasons: readonly Season[];
   adjustment(season: Season): number;
 }
@@ -26,6 +27,9 @@ export interface SeasonRules {
 /** 2022年3月12日時点。最繁忙期の設定前。 */
 export const seasonRules2022_03_12: SeasonRules = {
   effectiveFrom: "2022-03-12",
+  sources: [
+    "https://www.jreast.co.jp/kippu/yakkan/pdf/history220210-1.pdf",
+  ],
   supportedSeasons: ["閑散期", "通常期", "繁忙期"],
   adjustment: (season) => {
     if (season === "最繁忙期") {
@@ -38,6 +42,11 @@ export const seasonRules2022_03_12: SeasonRules = {
 /** 2022年4月1日以降のJR東日本新幹線のシーズン加減。 */
 export const seasonRules2022_04_01: SeasonRules = {
   effectiveFrom: "2022-04-01",
+  sources: [
+    "https://www.jreast.co.jp/kippu/yakkan/pdf/history220210-1.pdf",
+    "https://www.jreast.co.jp/ryokaku/02_hen/02_syo/07_setsu/05.html",
+    "https://www.jreast.co.jp/ryokaku/02_hen/03_syo/07_setsu/",
+  ],
   supportedSeasons: ["閑散期", "通常期", "繁忙期", "最繁忙期"],
   adjustment: (season) =>
     season === "最繁忙期"
@@ -168,20 +177,23 @@ const table: FareTable = parse(
 export interface StationExpressFareRules {
   readonly asOf: string;
   readonly unchangedThrough: string;
-  readonly source: string;
+  readonly sources: readonly string[];
   readonly standardTables: ReadonlyMap<Line, FareTable>;
   readonly highSpeedTable: FareTable;
 }
 
 /**
- * アプリの2022年3月12日版から2026年3月14日版まで同額であることを
- * 各時点の旅客営業規則別表第2号で確認した、新幹線の通常期基準額。
+ * 2022年版アプリが当時の旅客営業規則別表第2号から転記した表を、
+ * 現行の別表第2号と運送約款改正履歴に照合した新幹線の通常期基準額。
  * 将来この表が改定された場合は、この値を上書きせず別の規則部品を追加する。
  */
 export const stationExpressFareRules2022_03_12: StationExpressFareRules = {
   asOf: "2022-03-12",
   unchangedThrough: "2026-03-14",
-  source: "https://www.jreast.co.jp/ryokaku/beppyou/pdf/beppyou02.pdf",
+  sources: [
+    "https://www.jreast.co.jp/kippu/yakkan/history.html",
+    "https://www.jreast.co.jp/ryokaku/beppyou/pdf/beppyou02.pdf",
+  ],
   standardTables: tables,
   highSpeedTable: table,
 };
