@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { legacy2022Engine, type Line, type SortedSection } from "../App";
+import {
+  legacy2022Engine,
+  type Line,
+  type SortedSection,
+} from "./legacy2022Engine";
 import {
   createQuote,
   intervalWithin,
