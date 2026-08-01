@@ -1,35 +1,15 @@
 import { useMemo, useState } from "react";
 import {
-  legacy2022Engine,
-  type ExpressTicket,
+  calculator2022,
   type Line,
   type Season,
   type SortedSection,
   type Station,
-  type TotalFare,
-} from "./legacy2022Engine";
-import type {
-  DataVersion,
-  Facility,
-  Interval,
-  JourneySelection,
-} from "./domain/types";
-import { highestFacility } from "./domain/types";
-import { get2022Points } from "./domain/versions/2022";
-import {
-  get2026EastBasicFare,
-  get2026ExpressFare,
-  get2026JourneyPoints,
-  get2026ShinshuPreDcPoints,
-  get2026SpecialVehicleFare,
-} from "./domain/versions/2026";
+} from "./domain/versions/2022";
+import type { DataVersion, Facility, Interval } from "./domain/types";
+import { createQuote, type Campaign, type ExclusionReason } from "./domain/quote";
 import "./App.css";
 
-type Campaign =
-  | "regular"
-  | "shinkansenYear"
-  | "limited35Percent"
-  | "shinshuPreDc";
 type Tab = "detail" | "ranking";
 type RankingFacility =
   | "ordinary"
@@ -38,11 +18,6 @@ type RankingFacility =
   | "granClassWithRefreshments";
 type RankingLimit = 50 | 100 | "all";
 type OrdinaryRankingBasis = "nonReserved" | "reserved";
-type ExclusionReason =
-  | "historicalFacility"
-  | "limitedFacility"
-  | "shinshuPreDc"
-  | "invalidJourney";
 
 const yen = new Intl.NumberFormat("ja-JP", {
   style: "currency",
@@ -70,226 +45,6 @@ const seasonLabels: Readonly<Record<Season, string>> = {
   最繁忙期: "最繁忙期",
 };
 
-const distanceBetween = (a: Station, b: Station) =>
-  Math.round(Math.abs(b.distance - a.distance) * 10) / 10;
-
-const getCurrentBasicFare = (
-  line: Line,
-  section: SortedSection,
-): number => {
-  const distanceKm = distanceBetween(section.departure, section.arrival);
-  if (line !== legacy2022Engine.line1) {
-    return get2026EastBasicFare(distanceKm);
-  }
-
-  const morioka = line.find(({ name }) => name === "盛岡")!;
-  const omagari = line.find(({ name }) => name === "大曲")!;
-  if (
-    morioka.index <= section.departure.index &&
-    section.arrival.index <= omagari.index
-  ) {
-    return get2026EastBasicFare(distanceKm, distanceKm);
-  }
-
-  const localStart =
-    section.departure.index < morioka.index ? morioka : section.departure;
-  const localEnd = section.arrival.index > omagari.index ? omagari : section.arrival;
-  const localKm =
-    localStart.index < localEnd.index ? distanceBetween(localStart, localEnd) : 0;
-  return get2026EastBasicFare(distanceKm, localKm);
-};
-
-const fareTickets = (fare: TotalFare): readonly ExpressTicket[] =>
-  fare.expressTickets;
-
-interface QuoteInput {
-  readonly version: DataVersion;
-  readonly campaign: Campaign;
-  readonly line: Line;
-  readonly section: SortedSection;
-  readonly highSpeed?: SortedSection;
-  readonly green?: Interval;
-  readonly granClass?: Interval;
-  readonly granClassWithRefreshments?: Interval;
-  readonly season: Season;
-}
-
-interface Quote {
-  readonly distanceKm: number;
-  readonly points?: number | undefined;
-  readonly paperFare?: number | undefined;
-  readonly nonReservedFare?: number | undefined;
-  readonly basicFare?: number | undefined;
-  readonly expressFare?: number | undefined;
-  readonly specialVehicleFare?: number | undefined;
-  readonly facility: Facility;
-  readonly exclusionReason?: ExclusionReason | undefined;
-}
-
-const requestedFacility = (journey: JourneySelection): Facility =>
-  journey.granClassWithRefreshments
-    ? "granClassWithRefreshments"
-    : journey.granClass
-      ? "granClassNoRefreshments"
-      : journey.green
-        ? "green"
-        : "ordinary";
-
-export const createQuote = ({
-  version,
-  campaign,
-  line,
-  section,
-  highSpeed,
-  green,
-  granClass,
-  granClassWithRefreshments,
-  season,
-}: QuoteInput): Quote => {
-  const distanceKm = distanceBetween(section.departure, section.arrival);
-  const journey: JourneySelection = {
-    origin: section.departure.index,
-    destination: section.arrival.index,
-    ...(highSpeed
-      ? { highSpeed: { start: highSpeed.departure.index, end: highSpeed.arrival.index } }
-      : {}),
-    ...(green ? { green } : {}),
-    ...(granClass ? { granClass } : {}),
-    ...(granClassWithRefreshments ? { granClassWithRefreshments } : {}),
-  };
-  let facility: Facility;
-  try {
-    facility = highestFacility(journey);
-  } catch (error) {
-    if (!(error instanceof RangeError)) throw error;
-    return {
-      distanceKm,
-      facility: requestedFacility(journey),
-      exclusionReason: "invalidJourney",
-    };
-  }
-
-  const legacy = legacy2022Engine.getFares({
-    line,
-    section,
-    highSpeed,
-    season,
-    getPoints: (distance) => get2022Points(distance),
-  });
-  const selectedLegacyFare = highSpeed
-    ? (legacy.reservedHighSpeed ?? legacy.reserved)
-    : legacy.reserved;
-
-  if (version === "2022-03-12") {
-    if (facility !== "ordinary") {
-      return {
-        distanceKm,
-        facility,
-        exclusionReason: "historicalFacility",
-      };
-    }
-    const points = get2022Points(
-      distanceKm,
-      campaign === "shinkansenYear" ? "shinkansenYear" : "regular",
-    );
-    const cheapestFare = selectedLegacyFare.total;
-    const paperFare = cheapestFare - (selectedLegacyFare.discount ?? 0);
-    const nonReservedFare = legacy.nonReservedOrStandingOnly
-      ? legacy.nonReservedOrStandingOnly.total -
-        (legacy.nonReservedOrStandingOnly.discount ?? 0)
-      : undefined;
-    return {
-      distanceKm,
-      facility,
-      points,
-      paperFare,
-      ...(nonReservedFare !== undefined ? { nonReservedFare } : {}),
-      basicFare: selectedLegacyFare.basicFare,
-      expressFare: fareTickets(selectedLegacyFare).reduce(
-        (total, ticket) => total + ticket.fare,
-        0,
-      ),
-      specialVehicleFare: 0,
-    };
-  }
-
-  const points =
-    campaign === "shinshuPreDc"
-      ? get2026ShinshuPreDcPoints(
-          section.departure.name,
-          section.arrival.name,
-          facility,
-        )
-      : get2026JourneyPoints(
-          distanceKm,
-          journey,
-          campaign === "limited35Percent" ? "limited35Percent" : "regular",
-        );
-  if (points === undefined) {
-    return {
-      distanceKm,
-      facility,
-      exclusionReason:
-        campaign === "shinshuPreDc"
-          ? "shinshuPreDc"
-          : "limitedFacility",
-    };
-  }
-  const basicFare = getCurrentBasicFare(line, section);
-  const expressFare = get2026ExpressFare(
-    fareTickets(selectedLegacyFare),
-    green !== undefined,
-  );
-  const intervalDistance = (interval: Interval) => {
-    const start = line[interval.start];
-    const end = line[interval.end];
-    if (!start || !end) return undefined;
-    const distanceKm = distanceBetween(start, end);
-    return distanceKm > 0 ? distanceKm : undefined;
-  };
-  const greenKm = green ? intervalDistance(green) : undefined;
-  const granClassKm = granClass ? intervalDistance(granClass) : undefined;
-  const granClassWithRefreshmentsKm = granClassWithRefreshments
-    ? intervalDistance(granClassWithRefreshments)
-    : undefined;
-  if (
-    (green && greenKm === undefined) ||
-    (granClass && granClassKm === undefined) ||
-    (granClassWithRefreshments && granClassWithRefreshmentsKm === undefined)
-  ) {
-    return { distanceKm, facility, exclusionReason: "invalidJourney" };
-  }
-  const specialVehicleFare = greenKm
-    ? get2026SpecialVehicleFare({
-        greenKm,
-        ...(granClassKm !== undefined ? { granClassKm } : {}),
-        ...(granClassWithRefreshmentsKm !== undefined
-          ? { granClassWithRefreshmentsKm }
-          : {}),
-      })
-    : 0;
-  const paperFare = basicFare + expressFare + specialVehicleFare;
-  const nonReservedFare =
-    facility === "ordinary" && legacy.nonReservedOrStandingOnly
-      ? basicFare +
-        get2026ExpressFare(
-          fareTickets(legacy.nonReservedOrStandingOnly),
-          false,
-        )
-      : undefined;
-
-  return {
-    distanceKm,
-    facility,
-    points,
-    paperFare,
-    ...(nonReservedFare !== undefined ? { nonReservedFare } : {}),
-    basicFare,
-    expressFare,
-    specialVehicleFare,
-  };
-};
-
 export const intervalWithin = (
   enabled: boolean,
   start: number,
@@ -306,10 +61,10 @@ export const intervalWithin = (
 };
 
 const granClassLastIndex = (line: Line) => {
-  if (line === legacy2022Engine.line1) {
+  if (line === calculator2022.line1) {
     return line.find(({ name }) => name === "盛岡")!.index;
   }
-  if (line === legacy2022Engine.line2) {
+  if (line === calculator2022.line2) {
     return line.find(({ name }) => name === "福島")!.index;
   }
   return line.length - 1;
@@ -461,12 +216,12 @@ const App = () => {
   const [version, setVersion] = useState<DataVersion>("2026-03-14");
   const [campaign, setCampaign] = useState<Campaign>("regular");
   const [groupName, setGroupName] = useState("東北新幹線");
-  const group = legacy2022Engine.lineGroups.get(groupName)!;
+  const group = calculator2022.lineGroups.get(groupName)!;
   const [routeIndex, setRouteIndex] = useState(0);
   const line = group.lines[Math.min(routeIndex, group.lines.length - 1)]!;
   const [departureIndex, setDepartureIndex] = useState(0);
   const [arrivalIndex, setArrivalIndex] = useState(line.length - 1);
-  const [season, setSeason] = useState<Season>(legacy2022Engine.average);
+  const [season, setSeason] = useState<Season>(calculator2022.average);
   const [highSpeedEnabled, setHighSpeedEnabled] = useState(false);
   const [highSpeedStart, setHighSpeedStart] = useState(0);
   const [highSpeedEnd, setHighSpeedEnd] = useState(line.length - 1);
@@ -484,7 +239,7 @@ const App = () => {
     useState<OrdinaryRankingBasis>("nonReserved");
 
   const resetRoute = (nextGroupName: string, nextRouteIndex = 0) => {
-    const nextLine = legacy2022Engine.lineGroups.get(nextGroupName)!.lines[nextRouteIndex]!;
+    const nextLine = calculator2022.lineGroups.get(nextGroupName)!.lines[nextRouteIndex]!;
     setGroupName(nextGroupName);
     setRouteIndex(nextRouteIndex);
     setDepartureIndex(0);
@@ -497,7 +252,7 @@ const App = () => {
     setGranClassEnd(nextLine.length - 1);
   };
 
-  const sorted = legacy2022Engine.sortSection({
+  const sorted = calculator2022.sortSection({
     departure: line[Math.min(departureIndex, line.length - 2)]!,
     arrival: line[Math.max(1, Math.min(arrivalIndex, line.length - 1))]!,
   }).section;
@@ -561,7 +316,7 @@ const App = () => {
 
   const rankingRows = useMemo(() => {
     if (tab !== "ranking") return [];
-    const rows = [...legacy2022Engine.lineGroups.entries()].flatMap(
+    const rows = [...calculator2022.lineGroups.entries()].flatMap(
       ([rankingGroupName, rankingGroup]) =>
         rankingGroup.lines.flatMap((rankingLine) =>
           rankingLine.flatMap((departure, departureOffset) =>
@@ -701,7 +456,7 @@ const App = () => {
           </label>
           <label>シーズン
             <select value={season} onChange={(event) => setSeason(event.target.value as Season)}>
-              {legacy2022Engine.seasons.map((value) => <option key={value} value={value}>{seasonLabels[value]}</option>)}
+              {calculator2022.seasons.map((value) => <option key={value} value={value}>{seasonLabels[value]}</option>)}
             </select>
           </label>
         </section>
@@ -718,7 +473,7 @@ const App = () => {
               <div className="field-grid">
                 <label>路線
                   <select value={groupName} onChange={(event) => resetRoute(event.target.value)}>
-                    {[...legacy2022Engine.lineGroups.keys()].map((name) => <option key={name}>{name}</option>)}
+                    {[...calculator2022.lineGroups.keys()].map((name) => <option key={name}>{name}</option>)}
                   </select>
                 </label>
                 {group.lines.length > 1 && (
@@ -731,7 +486,7 @@ const App = () => {
               </div>
               <RangeSelect label="全乗車区間" stations={line} start={departureIndex} end={arrivalIndex} onStart={setDepartureIndex} onEnd={setArrivalIndex} />
 
-              {(line === legacy2022Engine.line0 || line === legacy2022Engine.line1) && (
+              {(line === calculator2022.line0 || line === calculator2022.line1) && (
                 <div className="segment-control">
                   <label className="switch"><input type="checkbox" checked={highSpeedEnabled} onChange={(event) => { setHighSpeedEnabled(event.target.checked); if (event.target.checked) { setHighSpeedStart(tripStart); setHighSpeedEnd(tripEnd); } }} /><span>「はやぶさ」「こまち」を利用する</span></label>
                   {highSpeedEnabled && highSpeed && <RangeSelect label="はやぶさ・こまち利用区間" stations={tripStations} start={highSpeed.start} end={highSpeed.end} onStart={setHighSpeedStart} onEnd={setHighSpeedEnd} />}

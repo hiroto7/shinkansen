@@ -35,15 +35,23 @@ interface PointValues {
   >;
 }
 
-const points = (
-  ordinary: number,
-  green: number,
-  granClassNoRefreshments: number,
-  granClassWithRefreshments: number,
-  limitedOrdinary: number,
-  limitedGreen: number,
-  limitedGranClass: number,
-): PointValues => ({
+const points = ({
+  ordinary,
+  green,
+  granClassNoRefreshments,
+  granClassWithRefreshments,
+  limitedOrdinary,
+  limitedGreen,
+  limitedGranClass,
+}: {
+  readonly ordinary: number;
+  readonly green: number;
+  readonly granClassNoRefreshments: number;
+  readonly granClassWithRefreshments: number;
+  readonly limitedOrdinary: number;
+  readonly limitedGreen: number;
+  readonly limitedGranClass: number;
+}): PointValues => ({
   regular: {
     ordinary,
     green,
@@ -58,16 +66,126 @@ const points = (
 });
 
 const pointBands2026: readonly DistanceBand<PointValues>[] = [
-  { maxKm: 50, value: points(2_000, 3_500, 6_500, 10_500, 1_300, 2_200, 4_200) },
-  { maxKm: 100, value: points(3_000, 4_000, 7_000, 11_000, 1_900, 2_600, 4_500) },
-  { maxKm: 150, value: points(4_500, 6_500, 9_500, 13_500, 2_900, 4_200, 6_100) },
-  { maxKm: 200, value: points(5_500, 7_500, 10_500, 14_500, 3_500, 4_800, 6_700) },
-  { maxKm: 250, value: points(7_000, 10_000, 13_000, 17_000, 4_500, 6_500, 8_400) },
-  { maxKm: 300, value: points(8_000, 11_000, 14_000, 18_000, 5_000, 7_000, 9_000) },
-  { maxKm: 400, value: points(9_500, 13_500, 16_500, 20_500, 6_000, 8_500, 10_500) },
-  { maxKm: 500, value: points(11_000, 16_000, 19_000, 23_000, 7_000, 10_000, 12_000) },
-  { maxKm: 600, value: points(12_500, 18_500, 21_500, 25_500, 8_000, 11_500, 13_500) },
-  { maxKm: null, value: points(14_000, 21_000, 24_000, 28_000, 9_000, 13_000, 15_000) },
+  {
+    maxKm: 50,
+    value: points({
+      ordinary: 2_000,
+      green: 3_500,
+      granClassNoRefreshments: 6_500,
+      granClassWithRefreshments: 10_500,
+      limitedOrdinary: 1_300,
+      limitedGreen: 2_200,
+      limitedGranClass: 4_200,
+    }),
+  },
+  {
+    maxKm: 100,
+    value: points({
+      ordinary: 3_000,
+      green: 4_000,
+      granClassNoRefreshments: 7_000,
+      granClassWithRefreshments: 11_000,
+      limitedOrdinary: 1_900,
+      limitedGreen: 2_600,
+      limitedGranClass: 4_500,
+    }),
+  },
+  {
+    maxKm: 150,
+    value: points({
+      ordinary: 4_500,
+      green: 6_500,
+      granClassNoRefreshments: 9_500,
+      granClassWithRefreshments: 13_500,
+      limitedOrdinary: 2_900,
+      limitedGreen: 4_200,
+      limitedGranClass: 6_100,
+    }),
+  },
+  {
+    maxKm: 200,
+    value: points({
+      ordinary: 5_500,
+      green: 7_500,
+      granClassNoRefreshments: 10_500,
+      granClassWithRefreshments: 14_500,
+      limitedOrdinary: 3_500,
+      limitedGreen: 4_800,
+      limitedGranClass: 6_700,
+    }),
+  },
+  {
+    maxKm: 250,
+    value: points({
+      ordinary: 7_000,
+      green: 10_000,
+      granClassNoRefreshments: 13_000,
+      granClassWithRefreshments: 17_000,
+      limitedOrdinary: 4_500,
+      limitedGreen: 6_500,
+      limitedGranClass: 8_400,
+    }),
+  },
+  {
+    maxKm: 300,
+    value: points({
+      ordinary: 8_000,
+      green: 11_000,
+      granClassNoRefreshments: 14_000,
+      granClassWithRefreshments: 18_000,
+      limitedOrdinary: 5_000,
+      limitedGreen: 7_000,
+      limitedGranClass: 9_000,
+    }),
+  },
+  {
+    maxKm: 400,
+    value: points({
+      ordinary: 9_500,
+      green: 13_500,
+      granClassNoRefreshments: 16_500,
+      granClassWithRefreshments: 20_500,
+      limitedOrdinary: 6_000,
+      limitedGreen: 8_500,
+      limitedGranClass: 10_500,
+    }),
+  },
+  {
+    maxKm: 500,
+    value: points({
+      ordinary: 11_000,
+      green: 16_000,
+      granClassNoRefreshments: 19_000,
+      granClassWithRefreshments: 23_000,
+      limitedOrdinary: 7_000,
+      limitedGreen: 10_000,
+      limitedGranClass: 12_000,
+    }),
+  },
+  {
+    maxKm: 600,
+    value: points({
+      ordinary: 12_500,
+      green: 18_500,
+      granClassNoRefreshments: 21_500,
+      granClassWithRefreshments: 25_500,
+      limitedOrdinary: 8_000,
+      limitedGreen: 11_500,
+      limitedGranClass: 13_500,
+    }),
+  },
+  {
+    maxKm: null,
+    value: points({
+      ordinary: 14_000,
+      green: 21_000,
+      granClassNoRefreshments: 24_000,
+      granClassWithRefreshments: 28_000,
+      limitedOrdinary: 9_000,
+      limitedGreen: 13_000,
+      limitedGranClass: 15_000,
+    }),
+  },
 ];
 
 export const get2026Points = (
@@ -279,3 +397,12 @@ export const get2026SpecialVehicleFare = ({
 };
 
 export { validateJourneySelection };
+
+export const calculator2026 = {
+  metadata: current2026,
+  getBasicFare: get2026EastBasicFare,
+  getExpressFare: get2026ExpressFare,
+  getJourneyPoints: get2026JourneyPoints,
+  getShinshuPreDcPoints: get2026ShinshuPreDcPoints,
+  getSpecialVehicleFare: get2026SpecialVehicleFare,
+} as const;
