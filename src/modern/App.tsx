@@ -31,6 +31,7 @@ type RankingFacility =
   | "green"
   | "granClassNoRefreshments"
   | "granClassWithRefreshments";
+type RankingLimit = 50 | 100 | "all";
 
 const yen = new Intl.NumberFormat("ja-JP", {
   style: "currency",
@@ -391,6 +392,7 @@ const App = () => {
   const [refreshments, setRefreshments] = useState(false);
   const [rankingFacility, setRankingFacility] =
     useState<RankingFacility>("ordinary");
+  const [rankingLimit, setRankingLimit] = useState<RankingLimit>(50);
 
   const resetRoute = (nextGroupName: string, nextRouteIndex = 0) => {
     const nextLine = legacy2022Engine.lineGroups.get(nextGroupName)!.lines[nextRouteIndex]!;
@@ -431,6 +433,13 @@ const App = () => {
     Math.min(green?.end ?? tripEnd, granClassEnd, granClassLimit),
   );
   const refreshmentSection = refreshments && granClass ? granClass : undefined;
+  const selectedFacility: Facility = refreshments && granClass
+    ? "granClassWithRefreshments"
+    : granClass
+      ? "granClassNoRefreshments"
+      : green
+        ? "green"
+        : "ordinary";
   const highSpeedSection = highSpeed
     ? { departure: line[highSpeed.start]!, arrival: line[highSpeed.end]!, sorted: true as const }
     : undefined;
@@ -449,7 +458,7 @@ const App = () => {
     season,
   });
 
-  const ranking = useMemo(() => {
+  const rankingRows = useMemo(() => {
     if (tab !== "ranking") return [];
     const rows = [...legacy2022Engine.lineGroups.entries()].flatMap(
       ([rankingGroupName, rankingGroup]) =>
@@ -484,8 +493,12 @@ const App = () => {
           ),
         ),
     );
-    return rows.sort((a, b) => b.value - a.value).slice(0, 50);
+    return rows.sort((a, b) => b.value - a.value);
   }, [campaign, rankingFacility, season, tab, version]);
+  const ranking =
+    rankingLimit === "all"
+      ? rankingRows
+      : rankingRows.slice(0, rankingLimit);
 
   const onVersionChange = (next: DataVersion) => {
     setVersion(next);
@@ -495,6 +508,24 @@ const App = () => {
       setGreenEnabled(false);
       setGranClassEnabled(false);
       setRefreshments(false);
+    }
+  };
+
+  const onFacilityChange = (next: Facility) => {
+    const usesGreen = next !== "ordinary";
+    const usesGranClass =
+      next === "granClassNoRefreshments" ||
+      next === "granClassWithRefreshments";
+    setGreenEnabled(usesGreen);
+    setGranClassEnabled(usesGranClass);
+    setRefreshments(next === "granClassWithRefreshments");
+    if (usesGreen) {
+      setGreenStart(tripStart);
+      setGreenEnd(tripEnd);
+    }
+    if (usesGranClass) {
+      setGranClassStart(tripStart);
+      setGranClassEnd(Math.min(tripEnd, granClassLimit));
     }
   };
 
@@ -514,11 +545,6 @@ const App = () => {
             <p className="eyebrow">POINT VALUE EXPLORER</p>
             <h2>どこで使うと、<br />何円分になるか。</h2>
             <p>運賃・料金はJRの規則と公式表、交換ポイントはえきねっとの公式表から計算します。</p>
-          </div>
-          <div className="hero-metric">
-            <span>{sorted.departure.name} → {sorted.arrival.name}</span>
-            <strong>{quote.points === undefined ? "—" : integer.format(quote.points)}</strong>
-            <small>POINTS / {quote.distanceKm.toFixed(1)} km</small>
           </div>
         </section>
 
@@ -572,35 +598,75 @@ const App = () => {
 
               {(line === legacy2022Engine.line0 || line === legacy2022Engine.line1) && (
                 <div className="segment-control">
-                  <label className="switch"><input type="checkbox" checked={highSpeedEnabled} onChange={(event) => { setHighSpeedEnabled(event.target.checked); if (event.target.checked) { setHighSpeedStart(tripStart); setHighSpeedEnd(tripEnd); } }} /><span>HS（はやぶさ・こまち）を使う</span></label>
-                  {highSpeedEnabled && <RangeSelect label="HS区間" stations={line} start={highSpeedStart} end={highSpeedEnd} onStart={setHighSpeedStart} onEnd={setHighSpeedEnd} />}
+                  <label className="switch"><input type="checkbox" checked={highSpeedEnabled} onChange={(event) => { setHighSpeedEnabled(event.target.checked); if (event.target.checked) { setHighSpeedStart(tripStart); setHighSpeedEnd(tripEnd); } }} /><span>「はやぶさ」「こまち」を利用する</span></label>
+                  {highSpeedEnabled && <RangeSelect label="はやぶさ・こまち利用区間" stations={line} start={highSpeedStart} end={highSpeedEnd} onStart={setHighSpeedStart} onEnd={setHighSpeedEnd} />}
                 </div>
               )}
 
               {version === "2026-03-14" && (
                 <div className="facility-stack">
-                  <div className="segment-control">
-                    <label className="switch"><input type="checkbox" checked={greenEnabled} onChange={(event) => { setGreenEnabled(event.target.checked); if (event.target.checked) { setGreenStart(tripStart); setGreenEnd(tripEnd); } else { setGranClassEnabled(false); setRefreshments(false); } }} /><span>一部または全部でGを使う</span></label>
-                    {greenEnabled && <RangeSelect label="G区間" stations={line} start={greenStart} end={greenEnd} onStart={setGreenStart} onEnd={setGreenEnd} />}
-                  </div>
+                  <fieldset className="facility-picker">
+                    <legend>利用する最上位の座席設備</legend>
+                    {([
+                      ["ordinary", "普通車指定席", "全区間で普通車指定席を利用"],
+                      ["green", "グリーン車", "一部または全部で利用"],
+                      ["granClassNoRefreshments", "グランクラス", "飲料・軽食なし"],
+                      ["granClassWithRefreshments", "グランクラス", "飲料・軽食あり"],
+                    ] as const).map(([value, title, description]) => {
+                      const isGranClass = value.startsWith("granClass");
+                      return (
+                        <label className="facility-option" key={value}>
+                          <input
+                            type="radio"
+                            name="facility"
+                            value={value}
+                            checked={selectedFacility === value}
+                            disabled={isGranClass && !granClassAvailable}
+                            onChange={() => onFacilityChange(value)}
+                          />
+                          <strong>{title}</strong>
+                          <span>{isGranClass && !granClassAvailable ? "この区間では選択不可" : description}</span>
+                        </label>
+                      );
+                    })}
+                  </fieldset>
                   {greenEnabled && (
-                    <div className="segment-control nested">
-                      <label className="switch"><input type="checkbox" checked={granClassEnabled && granClassAvailable} disabled={!granClassAvailable} onChange={(event) => { setGranClassEnabled(event.target.checked); if (event.target.checked) { setGranClassStart(tripStart); setGranClassEnd(Math.min(tripEnd, granClassLimit)); } else setRefreshments(false); }} /><span>{granClassAvailable ? "G区間内でGCを使う" : "この乗車区間にGC設定区間はありません"}</span></label>
-                      {granClassEnabled && granClassAvailable && <RangeSelect label="GC区間" stations={granClassStations} start={Math.min(granClassStart, granClassLimit - 1)} end={Math.min(granClassEnd, granClassLimit)} onStart={setGranClassStart} onEnd={setGranClassEnd} />}
-                      {granClassEnabled && <label className="switch compact"><input type="checkbox" checked={refreshments} onChange={(event) => setRefreshments(event.target.checked)} /><span>飲料・軽食あり</span></label>}
+                    <div className="segment-control">
+                      <RangeSelect
+                        label={granClassEnabled ? "グリーン車・グランクラス利用区間" : "グリーン車利用区間"}
+                        stations={line}
+                        start={greenStart}
+                        end={greenEnd}
+                        onStart={setGreenStart}
+                        onEnd={setGreenEnd}
+                      />
+                      {granClassEnabled && granClassAvailable && (
+                        <RangeSelect
+                          label="グランクラス利用区間"
+                          stations={granClassStations}
+                          start={Math.min(granClassStart, granClassLimit - 1)}
+                          end={Math.min(granClassEnd, granClassLimit)}
+                          onStart={setGranClassStart}
+                          onEnd={setGranClassEnd}
+                        />
+                      )}
                     </div>
                   )}
                 </div>
               )}
-              <p className="constraint-note">HS・G・GCはそれぞれ連続した1区間のみ。GCはGの内側で指定します。</p>
+              <p className="constraint-note">各利用区間は、途中で分断しない1つの連続区間として指定します。グランクラスを選んだ場合は、グリーン車・グランクラスを利用する全体区間と、そのうちグランクラスに乗る区間を指定します。</p>
             </section>
 
             <section className="panel result-panel">
               <div className="panel-heading"><span>02</span><div><p>RESULT</p><h3>計算結果</h3></div></div>
               {quote.points === undefined ? (
-                <div className="unavailable"><strong>この組み合わせは年版の対象外です</strong><p>2022年版は旧アプリが扱っていた普通車指定席のみ参照できます。35%特別レートは飲料・軽食ありGCを対象外としています。</p></div>
+                <div className="unavailable"><strong>この組み合わせは年版の対象外です</strong><p>2022年版は旧アプリが扱っていた普通車指定席のみ参照できます。35%特別レートは飲料・軽食ありのグランクラスを対象外としています。</p></div>
               ) : (
                 <>
+                  <div className="result-route">
+                    <strong>{sorted.departure.name} → {sorted.arrival.name}</strong>
+                    <span>{quote.distanceKm.toFixed(1)} km</span>
+                  </div>
                   <div className="points-total"><span>{facilityLabels[quote.facility]}</span><strong>{integer.format(quote.points)}<small> pt</small></strong></div>
                   <div className="rate-grid">
                     <RateCard label="同じ行程の所定額" value={rate(quote.paperFare, quote.points)} />
@@ -618,20 +684,27 @@ const App = () => {
           </div>
         ) : (
           <section className="panel ranking-panel">
-            <div className="panel-heading"><span>R</span><div><p>TOP 50</p><h3>{facilityLabels[rankingFacility]}レート</h3></div></div>
+            <div className="panel-heading"><span>R</span><div><p>{rankingLimit === "all" ? "ALL" : `TOP ${rankingLimit}`}</p><h3>{facilityLabels[rankingFacility]}レート</h3></div></div>
             <div className="ranking-tools">
               <label>設備
                 <select value={rankingFacility} onChange={(event) => setRankingFacility(event.target.value as RankingFacility)}>
                   <option value="ordinary">普通車指定席</option>
                   {version === "2026-03-14" && <>
                     <option value="green">グリーン車</option>
-                    <option value="granClassNoRefreshments">GC（飲料・軽食なし）</option>
-                    <option value="granClassWithRefreshments">GC（飲料・軽食あり）</option>
+                    <option value="granClassNoRefreshments">グランクラス（飲料・軽食なし）</option>
+                    <option value="granClassWithRefreshments">グランクラス（飲料・軽食あり）</option>
                   </>}
                 </select>
               </label>
+              <label>表示件数
+                <select value={rankingLimit} onChange={(event) => setRankingLimit(event.target.value === "all" ? "all" : Number(event.target.value) as 50 | 100)}>
+                  <option value={50}>50件</option>
+                  <option value={100}>100件</option>
+                  <option value="all">全件</option>
+                </select>
+              </label>
             </div>
-            <p className="ranking-note">ランキングは設備ごとの標準行程で比較します。Gは全区間、GCは設定可能な範囲を連続して利用する条件です。一部区間の組み合わせは区間詳細で確認できます。</p>
+            <p className="ranking-note">全{integer.format(rankingRows.length)}件中、{integer.format(ranking.length)}件を表示しています。ランキングは設備ごとの標準行程で比較します。グリーン車は全区間、グランクラスは設定可能な範囲を連続して利用する条件です。一部区間の組み合わせは区間詳細で確認できます。</p>
             <div className="ranking-table-wrap"><table className="ranking-table"><thead><tr><th>#</th><th>区間</th><th>距離</th><th>ポイント</th><th>所定額</th><th>円/pt</th></tr></thead><tbody>
               {ranking.map((row, index) => <tr key={row.key}><td>{index + 1}</td><td><small>{row.group}</small><strong>{row.departure} → {row.arrival}</strong></td><td>{row.distanceKm.toFixed(1)} km</td><td>{row.points === undefined ? "—" : integer.format(row.points)}</td><td>{row.paperFare === undefined ? "—" : yen.format(row.paperFare)}</td><td><strong>{row.value.toFixed(2)}</strong></td></tr>)}
             </tbody></table></div>
