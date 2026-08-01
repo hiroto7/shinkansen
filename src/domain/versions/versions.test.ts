@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { routes, sectionDistance } from "../routes";
 import { validateJourneySelection } from "../types";
-import { get2022Points } from "./2022";
+import { calculator2022, get2022Points } from "./2022";
 import {
   get2026EastBasicFare,
   get2026ExpressFare,
@@ -11,6 +11,7 @@ import {
   get2026ShinshuPreDcPoints,
   get2026SpecialVehicleFare,
   get2026TrunkBasicFare,
+  calculator2026,
 } from "./2026";
 
 describe("共通の路線情報", () => {
@@ -29,6 +30,28 @@ describe("2022年版", () => {
     expect(get2022Points(100.1)).toBe(4_620);
     expect(get2022Points(400)).toBe(7_940);
     expect(get2022Points(400.1)).toBe(12_110);
+  });
+
+  it("2022年3月12日時点では最繁忙期を扱わない", () => {
+    expect(calculator2022.supportedSeasons).toEqual([
+      "閑散期",
+      "通常期",
+      "繁忙期",
+    ]);
+
+    const line = routes.tohokuLine;
+    expect(() =>
+      calculator2022.getFares({
+        line,
+        section: {
+          departure: line.find(({ name }) => name === "東京")!,
+          arrival: line.find(({ name }) => name === "仙台")!,
+          sorted: true,
+        },
+        highSpeed: undefined,
+        season: "最繁忙期",
+      }),
+    ).toThrow("2022年3月12日時点では最繁忙期の設定がありません");
   });
 });
 
@@ -107,6 +130,29 @@ describe("入力可能な区間", () => {
 });
 
 describe("2026年版の規則由来料金", () => {
+  it("2022年4月1日施行の最繁忙期を扱う", () => {
+    expect(calculator2026.supportedSeasons).toContain("最繁忙期");
+
+    const line = routes.tohokuLine;
+    const fares = calculator2026.getFares({
+      line,
+      section: {
+        departure: line.find(({ name }) => name === "東京")!,
+        arrival: line.find(({ name }) => name === "仙台")!,
+        sorted: true,
+      },
+      highSpeed: undefined,
+      season: "最繁忙期",
+    });
+    expect(
+      fares.reserved.expressTickets.reduce(
+        (total, ticket) => total + ticket.fare,
+        0,
+      ),
+    ).toBe(5_440);
+    expect(get2026ExpressFare(fares.reserved.expressTickets, true)).toBe(4_910);
+  });
+
   it("JR東日本線内の地方交通線を賃率換算キロで計算する", () => {
     expect(get2026EastBasicFare(75.6, 75.6)).toBe(1_600);
     expect(get2026EastBasicFare(192.5, 75.6)).toBe(3_850);

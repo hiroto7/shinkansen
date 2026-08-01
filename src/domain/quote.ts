@@ -1,7 +1,5 @@
 import {
-  basicFareSection,
   distanceBetween,
-  routes,
   type Line,
   type SortedSection,
 } from "./routes";
@@ -23,40 +21,11 @@ export type ExclusionReason =
   | "shinshuPreDc"
   | "invalidJourney";
 
-const getCurrentBasicFare = (
-  line: Line,
-  section: SortedSection,
-): number => {
-  const fareSection = basicFareSection(section);
-  const distanceKm = distanceBetween(
-    fareSection.departure,
-    fareSection.arrival,
-  );
-  if (line !== routes.akitaLine) {
-    return calculator2026.getBasicFare(distanceKm);
-  }
+export const supportedSeasonsForVersion = (version: DataVersion) =>
+  version === "2022-03-12"
+    ? calculator2022.supportedSeasons
+    : calculator2026.supportedSeasons;
 
-  const morioka = line.find(({ name }) => name === "盛岡")!;
-  const omagari = line.find(({ name }) => name === "大曲")!;
-  if (
-    morioka.index <= fareSection.departure.index &&
-    fareSection.arrival.index <= omagari.index
-  ) {
-    return calculator2026.getBasicFare(distanceKm, distanceKm);
-  }
-
-  const localStart =
-    fareSection.departure.index < morioka.index
-      ? morioka
-      : fareSection.departure;
-  const localEnd =
-    fareSection.arrival.index > omagari.index
-      ? omagari
-      : fareSection.arrival;
-  const localKm =
-    localStart.index < localEnd.index ? distanceBetween(localStart, localEnd) : 0;
-  return calculator2026.getBasicFare(distanceKm, localKm);
-};
 const fareTickets = (fare: {
   readonly expressTickets: readonly { readonly fare: number }[];
 }) =>
@@ -129,13 +98,19 @@ export const createQuote = ({
     };
   }
 
-  const fareData = calculator2022.getFares({
-    line,
-    section,
-    highSpeed,
-    season,
-    getPoints: (distance) => calculator2022.getPoints(distance),
-  });
+  const fareData = version === "2022-03-12"
+    ? calculator2022.getFares({
+        line,
+        section,
+        highSpeed,
+        season,
+      })
+    : calculator2026.getFares({
+        line,
+        section,
+        highSpeed,
+        season,
+      });
   const selectedFare = highSpeed
     ? (fareData.reservedHighSpeed ?? fareData.reserved)
     : fareData.reserved;
@@ -195,7 +170,7 @@ export const createQuote = ({
           : "limitedFacility",
     };
   }
-  const basicFare = getCurrentBasicFare(line, section);
+  const basicFare = calculator2026.getBasicFareForSection(line, section);
   const expressFare = calculator2026.getExpressFare(
     fareTickets(selectedFare),
     green !== undefined,

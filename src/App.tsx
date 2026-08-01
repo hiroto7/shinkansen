@@ -5,9 +5,14 @@ import {
   type SortedSection,
   type Station,
 } from "./domain/routes";
-import { average, seasons, type Season } from "./domain/seasons";
+import { average, type Season } from "./domain/seasons";
 import type { DataVersion, Facility, Interval } from "./domain/types";
-import { createQuote, type Campaign, type ExclusionReason } from "./domain/quote";
+import {
+  createQuote,
+  supportedSeasonsForVersion,
+  type Campaign,
+  type ExclusionReason,
+} from "./domain/quote";
 import "./App.css";
 
 type Tab = "detail" | "ranking";
@@ -222,6 +227,7 @@ const App = () => {
   const [departureIndex, setDepartureIndex] = useState(0);
   const [arrivalIndex, setArrivalIndex] = useState(line.length - 1);
   const [season, setSeason] = useState<Season>(average);
+  const supportedSeasons = supportedSeasonsForVersion(version);
   const [highSpeedEnabled, setHighSpeedEnabled] = useState(false);
   const [highSpeedStart, setHighSpeedStart] = useState(0);
   const [highSpeedEnd, setHighSpeedEnd] = useState(line.length - 1);
@@ -366,6 +372,9 @@ const App = () => {
   const onVersionChange = (next: DataVersion) => {
     setVersion(next);
     setCampaign("regular");
+    if (!supportedSeasonsForVersion(next).includes(season)) {
+      setSeason(average);
+    }
     if (next === "2022-03-12") {
       setRankingFacility("ordinary");
       setGreenEnabled(false);
@@ -456,7 +465,7 @@ const App = () => {
           </label>
           <label>シーズン
             <select value={season} onChange={(event) => setSeason(event.target.value as Season)}>
-              {seasons.map((value) => <option key={value} value={value}>{seasonLabels[value]}</option>)}
+              {supportedSeasons.map((value) => <option key={value} value={value}>{seasonLabels[value]}</option>)}
             </select>
           </label>
         </section>

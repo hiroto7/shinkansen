@@ -4,6 +4,18 @@ import type {
   JourneySelection,
 } from "../types";
 import {
+  calculateFareOptions,
+  seasonRules2022_04_01,
+  stationExpressFareRules2022_03_12,
+} from "../fare-calculation";
+import {
+  basicFareSection,
+  distanceBetween,
+  routes,
+  type Line,
+  type SortedSection,
+} from "../routes";
+import {
   highestFacility,
   validateJourneySelection,
   valueForDistance,
@@ -30,6 +42,10 @@ export const current2026 = {
       "https://www.jreast.co.jp/ryokaku/02_hen/03_syo/07_setsu/",
     specialVehicleRules:
       "https://www.jreast.co.jp/ryokaku/02_hen/03_syo/08_setsu/",
+    seasonRules:
+      "https://www.jreast.co.jp/press/2021/20211005_ho04.pdf",
+    specialVehicleSeasonRules:
+      "https://www.jreast.co.jp/press/2022/20221026_ho03.pdf",
   },
 } as const;
 
@@ -248,12 +264,20 @@ export const get2026ShinshuPreDcPoints = (
  * 1枚の指定席特急券に対応する料金を合計する。
  * 特別車両利用時の指定席料金低減は、構成区間ごとではなく全体で1回だけ行う。
  */
+export const specialVehicleExpressRules2023_04_01 = {
+  effectiveFrom: "2023-04-01",
+  reductionAfterSeasonAdjustment: 530,
+  source: "https://www.jreast.co.jp/press/2022/20221026_ho03.pdf",
+} as const;
+
 export const get2026ExpressFare = (
   tickets: readonly { readonly fare: number }[],
   usesSpecialVehicle: boolean,
 ) =>
   tickets.reduce((total, ticket) => total + ticket.fare, 0) -
-  (usesSpecialVehicle ? 530 : 0);
+  (usesSpecialVehicle
+    ? specialVehicleExpressRules2023_04_01.reductionAfterSeasonAdjustment
+    : 0);
 
 interface FareBand {
   readonly minKm: number;
@@ -447,6 +471,43 @@ export const get2026EastBasicFare = (
   return get2026TrunkBasicFare(calculationKm);
 };
 
+export const get2026BasicFareForSection = (
+  line: Line,
+  section: SortedSection,
+): number => {
+  const fareSection = basicFareSection(section);
+  const distanceKm = distanceBetween(
+    fareSection.departure,
+    fareSection.arrival,
+  );
+  if (line !== routes.akitaLine) {
+    return get2026EastBasicFare(distanceKm);
+  }
+
+  const morioka = line.find(({ name }) => name === "盛岡")!;
+  const omagari = line.find(({ name }) => name === "大曲")!;
+  if (
+    morioka.index <= fareSection.departure.index &&
+    fareSection.arrival.index <= omagari.index
+  ) {
+    return get2026EastBasicFare(distanceKm, distanceKm);
+  }
+
+  const localStart =
+    fareSection.departure.index < morioka.index
+      ? morioka
+      : fareSection.departure;
+  const localEnd =
+    fareSection.arrival.index > omagari.index
+      ? omagari
+      : fareSection.arrival;
+  const localKm =
+    localStart.index < localEnd.index
+      ? distanceBetween(localStart, localEnd)
+      : 0;
+  return get2026EastBasicFare(distanceKm, localKm);
+};
+
 const greenBands: readonly DistanceBand<number>[] = [
   { maxKm: 100, value: 1_300 }, { maxKm: 200, value: 2_800 },
   { maxKm: 300, value: 4_190 }, { maxKm: 400, value: 4_190 },
@@ -516,7 +577,23 @@ export { validateJourneySelection };
 
 export const calculator2026 = {
   metadata: current2026,
+  supportedSeasons: seasonRules2022_04_01.supportedSeasons,
+  expressFareRules: stationExpressFareRules2022_03_12,
+  specialVehicleExpressRules: specialVehicleExpressRules2023_04_01,
   getBasicFare: get2026EastBasicFare,
+  getBasicFareForSection: get2026BasicFareForSection,
+  getFares: (
+    input: Omit<
+      Parameters<typeof calculateFareOptions>[0],
+      "seasonRules" | "stationExpressFareRules" | "getBasicFare"
+    >,
+  ) =>
+    calculateFareOptions({
+      ...input,
+      seasonRules: seasonRules2022_04_01,
+      stationExpressFareRules: stationExpressFareRules2022_03_12,
+      getBasicFare: get2026BasicFareForSection,
+    }),
   getExpressFare: get2026ExpressFare,
   getJourneyPoints: get2026JourneyPoints,
   getShinshuPreDcPoints: get2026ShinshuPreDcPoints,
