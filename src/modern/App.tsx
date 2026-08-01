@@ -17,12 +17,11 @@ import type {
 import { highestFacility } from "../domain/types";
 import { get2022Points } from "../domain/versions/2022";
 import {
+  get2026EastBasicFare,
   get2026ExpressFare,
   get2026JourneyPoints,
-  get2026LocalBasicFare,
   get2026ShinshuPreDcPoints,
   get2026SpecialVehicleFare,
-  get2026TrunkBasicFare,
 } from "../domain/versions/2026";
 import "./modern.css";
 
@@ -39,6 +38,11 @@ type RankingFacility =
   | "granClassWithRefreshments";
 type RankingLimit = 50 | 100 | "all";
 type OrdinaryRankingBasis = "nonReserved" | "reserved";
+type ExclusionReason =
+  | "historicalFacility"
+  | "limitedFacility"
+  | "shinshuPreDc"
+  | "invalidJourney";
 
 const yen = new Intl.NumberFormat("ja-JP", {
   style: "currency",
@@ -75,7 +79,7 @@ const getCurrentBasicFare = (
 ): number => {
   const distanceKm = distanceBetween(section.departure, section.arrival);
   if (line !== legacy2022Engine.line1) {
-    return get2026TrunkBasicFare(distanceKm);
+    return get2026EastBasicFare(distanceKm);
   }
 
   const morioka = line.find(({ name }) => name === "盛岡")!;
@@ -84,7 +88,7 @@ const getCurrentBasicFare = (
     morioka.index <= section.departure.index &&
     section.arrival.index <= omagari.index
   ) {
-    return get2026LocalBasicFare(distanceKm);
+    return get2026EastBasicFare(distanceKm, distanceKm);
   }
 
   const localStart =
@@ -92,9 +96,7 @@ const getCurrentBasicFare = (
   const localEnd = section.arrival.index > omagari.index ? omagari : section.arrival;
   const localKm =
     localStart.index < localEnd.index ? distanceBetween(localStart, localEnd) : 0;
-  const calculationKm =
-    Math.round((distanceKm + localKm * (17.8 / 16.2 - 1)) * 10) / 10;
-  return get2026TrunkBasicFare(calculationKm);
+  return get2026EastBasicFare(distanceKm, localKm);
 };
 
 const fareTickets = (fare: TotalFare): readonly ExpressTicket[] =>
@@ -121,7 +123,17 @@ interface Quote {
   readonly expressFare?: number | undefined;
   readonly specialVehicleFare?: number | undefined;
   readonly facility: Facility;
+  readonly exclusionReason?: ExclusionReason | undefined;
 }
+
+const requestedFacility = (journey: JourneySelection): Facility =>
+  journey.granClassWithRefreshments
+    ? "granClassWithRefreshments"
+    : journey.granClass
+      ? "granClassNoRefreshments"
+      : journey.green
+        ? "green"
+        : "ordinary";
 
 export const createQuote = ({
   version,
@@ -145,7 +157,17 @@ export const createQuote = ({
     ...(granClass ? { granClass } : {}),
     ...(granClassWithRefreshments ? { granClassWithRefreshments } : {}),
   };
-  const facility = highestFacility(journey);
+  let facility: Facility;
+  try {
+    facility = highestFacility(journey);
+  } catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+    return {
+      distanceKm,
+      facility: requestedFacility(journey),
+      exclusionReason: "invalidJourney",
+    };
+  }
 
   const legacy = legacy2022Engine.getFares({
     line,
@@ -160,7 +182,11 @@ export const createQuote = ({
 
   if (version === "2022-03-12") {
     if (facility !== "ordinary") {
-      return { distanceKm, facility };
+      return {
+        distanceKm,
+        facility,
+        exclusionReason: "historicalFacility",
+      };
     }
     const points = get2022Points(
       distanceKm,
@@ -199,24 +225,46 @@ export const createQuote = ({
           journey,
           campaign === "limited35Percent" ? "limited35Percent" : "regular",
         );
+  if (points === undefined) {
+    return {
+      distanceKm,
+      facility,
+      exclusionReason:
+        campaign === "shinshuPreDc"
+          ? "shinshuPreDc"
+          : "limitedFacility",
+    };
+  }
   const basicFare = getCurrentBasicFare(line, section);
   const expressFare = get2026ExpressFare(
     fareTickets(selectedLegacyFare),
     green !== undefined,
   );
-  const specialVehicleFare = green
+  const intervalDistance = (interval: Interval) => {
+    const start = line[interval.start];
+    const end = line[interval.end];
+    if (!start || !end) return undefined;
+    const distanceKm = distanceBetween(start, end);
+    return distanceKm > 0 ? distanceKm : undefined;
+  };
+  const greenKm = green ? intervalDistance(green) : undefined;
+  const granClassKm = granClass ? intervalDistance(granClass) : undefined;
+  const granClassWithRefreshmentsKm = granClassWithRefreshments
+    ? intervalDistance(granClassWithRefreshments)
+    : undefined;
+  if (
+    (green && greenKm === undefined) ||
+    (granClass && granClassKm === undefined) ||
+    (granClassWithRefreshments && granClassWithRefreshmentsKm === undefined)
+  ) {
+    return { distanceKm, facility, exclusionReason: "invalidJourney" };
+  }
+  const specialVehicleFare = greenKm
     ? get2026SpecialVehicleFare({
-        greenKm: distanceBetween(line[green.start]!, line[green.end]!),
-        ...(granClass
-          ? { granClassKm: distanceBetween(line[granClass.start]!, line[granClass.end]!) }
-          : {}),
-        ...(granClassWithRefreshments
-          ? {
-              granClassWithRefreshmentsKm: distanceBetween(
-                line[granClassWithRefreshments.start]!,
-                line[granClassWithRefreshments.end]!,
-              ),
-            }
+        greenKm,
+        ...(granClassKm !== undefined ? { granClassKm } : {}),
+        ...(granClassWithRefreshmentsKm !== undefined
+          ? { granClassWithRefreshmentsKm }
           : {}),
       })
     : 0;
@@ -242,11 +290,20 @@ export const createQuote = ({
   };
 };
 
-const intervalFromIndexes = (
+export const intervalWithin = (
   enabled: boolean,
   start: number,
   end: number,
-): Interval | undefined => (enabled && start < end ? { start, end } : undefined);
+  outerStart: number,
+  outerEnd: number,
+): Interval | undefined => {
+  if (!enabled || !(outerStart < outerEnd)) return undefined;
+  const clampedStart = Math.max(outerStart, Math.min(start, outerEnd - 1));
+  const clampedEnd = Math.min(outerEnd, Math.max(end, outerStart + 1));
+  return clampedStart < clampedEnd
+    ? { start: clampedStart, end: clampedEnd }
+    : { start: outerStart, end: outerEnd };
+};
 
 const granClassLastIndex = (line: Line) => {
   if (line === legacy2022Engine.line1) {
@@ -305,6 +362,26 @@ const RateCard = ({
   </article>
 );
 
+export const rangeAfterStartChange = (
+  stations: readonly Station[],
+  end: number,
+  start: number,
+) => {
+  const position = stations.findIndex((station) => station.index === start);
+  const next = stations[position + 1];
+  return { start, end: start >= end && next ? next.index : end };
+};
+
+export const rangeAfterEndChange = (
+  stations: readonly Station[],
+  start: number,
+  end: number,
+) => {
+  const position = stations.findIndex((station) => station.index === end);
+  const previous = stations[position - 1];
+  return { start: end <= start && previous ? previous.index : start, end };
+};
+
 const RangeSelect = ({
   label,
   stations,
@@ -319,22 +396,65 @@ const RangeSelect = ({
   end: number;
   onStart: (value: number) => void;
   onEnd: (value: number) => void;
-}) => (
-  <div className="range-select">
-    <span>{label}</span>
-    <select aria-label={`${label} 始点`} value={start} onChange={(event) => onStart(Number(event.target.value))}>
-      {stations.slice(0, -1).map((station) => (
-        <option value={station.index} key={station.name}>{station.name}</option>
-      ))}
-    </select>
-    <span className="range-arrow">→</span>
-    <select aria-label={`${label} 終点`} value={end} onChange={(event) => onEnd(Number(event.target.value))}>
-      {stations.slice(1).map((station) => (
-        <option value={station.index} key={station.name}>{station.name}</option>
-      ))}
-    </select>
-  </div>
-);
+}) => {
+  const selectStart = (value: number) => {
+    const range = rangeAfterStartChange(stations, end, value);
+    if (range.end !== end) onEnd(range.end);
+    onStart(range.start);
+  };
+  const selectEnd = (value: number) => {
+    const range = rangeAfterEndChange(stations, start, value);
+    if (range.start !== start) onStart(range.start);
+    onEnd(range.end);
+  };
+
+  return (
+    <div className="range-select">
+      <span>{label}</span>
+      <select
+        aria-label={`${label} 始点`}
+        value={start}
+        onChange={(event) => selectStart(Number(event.target.value))}
+      >
+        {stations.slice(0, -1).map((station) => (
+          <option value={station.index} key={station.name}>{station.name}</option>
+        ))}
+      </select>
+      <span className="range-arrow">→</span>
+      <select
+        aria-label={`${label} 終点`}
+        value={end}
+        onChange={(event) => selectEnd(Number(event.target.value))}
+      >
+        {stations.slice(1).map((station) => (
+          <option value={station.index} key={station.name}>{station.name}</option>
+        ))}
+      </select>
+    </div>
+  );
+};
+
+const exclusionMessages: Readonly<
+  Record<ExclusionReason, { readonly title: string; readonly detail: string }>
+> = {
+  historicalFacility: {
+    title: "2022年版の対象外です",
+    detail: "2022年版は普通車指定席のみ参照できます。",
+  },
+  limitedFacility: {
+    title: "全線35%特別レートの対象外です",
+    detail: "飲料・軽食ありのグランクラスは対象外です。",
+  },
+  shinshuPreDc: {
+    title: "信州プレDCの対象外です",
+    detail:
+      "公式表に掲載された北陸新幹線の対象駅間・普通車指定席のみ計算できます。",
+  },
+  invalidJourney: {
+    title: "利用区間を計算できません",
+    detail: "各設備の始点と終点、および区間の包含関係を確認してください。",
+  },
+};
 
 const App = () => {
   const [tab, setTab] = useState<Tab>("detail");
@@ -383,23 +503,35 @@ const App = () => {
   }).section;
   const tripStart = sorted.departure.index;
   const tripEnd = sorted.arrival.index;
+  const tripStations = line.slice(tripStart, tripEnd + 1);
   const granClassLimit = granClassLastIndex(line);
   const granClassAvailable = tripStart < Math.min(tripEnd, granClassLimit);
-  const granClassStations = line.slice(0, granClassLimit + 1);
-  const highSpeed = intervalFromIndexes(
+  const highSpeed = intervalWithin(
     highSpeedEnabled,
-    Math.max(tripStart, highSpeedStart),
-    Math.min(tripEnd, highSpeedEnd),
+    highSpeedStart,
+    highSpeedEnd,
+    tripStart,
+    tripEnd,
   );
-  const green = intervalFromIndexes(
+  const green = intervalWithin(
     greenEnabled,
-    Math.max(tripStart, greenStart),
-    Math.min(tripEnd, greenEnd),
+    greenStart,
+    greenEnd,
+    tripStart,
+    tripEnd,
   );
-  const granClass = intervalFromIndexes(
+  const granClassOuterStart = green?.start ?? tripStart;
+  const granClassOuterEnd = Math.min(green?.end ?? tripEnd, granClassLimit);
+  const granClassStations = line.slice(
+    granClassOuterStart,
+    granClassOuterEnd + 1,
+  );
+  const granClass = intervalWithin(
     green !== undefined && granClassEnabled && granClassAvailable,
-    Math.max(green?.start ?? tripStart, granClassStart),
-    Math.min(green?.end ?? tripEnd, granClassEnd, granClassLimit),
+    granClassStart,
+    granClassEnd,
+    granClassOuterStart,
+    granClassOuterEnd,
   );
   const refreshmentSection = refreshments && granClass ? granClass : undefined;
   const selectedFacility: Facility = refreshments && granClass
@@ -523,9 +655,29 @@ const App = () => {
       </header>
 
       <main>
-        <nav className="tabs" aria-label="表示切替">
-          <button className={tab === "detail" ? "active" : ""} onClick={() => setTab("detail")}>区間を調べる</button>
-          <button className={tab === "ranking" ? "active" : ""} onClick={() => setTab("ranking")}>ランキング</button>
+        <nav className="tabs" aria-label="表示切替" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            id="detail-tab"
+            aria-controls="detail-panel"
+            aria-selected={tab === "detail"}
+            className={tab === "detail" ? "active" : ""}
+            onClick={() => setTab("detail")}
+          >
+            区間を調べる
+          </button>
+          <button
+            type="button"
+            role="tab"
+            id="ranking-tab"
+            aria-controls="ranking-panel"
+            aria-selected={tab === "ranking"}
+            className={tab === "ranking" ? "active" : ""}
+            onClick={() => setTab("ranking")}
+          >
+            ランキング
+          </button>
         </nav>
 
         <section className="control-bar">
@@ -555,7 +707,12 @@ const App = () => {
         </section>
 
         {tab === "detail" ? (
-          <div className="dashboard-grid">
+          <div
+            className="dashboard-grid"
+            role="tabpanel"
+            id="detail-panel"
+            aria-labelledby="detail-tab"
+          >
             <section className="panel journey-panel">
               <div className="panel-heading"><h3>乗車区間</h3></div>
               <div className="field-grid">
@@ -577,7 +734,7 @@ const App = () => {
               {(line === legacy2022Engine.line0 || line === legacy2022Engine.line1) && (
                 <div className="segment-control">
                   <label className="switch"><input type="checkbox" checked={highSpeedEnabled} onChange={(event) => { setHighSpeedEnabled(event.target.checked); if (event.target.checked) { setHighSpeedStart(tripStart); setHighSpeedEnd(tripEnd); } }} /><span>「はやぶさ」「こまち」を利用する</span></label>
-                  {highSpeedEnabled && <RangeSelect label="はやぶさ・こまち利用区間" stations={line} start={highSpeedStart} end={highSpeedEnd} onStart={setHighSpeedStart} onEnd={setHighSpeedEnd} />}
+                  {highSpeedEnabled && highSpeed && <RangeSelect label="はやぶさ・こまち利用区間" stations={tripStations} start={highSpeed.start} end={highSpeed.end} onStart={setHighSpeedStart} onEnd={setHighSpeedEnd} />}
                 </div>
               )}
 
@@ -620,9 +777,9 @@ const App = () => {
                     <div className="segment-control">
                       <RangeSelect
                         label={granClassEnabled ? "グリーン車・グランクラス利用区間" : "グリーン車利用区間"}
-                        stations={line}
-                        start={greenStart}
-                        end={greenEnd}
+                        stations={tripStations}
+                        start={green?.start ?? tripStart}
+                        end={green?.end ?? tripEnd}
                         onStart={setGreenStart}
                         onEnd={setGreenEnd}
                       />
@@ -630,8 +787,8 @@ const App = () => {
                         <RangeSelect
                           label="グランクラス利用区間"
                           stations={granClassStations}
-                          start={Math.min(granClassStart, granClassLimit - 1)}
-                          end={Math.min(granClassEnd, granClassLimit)}
+                          start={granClass?.start ?? granClassOuterStart}
+                          end={granClass?.end ?? granClassOuterEnd}
                           onStart={setGranClassStart}
                           onEnd={setGranClassEnd}
                         />
@@ -647,12 +804,10 @@ const App = () => {
               <div className="panel-heading"><h3>計算結果</h3></div>
               {quote.points === undefined ? (
                 <div className="unavailable">
-                  <strong>この組み合わせは選択した交換レートの対象外です</strong>
-                  <p>
-                    {campaign === "shinshuPreDc"
-                      ? "信州プレDCは、公式表に掲載された北陸新幹線の対象駅間・普通車指定席のみ計算できます。"
-                      : "2022年版は旧アプリが扱っていた普通車指定席のみ参照できます。35%特別レートは飲料・軽食ありのグランクラスを対象外としています。"}
-                  </p>
+                  <strong>
+                    {exclusionMessages[quote.exclusionReason ?? "invalidJourney"].title}
+                  </strong>
+                  <p>{exclusionMessages[quote.exclusionReason ?? "invalidJourney"].detail}</p>
                 </div>
               ) : (
                 <>
@@ -693,7 +848,12 @@ const App = () => {
             </section>
           </div>
         ) : (
-          <section className="panel ranking-panel">
+          <section
+            className="panel ranking-panel"
+            role="tabpanel"
+            id="ranking-panel"
+            aria-labelledby="ranking-tab"
+          >
             <div className="panel-heading"><h3>{facilityLabels[rankingFacility]}レート</h3></div>
             <div className="ranking-tools">
               <label>設備

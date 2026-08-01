@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { validateJourneySelection } from "../types";
 import { get2022Points } from "./2022";
 import {
+  get2026EastBasicFare,
   get2026ExpressFare,
   get2026JourneyPoints,
   get2026LocalBasicFare,
@@ -95,6 +96,11 @@ describe("入力可能な区間", () => {
 });
 
 describe("2026年版の規則由来料金", () => {
+  it("JR東日本線内の地方交通線を賃率換算キロで計算する", () => {
+    expect(get2026EastBasicFare(75.6, 75.6)).toBe(1_600);
+    expect(get2026EastBasicFare(192.5, 75.6)).toBe(3_850);
+  });
+
   it("改定後の幹線・地方交通線運賃表を参照する", () => {
     expect(get2026TrunkBasicFare(3.6)).toBe(200);
     expect(get2026TrunkBasicFare(713.7)).toBe(10_780);

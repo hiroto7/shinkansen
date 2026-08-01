@@ -17,6 +17,10 @@ export const current2026 = {
     shinshuPreDc:
       "https://www.eki-net.com/top/point/pdf/shinshu_predc2026.pdf",
     fares: "https://www.jreast.co.jp/2026unchin-kaitei/",
+    fareCalculationRules:
+      "https://www.jreast.co.jp/ryokaku/02_hen/01_syo/01_setsu/02.html",
+    basicFareRules:
+      "https://www.jreast.co.jp/ryokaku/02_hen/03_syo/02_setsu/02.html",
     expressRules:
       "https://www.jreast.co.jp/ryokaku/02_hen/03_syo/07_setsu/",
     specialVehicleRules:
@@ -190,6 +194,24 @@ export const get2026TrunkBasicFare = (distanceKm: number) =>
 
 export const get2026LocalBasicFare = (distanceKm: number) =>
   getFareFromBands(distanceKm, localFareBands2026);
+
+/**
+ * JR東日本線内で幹線と地方交通線を連続利用する普通運賃。
+ * 規則第14条の2に従い、地方交通線の営業キロを現行賃率比
+ * 18.66 / 16.96 = 1.1（小数第1位に丸めた値）で賃率換算する。
+ */
+export const get2026EastBasicFare = (
+  operatingKm: number,
+  localKm = 0,
+): number => {
+  if (!(localKm > 0)) return get2026TrunkBasicFare(operatingKm);
+  if (localKm >= operatingKm) return get2026LocalBasicFare(operatingKm);
+
+  const convertedLocalKm = Math.round(localKm * 1.1 * 10) / 10;
+  const calculationKm =
+    Math.round((operatingKm - localKm + convertedLocalKm) * 10) / 10;
+  return get2026TrunkBasicFare(calculationKm);
+};
 
 const greenBands: readonly DistanceBand<number>[] = [
   { maxKm: 100, value: 1_300 }, { maxKm: 200, value: 2_800 },
