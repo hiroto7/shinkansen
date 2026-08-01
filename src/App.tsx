@@ -3,9 +3,9 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import { parse } from "csv-parse/browser/esm/sync";
 import { ceil, round, sum } from "lodash";
 import type * as React from "react";
+import type { Reducer } from "react";
 import {
   Fragment,
-  Reducer,
   useContext,
   useMemo,
   useReducer,
@@ -32,7 +32,6 @@ import {
   Table,
   ToggleButton,
 } from "react-bootstrap";
-import { NavLink, Route, Routes } from "react-router-dom";
 import "./App.css";
 
 interface Station {
@@ -946,7 +945,7 @@ const getLimitedExpressTickets = (
   };
 };
 
-const ExpressFaresLabel: React.VFC<{
+const ExpressFaresLabel: React.FC<{
   tickets: readonly ExpressTicket[];
 }> = ({ tickets }) => {
   const text = jpyNameFormatter.format(sum(tickets.map(({ fare }) => fare)));
@@ -994,7 +993,7 @@ const ExpressFaresLabel: React.VFC<{
   );
 };
 
-const SeatsLabel: React.VFC<{
+const SeatsLabel: React.FC<{
   tickets: readonly ExpressTicket[];
 }> = ({ tickets }) => {
   const seats = new Set(tickets.map(({ availableSeat }) => availableSeat));
@@ -1462,7 +1461,7 @@ const sortSection = (
     ? { section: { ...section, sorted: true }, reversed: false }
     : { section: { ...reverseSection(section), sorted: true }, reversed: true };
 
-const Result: React.VFC<{
+const Result: React.FC<{
   line: Line;
   section: Section;
   highSpeed: Section | undefined;
@@ -1687,7 +1686,7 @@ const Result: React.VFC<{
   );
 };
 
-const ContextAwareItem: React.VFC<{
+const ContextAwareItem: React.FC<{
   eventKey: string;
   line: Line;
   section: Section;
@@ -2058,7 +2057,7 @@ const init = (): State => {
   };
 };
 
-const Home: React.VFC<{
+const Home: React.FC<{
   season: Season;
   onSeasonChange: (season: Season) => void;
   pointTicketType: PointTicketType;
@@ -2253,7 +2252,7 @@ const rank = <T,>(
       { array: [] }
     ).array;
 
-const Ranking: React.VFC<{
+const Ranking: React.FC<{
   rankedFares: Record<
     "nonReservedOrStandingOnly" | "reserved" | "reservedHighSpeed",
     readonly {
@@ -2474,7 +2473,7 @@ const seasons = [off, average, busy, busiest] as const;
 
 type Season = typeof seasons[number];
 
-const SeasonSelect: React.VFC<{
+const SeasonSelect: React.FC<{
   season: Season;
   onChange: (season: Season) => void;
 }> = ({ season, onChange }) => (
@@ -2490,7 +2489,7 @@ const SeasonSelect: React.VFC<{
   </FloatingLabel>
 );
 
-const PointTicketTypeSelect: React.VFC<{
+const PointTicketTypeSelect: React.FC<{
   type: PointTicketType;
   onChange: (type: PointTicketType) => void;
 }> = ({ type, onChange }) => (
@@ -2519,9 +2518,10 @@ const PointTicketTypeSelect: React.VFC<{
   </FloatingLabel>
 );
 
-const App: React.VFC = () => {
+const App: React.FC = () => {
   const [season, setSeason] = useState<Season>(average);
   const [pointTicketType, setPointTicketType] = useState(pointTicketTypes[0]!);
+  const [tab, setTab] = useState<"detail" | "ranking">("detail");
 
   const faresForEachSection = useMemo(
     () =>
@@ -2608,10 +2608,18 @@ const App: React.VFC = () => {
           <Navbar.Toggle aria-controls="basic-navbar-nav" />
           <Navbar.Collapse id="basic-navbar-nav">
             <Nav className="me-auto">
-              <Nav.Link as={NavLink} end to="/">
+              <Nav.Link
+                as="button"
+                active={tab === "detail"}
+                onClick={() => setTab("detail")}
+              >
                 区間を指定して調べる
               </Nav.Link>
-              <Nav.Link as={NavLink} end to="/ranking">
+              <Nav.Link
+                as="button"
+                active={tab === "ranking"}
+                onClick={() => setTab("ranking")}
+              >
                 ランキング
               </Nav.Link>
             </Nav>
@@ -2638,32 +2646,23 @@ const App: React.VFC = () => {
           </p>
         </Alert>
         <div className="mt-4">
-          <Routes>
-            <Route
-              path="ranking"
-              element={
-                <Ranking
-                  rankedFares={rankedFares}
-                  season={season}
-                  pointTicketType={pointTicketType}
-                  onSeasonChange={setSeason}
-                  onPointTicketTypeChange={setPointTicketType}
-                />
-              }
+          {tab === "ranking" ? (
+            <Ranking
+              rankedFares={rankedFares}
+              season={season}
+              pointTicketType={pointTicketType}
+              onSeasonChange={setSeason}
+              onPointTicketTypeChange={setPointTicketType}
             />
-            <Route
-              path="/"
-              element={
-                <Home
-                  season={season}
-                  pointTicketType={pointTicketType}
-                  onSeasonChange={setSeason}
-                  onPointTicketTypeChange={setPointTicketType}
-                  rankedFares={rankedFares}
-                />
-              }
+          ) : (
+            <Home
+              season={season}
+              pointTicketType={pointTicketType}
+              onSeasonChange={setSeason}
+              onPointTicketTypeChange={setPointTicketType}
+              rankedFares={rankedFares}
             />
-          </Routes>
+          )}
         </div>
       </Container>
     </>
