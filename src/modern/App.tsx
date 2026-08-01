@@ -185,7 +185,7 @@ interface Quote {
   readonly facility: Facility;
 }
 
-export const createQuote = ({
+const createQuote = ({
   version,
   campaign,
   line,
