@@ -2531,6 +2531,15 @@ const App: React.FC = () => {
   }, []);
 
   const navigate = (event: React.MouseEvent, nextPath: string) => {
+    if (
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    ) {
+      return;
+    }
     event.preventDefault();
     window.history.pushState(null, "", nextPath);
     setPath(nextPath);
