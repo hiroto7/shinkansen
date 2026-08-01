@@ -6,7 +6,6 @@ import type * as React from "react";
 import type { Reducer } from "react";
 import {
   Fragment,
-  useEffect,
   useContext,
   useMemo,
   useReducer,
@@ -2522,28 +2521,7 @@ const PointTicketTypeSelect: React.FC<{
 const App: React.FC = () => {
   const [season, setSeason] = useState<Season>(average);
   const [pointTicketType, setPointTicketType] = useState(pointTicketTypes[0]!);
-  const [path, setPath] = useState(window.location.pathname);
-
-  useEffect(() => {
-    const handlePopState = () => setPath(window.location.pathname);
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
-
-  const navigate = (event: React.MouseEvent, nextPath: string) => {
-    if (
-      event.button !== 0 ||
-      event.metaKey ||
-      event.ctrlKey ||
-      event.shiftKey ||
-      event.altKey
-    ) {
-      return;
-    }
-    event.preventDefault();
-    window.history.pushState(null, "", nextPath);
-    setPath(nextPath);
-  };
+  const [tab, setTab] = useState<"detail" | "ranking">("detail");
 
   const faresForEachSection = useMemo(
     () =>
@@ -2631,16 +2609,16 @@ const App: React.FC = () => {
           <Navbar.Collapse id="basic-navbar-nav">
             <Nav className="me-auto">
               <Nav.Link
-                href="/"
-                active={path !== "/ranking"}
-                onClick={(event) => navigate(event, "/")}
+                as="button"
+                active={tab === "detail"}
+                onClick={() => setTab("detail")}
               >
                 区間を指定して調べる
               </Nav.Link>
               <Nav.Link
-                href="/ranking"
-                active={path === "/ranking"}
-                onClick={(event) => navigate(event, "/ranking")}
+                as="button"
+                active={tab === "ranking"}
+                onClick={() => setTab("ranking")}
               >
                 ランキング
               </Nav.Link>
@@ -2668,7 +2646,7 @@ const App: React.FC = () => {
           </p>
         </Alert>
         <div className="mt-4">
-          {path === "/ranking" ? (
+          {tab === "ranking" ? (
             <Ranking
               rankedFares={rankedFares}
               season={season}
