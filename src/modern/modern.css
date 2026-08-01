@@ -59,6 +59,7 @@ select { width: 100%; border: 0; border-bottom: 1px solid #94a198; background: t
 .points-total strong { font: 800 clamp(42px, 5vw, 68px)/1 ui-monospace, monospace; letter-spacing: -.06em; }
 .points-total small { font-size: 16px; letter-spacing: 0; }
 .rate-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: #bcc5bd; border: 1px solid #bcc5bd; margin-top: 14px; }
+.rate-grid.single { grid-template-columns: 1fr; }
 .rate-card { background: #f8faf6; padding: 16px; }
 .rate-card span { display: block; color: #65746b; font-size: 11px; min-height: 2.7em; }
 .rate-card strong { display: block; margin-top: 9px; font: 800 19px ui-monospace, monospace; }
@@ -72,16 +73,17 @@ select { width: 100%; border: 0; border-bottom: 1px solid #94a198; background: t
 .unavailable p { color: #6a5b51; line-height: 1.7; }
 
 .ranking-note { color: #65746b; line-height: 1.7; }
-.ranking-tools { max-width: 720px; margin-bottom: 18px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
+.ranking-tools { max-width: 900px; margin-bottom: 18px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
 .ranking-tools label { display: block; color: #65746b; font-size: 11px; font-weight: 700; }
 .ranking-table-wrap { overflow-x: auto; }
 .ranking-table { width: 100%; border-collapse: collapse; min-width: 720px; }
+.ranking-table.ordinary { min-width: 980px; }
 .ranking-table th { text-align: left; color: #65746b; font-size: 11px; letter-spacing: .08em; border-bottom: 2px solid #13231d; padding: 12px 10px; }
 .ranking-table td { border-bottom: 1px solid #dce1dc; padding: 15px 10px; font: 13px ui-monospace, monospace; }
 .ranking-table td:nth-child(2) { font-family: inherit; }
 .ranking-table td small { display: block; color: #65746b; margin-bottom: 3px; }
 .ranking-table td strong { display: block; }
-.ranking-table td:last-child strong { color: #087a52; font-size: 18px; }
+.ranking-table .selected-rate { color: #087a52; font-size: 18px; }
 
 .campaign-section { padding: 62px 0; }
 .section-title { margin-bottom: 22px; }

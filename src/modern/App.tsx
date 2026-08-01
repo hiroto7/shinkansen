@@ -32,6 +32,7 @@ type RankingFacility =
   | "granClassNoRefreshments"
   | "granClassWithRefreshments";
 type RankingLimit = 50 | 100 | "all";
+type OrdinaryRankingBasis = "nonReserved" | "reserved";
 
 const yen = new Intl.NumberFormat("ja-JP", {
   style: "currency",
@@ -128,6 +129,7 @@ const currentExpressFare = (
   tickets: readonly ExpressTicket[],
   season: Season,
   green: Interval | undefined,
+  seat: "reserved" | "nonReserved" = "reserved",
 ) => {
   const junction = legacy2022Engine.junctions.get(line);
   const throughMiniShinkansen =
@@ -146,12 +148,14 @@ const currentExpressFare = (
       junction !== undefined && ticket.section.departure.index >= junction.index;
 
     if (isMiniSection) {
-      if (throughMiniShinkansen) return total + (usesGreen ? 880 : seasonal(1_410, season));
+      if (throughMiniShinkansen) {
+        return total + (usesGreen || seat === "nonReserved" ? 880 : seasonal(1_410, season));
+      }
       const base = currentLimitedExpressFare(
         distanceBetween(ticket.section.departure, ticket.section.arrival),
-        season,
+        seat === "nonReserved" ? legacy2022Engine.average : season,
       );
-      return total + (usesGreen ? base - 530 : base);
+      return total + (usesGreen || seat === "nonReserved" ? base - 530 : base);
     }
 
     return total + (usesGreen ? ticket.fare - 530 : ticket.fare);
@@ -174,14 +178,14 @@ interface Quote {
   readonly distanceKm: number;
   readonly points?: number | undefined;
   readonly paperFare?: number | undefined;
-  readonly cheapestFare?: number | undefined;
+  readonly nonReservedFare?: number | undefined;
   readonly basicFare?: number | undefined;
   readonly expressFare?: number | undefined;
   readonly specialVehicleFare?: number | undefined;
   readonly facility: Facility;
 }
 
-const createQuote = ({
+export const createQuote = ({
   version,
   campaign,
   line,
@@ -226,12 +230,16 @@ const createQuote = ({
     );
     const cheapestFare = selectedLegacyFare.total;
     const paperFare = cheapestFare - (selectedLegacyFare.discount ?? 0);
+    const nonReservedFare = legacy.nonReservedOrStandingOnly
+      ? legacy.nonReservedOrStandingOnly.total -
+        (legacy.nonReservedOrStandingOnly.discount ?? 0)
+      : undefined;
     return {
       distanceKm,
       facility,
       points,
-      cheapestFare,
       paperFare,
+      ...(nonReservedFare !== undefined ? { nonReservedFare } : {}),
       basicFare: selectedLegacyFare.basicFare,
       expressFare: fareTickets(selectedLegacyFare).reduce(
         (total, ticket) => total + ticket.fare,
@@ -271,13 +279,25 @@ const createQuote = ({
       })
     : 0;
   const paperFare = basicFare + expressFare + specialVehicleFare;
+  const nonReservedFare =
+    facility === "ordinary" && legacy.nonReservedOrStandingOnly
+      ? basicFare +
+        currentExpressFare(
+          line,
+          section,
+          fareTickets(legacy.nonReservedOrStandingOnly),
+          season,
+          undefined,
+          "nonReserved",
+        )
+      : undefined;
 
   return {
     distanceKm,
     facility,
     points,
     paperFare,
-    cheapestFare: paperFare - 200,
+    ...(nonReservedFare !== undefined ? { nonReservedFare } : {}),
     basicFare,
     expressFare,
     specialVehicleFare,
@@ -393,6 +413,8 @@ const App = () => {
   const [rankingFacility, setRankingFacility] =
     useState<RankingFacility>("ordinary");
   const [rankingLimit, setRankingLimit] = useState<RankingLimit>(50);
+  const [ordinaryRankingBasis, setOrdinaryRankingBasis] =
+    useState<OrdinaryRankingBasis>("nonReserved");
 
   const resetRoute = (nextGroupName: string, nextRouteIndex = 0) => {
     const nextLine = legacy2022Engine.lineGroups.get(nextGroupName)!.lines[nextRouteIndex]!;
@@ -487,14 +509,21 @@ const App = () => {
                 departure: departure.name,
                 arrival: arrival.name,
                 ...rankingQuote,
-                value: rate(rankingQuote.paperFare, rankingQuote.points) ?? 0,
+                value:
+                  rankingFacility === "ordinary" &&
+                  ordinaryRankingBasis === "nonReserved"
+                    ? rate(
+                        rankingQuote.nonReservedFare ?? rankingQuote.paperFare,
+                        rankingQuote.points,
+                      ) ?? 0
+                    : rate(rankingQuote.paperFare, rankingQuote.points) ?? 0,
               }];
             }),
           ),
         ),
     );
     return rows.sort((a, b) => b.value - a.value);
-  }, [campaign, rankingFacility, season, tab, version]);
+  }, [campaign, ordinaryRankingBasis, rankingFacility, season, tab, version]);
   const ranking =
     rankingLimit === "all"
       ? rankingRows
@@ -657,9 +686,14 @@ const App = () => {
                     <span>{quote.distanceKm.toFixed(1)} km</span>
                   </div>
                   <div className="points-total"><span>{facilityLabels[quote.facility]}</span><strong>{integer.format(quote.points)}<small> pt</small></strong></div>
-                  <div className="rate-grid">
-                    <RateCard label="同じ行程の所定額" value={rate(quote.paperFare, quote.points)} />
-                    <RateCard label="新幹線eチケット相当" value={rate(quote.cheapestFare, quote.points)} />
+                  <div className={`rate-grid${quote.facility === "ordinary" ? "" : " single"}`}>
+                    {quote.facility === "ordinary" && (
+                      <RateCard label="自由席・立席の所定額" value={rate(quote.nonReservedFare, quote.points)} />
+                    )}
+                    <RateCard
+                      label={quote.facility === "ordinary" ? "普通車指定席の所定額" : "同じ設備・行程の所定額"}
+                      value={rate(quote.paperFare, quote.points)}
+                    />
                   </div>
                   <dl className="breakdown">
                     <div><dt>普通運賃</dt><dd>{quote.basicFare === undefined ? "—" : yen.format(quote.basicFare)}</dd></div>
@@ -685,6 +719,14 @@ const App = () => {
                   </>}
                 </select>
               </label>
+              {rankingFacility === "ordinary" && (
+                <label>並び順
+                  <select value={ordinaryRankingBasis} onChange={(event) => setOrdinaryRankingBasis(event.target.value as OrdinaryRankingBasis)}>
+                    <option value="nonReserved">自由席・立席との比較</option>
+                    <option value="reserved">普通車指定席との比較</option>
+                  </select>
+                </label>
+              )}
               <label>表示件数
                 <select value={rankingLimit} onChange={(event) => setRankingLimit(event.target.value === "all" ? "all" : Number(event.target.value) as 50 | 100)}>
                   <option value={50}>50件</option>
@@ -693,9 +735,9 @@ const App = () => {
                 </select>
               </label>
             </div>
-            <p className="ranking-note">全{integer.format(rankingRows.length)}件中、{integer.format(ranking.length)}件を表示。グリーン車は全区間、グランクラスは設定可能な区間を利用した場合の比較です。</p>
-            <div className="ranking-table-wrap"><table className="ranking-table"><thead><tr><th>#</th><th>区間</th><th>距離</th><th>ポイント</th><th>所定額</th><th>円/pt</th></tr></thead><tbody>
-              {ranking.map((row, index) => <tr key={row.key}><td>{index + 1}</td><td><small>{row.group}</small><strong>{row.departure} → {row.arrival}</strong></td><td>{row.distanceKm.toFixed(1)} km</td><td>{row.points === undefined ? "—" : integer.format(row.points)}</td><td>{row.paperFare === undefined ? "—" : yen.format(row.paperFare)}</td><td><strong>{row.value.toFixed(2)}</strong></td></tr>)}
+            <p className="ranking-note">全{integer.format(rankingRows.length)}件中、{integer.format(ranking.length)}件を表示。{rankingFacility === "ordinary" ? `自由席・立席と普通車指定席の所定額を比較できます。${ordinaryRankingBasis === "nonReserved" ? "自由席・立席を設定しない区間は、指定席レートで並べます。" : ""}` : "指定した設備と同じ行程の所定額との比較です。"}</p>
+            <div className="ranking-table-wrap"><table className={`ranking-table${rankingFacility === "ordinary" ? " ordinary" : ""}`}><thead><tr><th>#</th><th>区間</th><th>距離</th><th>ポイント</th>{rankingFacility === "ordinary" ? <><th>自由席・立席</th><th>円/pt</th><th>普通車指定席</th><th>円/pt</th></> : <><th>所定額</th><th>円/pt</th></>}</tr></thead><tbody>
+              {ranking.map((row, index) => <tr key={row.key}><td>{index + 1}</td><td><small>{row.group}</small><strong>{row.departure} → {row.arrival}</strong></td><td>{row.distanceKm.toFixed(1)} km</td><td>{row.points === undefined ? "—" : integer.format(row.points)}</td>{rankingFacility === "ordinary" ? <><td>{row.nonReservedFare === undefined ? "—" : yen.format(row.nonReservedFare)}</td><td>{row.nonReservedFare === undefined ? "—" : <strong className={ordinaryRankingBasis === "nonReserved" ? "selected-rate" : ""}>{(rate(row.nonReservedFare, row.points) ?? 0).toFixed(2)}</strong>}</td><td>{row.paperFare === undefined ? "—" : yen.format(row.paperFare)}</td><td><strong className={ordinaryRankingBasis === "reserved" ? "selected-rate" : ""}>{(rate(row.paperFare, row.points) ?? 0).toFixed(2)}</strong></td></> : <><td>{row.paperFare === undefined ? "—" : yen.format(row.paperFare)}</td><td><strong className="selected-rate">{row.value.toFixed(2)}</strong></td></>}</tr>)}
             </tbody></table></div>
           </section>
         )}
