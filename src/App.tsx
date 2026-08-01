@@ -2669,4 +2669,52 @@ const App: React.FC = () => {
   );
 };
 
+export type {
+  ExpressTicket,
+  Line,
+  LineGroup,
+  PointTicketType,
+  Season,
+  Section,
+  SortedSection,
+  Station,
+  TotalFare,
+};
+
+export const legacy2022Engine: {
+  readonly lineGroups: ReadonlyMap<string, LineGroup>;
+  readonly junctions: ReadonlyMap<Line, Station>;
+  readonly line0: Line;
+  readonly line1: Line;
+  readonly line2: Line;
+  readonly line3: Line;
+  readonly line4: Line;
+  readonly line5: Line;
+  readonly average: Season;
+  readonly busy: Season;
+  readonly busiest: Season;
+  readonly off: Season;
+  readonly seasons: readonly Season[];
+  readonly pointTicketTypes: readonly PointTicketType[];
+  readonly getFares: typeof getFares;
+  readonly sortSection: typeof sortSection;
+} = {
+  lineGroups,
+  junctions,
+  line0,
+  line1,
+  line2,
+  line3,
+  line4,
+  line5,
+  average,
+  busy,
+  busiest,
+  off,
+  seasons,
+  pointTicketTypes,
+  getFares,
+  sortSection,
+};
+
 export default App;
