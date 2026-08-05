@@ -113,9 +113,5 @@ describe("区間入力画面", () => {
     expect(html).toContain("降車駅");
     expect(html).not.toContain("はやぶさ・こまち利用区間 始点");
     expect(html).not.toContain("グリーン車を利用する区間 始点");
-    expect(html).toContain(
-      'href="https://shinkansen-2022.vercel.app/">2022年版（更新終了・参考）',
-    );
-    expect(html).toContain("現行の運賃・制度とは異なります");
   });
 });

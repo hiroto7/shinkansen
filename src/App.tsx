@@ -702,12 +702,6 @@ const App = () => {
           <p>時刻表・列車編成・残席・発売可否は判定しません。最新情報はご自身でお調べください。</p>
         </aside>
       </main>
-      <footer className="site-footer">
-        <p>
-          <a href="https://shinkansen-2022.vercel.app/">2022年版（更新終了・参考）</a>
-          は現行の運賃・制度とは異なります。
-        </p>
-      </footer>
     </div>
   );
 };

@@ -93,9 +93,6 @@ select { width: 100%; border: 0; border-bottom: 1px solid #94a198; background: t
 
 .notice { margin: 28px 0 56px; }
 .notice p { margin: 0; color: #65746b; font-size: 12px; line-height: 1.7; }
-.site-footer { width: min(1180px, 92vw); margin: 0 auto; padding: 0 0 32px; color: #65746b; font-size: 12px; line-height: 1.7; }
-.site-footer p { margin: 0; }
-.site-footer a { color: #13231d; }
 @media (max-width: 820px) {
   .control-bar, .dashboard-grid { grid-template-columns: 1fr; }
   .journey-fields, .journey-fields.has-direction { grid-template-columns: 1fr; }
