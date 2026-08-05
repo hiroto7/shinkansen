@@ -1,13 +1,20 @@
+import { getBasicFareForSection, type BasicFareRules } from "./basic-fares";
 import {
-  distanceBetween,
-  type Line,
-  type SortedSection,
-} from "./routes";
+  calculateFareOptions,
+  type SeasonRules,
+  type StationExpressFareRules,
+} from "./fare-calculation";
+import { distanceBetween, type Line, type SortedSection } from "./routes";
 import type { Season } from "./seasons";
-import { calculator2022 } from "./versions/2022";
-import type { DataVersion, Facility, Interval, JourneySelection } from "./types";
+import type {
+  DataVersion,
+  Facility,
+  Interval,
+  JourneySelection,
+} from "./types";
 import { highestFacility } from "./types";
-import { calculator2026 } from "./versions/2026";
+import { version2022 } from "./versions/2022";
+import { version2026 } from "./versions/2026";
 
 export type Campaign =
   | "regular"
@@ -21,15 +28,48 @@ export type ExclusionReason =
   | "shinshuPreDc"
   | "invalidJourney";
 
-export const supportedSeasonsForVersion = (version: DataVersion) =>
-  version === "2022-03-12"
-    ? calculator2022.supportedSeasons
-    : calculator2026.supportedSeasons;
+export interface FareBreakdown {
+  readonly basicFare: number;
+  readonly expressFare: number;
+  readonly specialVehicleFare: number;
+  readonly total: number;
+}
 
-const fareTickets = (fare: {
-  readonly expressTickets: readonly { readonly fare: number }[];
-}) =>
-  fare.expressTickets;
+export interface FacilityDistances {
+  /** 最初にグリーン車以上へ乗ってから最後に降りるまで */
+  readonly greenKm: number;
+  /** greenKmに内包されるグランクラス区間 */
+  readonly granClassKm?: number;
+  /** 指定時はグランクラス(A)。A/B混在時も第130条第2項によりAとして計算 */
+  readonly granClassWithRefreshmentsKm?: number;
+}
+
+interface PointInput {
+  readonly distanceKm: number;
+  readonly facility: Facility;
+  readonly campaign: Campaign;
+  readonly departure: string;
+  readonly arrival: string;
+}
+
+export interface VersionDefinition {
+  readonly metadata: {
+    readonly id: DataVersion;
+    readonly label: string;
+    readonly sources: Readonly<Record<string, string>>;
+    readonly note?: string;
+  };
+  readonly seasonRules: SeasonRules;
+  readonly expressFareRules: StationExpressFareRules;
+  readonly basicFareRules: BasicFareRules;
+  readonly supportsFacility: (facility: Facility) => boolean;
+  readonly getPoints: (input: PointInput) => number | undefined;
+  readonly pointExclusionReason: (campaign: Campaign) => ExclusionReason;
+  readonly specialVehicle?: {
+    readonly expressReduction: number;
+    readonly getFare: (distances: FacilityDistances) => number;
+  };
+}
 
 interface QuoteInput {
   readonly version: DataVersion;
@@ -43,26 +83,27 @@ interface QuoteInput {
   readonly season: Season;
 }
 
-export interface FareBreakdown {
-  readonly basicFare: number;
-  readonly expressFare: number;
-  readonly specialVehicleFare: number;
-  readonly total: number;
-}
-
 interface Quote {
   readonly distanceKm: number;
-  readonly points?: number | undefined;
-  readonly paperFare?: number | undefined;
-  readonly nonReservedFare?: number | undefined;
-  readonly basicFare?: number | undefined;
-  readonly expressFare?: number | undefined;
-  readonly specialVehicleFare?: number | undefined;
-  readonly selectedFareBreakdown?: FareBreakdown | undefined;
-  readonly nonReservedFareBreakdown?: FareBreakdown | undefined;
+  readonly points?: number;
+  readonly paperFare?: number;
+  readonly nonReservedFare?: number;
+  readonly basicFare?: number;
+  readonly expressFare?: number;
+  readonly specialVehicleFare?: number;
+  readonly selectedFareBreakdown?: FareBreakdown;
+  readonly nonReservedFareBreakdown?: FareBreakdown;
   readonly facility: Facility;
-  readonly exclusionReason?: ExclusionReason | undefined;
+  readonly exclusionReason?: ExclusionReason;
 }
+
+const versions: Readonly<Record<DataVersion, VersionDefinition>> = {
+  "2022-03-12": version2022,
+  "2026-03-14": version2026,
+};
+
+export const supportedSeasonsForVersion = (version: DataVersion) =>
+  versions[version].seasonRules.supportedSeasons;
 
 const fareBreakdown = (
   basicFare: number,
@@ -84,28 +125,36 @@ const requestedFacility = (journey: JourneySelection): Facility =>
         ? "green"
         : "ordinary";
 
-export const createQuote = ({
-  version,
-  campaign,
-  line,
-  section,
-  highSpeed,
-  green,
-  granClass,
-  granClassWithRefreshments,
-  season,
-}: QuoteInput): Quote => {
+const ticketFare = (tickets: readonly { readonly fare: number }[]) =>
+  tickets.reduce((total, ticket) => total + ticket.fare, 0);
+
+export const createQuote = ({ version: id, ...input }: QuoteInput): Quote => {
+  const version = versions[id];
+  const {
+    line,
+    section,
+    highSpeed,
+    green,
+    granClass,
+    granClassWithRefreshments,
+  } = input;
   const distanceKm = distanceBetween(section.departure, section.arrival);
   const journey: JourneySelection = {
     origin: section.departure.index,
     destination: section.arrival.index,
     ...(highSpeed
-      ? { highSpeed: { start: highSpeed.departure.index, end: highSpeed.arrival.index } }
+      ? {
+          highSpeed: {
+            start: highSpeed.departure.index,
+            end: highSpeed.arrival.index,
+          },
+        }
       : {}),
     ...(green ? { green } : {}),
     ...(granClass ? { granClass } : {}),
     ...(granClassWithRefreshments ? { granClassWithRefreshments } : {}),
   };
+
   let facility: Facility;
   try {
     facility = highestFacility(journey);
@@ -117,106 +166,50 @@ export const createQuote = ({
       exclusionReason: "invalidJourney",
     };
   }
-
-  const fareData = version === "2022-03-12"
-    ? calculator2022.getFares({
-        line,
-        section,
-        highSpeed,
-        season,
-      })
-    : calculator2026.getFares({
-        line,
-        section,
-        highSpeed,
-        season,
-      });
-  const selectedFare = highSpeed
-    ? (fareData.reservedHighSpeed ?? fareData.reserved)
-    : fareData.reserved;
-
-  if (version === "2022-03-12") {
-    if (facility !== "ordinary") {
-      return {
-        distanceKm,
-        facility,
-        exclusionReason: "historicalFacility",
-      };
-    }
-    const points = calculator2022.getPoints(
-      distanceKm,
-      campaign === "shinkansenYear" ? "shinkansenYear" : "regular",
-    );
-    const cheapestFare = selectedFare.total;
-    const paperFare = cheapestFare - (selectedFare.discount ?? 0);
-    const nonReservedFare = fareData.nonReservedOrStandingOnly
-      ? fareData.nonReservedOrStandingOnly.total -
-        (fareData.nonReservedOrStandingOnly.discount ?? 0)
-      : undefined;
-    const expressFare = fareTickets(selectedFare).reduce(
-      (total, ticket) => total + ticket.fare,
-      0,
-    );
-    const selectedFareBreakdown = fareBreakdown(
-      selectedFare.basicFare,
-      expressFare,
-    );
-    const nonReservedFareBreakdown = fareData.nonReservedOrStandingOnly
-      ? fareBreakdown(
-          fareData.nonReservedOrStandingOnly.basicFare,
-          fareTickets(fareData.nonReservedOrStandingOnly).reduce(
-            (total, ticket) => total + ticket.fare,
-            0,
-          ),
-        )
-      : undefined;
-    return {
-      distanceKm,
-      facility,
-      points,
-      paperFare,
-      ...(nonReservedFare !== undefined ? { nonReservedFare } : {}),
-      basicFare: selectedFare.basicFare,
-      expressFare,
-      specialVehicleFare: 0,
-      selectedFareBreakdown,
-      ...(nonReservedFareBreakdown ? { nonReservedFareBreakdown } : {}),
-    };
+  if (!version.supportsFacility(facility)) {
+    return { distanceKm, facility, exclusionReason: "historicalFacility" };
   }
 
-  const points =
-    campaign === "shinshuPreDc"
-      ? calculator2026.getShinshuPreDcPoints(
-          section.departure.name,
-          section.arrival.name,
-          facility,
-        )
-      : calculator2026.getJourneyPoints(
-          distanceKm,
-          journey,
-          campaign === "limited35Percent" ? "limited35Percent" : "regular",
-        );
+  const points = version.getPoints({
+    distanceKm,
+    facility,
+    campaign: input.campaign,
+    departure: section.departure.name,
+    arrival: section.arrival.name,
+  });
   if (points === undefined) {
     return {
       distanceKm,
       facility,
-      exclusionReason:
-        campaign === "shinshuPreDc"
-          ? "shinshuPreDc"
-          : "limitedFacility",
+      exclusionReason: version.pointExclusionReason(input.campaign),
     };
   }
-  const basicFare = calculator2026.getBasicFareForSection(line, section);
-  const expressFare = calculator2026.getExpressFare(
-    fareTickets(selectedFare),
-    green !== undefined,
-  );
+
+  const fares = calculateFareOptions({
+    line,
+    section,
+    highSpeed,
+    season: input.season,
+    seasonRules: version.seasonRules,
+    stationExpressFareRules: version.expressFareRules,
+    getBasicFare: (fareLine, fareSection) =>
+      getBasicFareForSection(version.basicFareRules, fareLine, fareSection),
+  });
+  const selected = highSpeed
+    ? (fares.reservedHighSpeed ?? fares.reserved)
+    : fares.reserved;
+  const expressFare =
+    ticketFare(selected.expressTickets) -
+    (facility !== "ordinary"
+      ? (version.specialVehicle?.expressReduction ?? 0)
+      : 0);
+
   const intervalDistance = (interval: Interval) => {
     const start = line[interval.start];
     const end = line[interval.end];
     if (!start || !end) return undefined;
-    const distanceKm = distanceBetween(start, end);
-    return distanceKm > 0 ? distanceKm : undefined;
+    const km = distanceBetween(start, end);
+    return km > 0 ? km : undefined;
   };
   const greenKm = green ? intervalDistance(green) : undefined;
   const granClassKm = granClass ? intervalDistance(granClass) : undefined;
@@ -230,47 +223,40 @@ export const createQuote = ({
   ) {
     return { distanceKm, facility, exclusionReason: "invalidJourney" };
   }
-  const specialVehicleFare = greenKm
-    ? calculator2026.getSpecialVehicleFare({
-        greenKm,
-        ...(granClassKm !== undefined ? { granClassKm } : {}),
-        ...(granClassWithRefreshmentsKm !== undefined
-          ? { granClassWithRefreshmentsKm }
-          : {}),
-      })
-    : 0;
-  const paperFare = basicFare + expressFare + specialVehicleFare;
-  const nonReservedFare =
-    facility === "ordinary" && fareData.nonReservedOrStandingOnly
-      ? basicFare +
-        calculator2026.getExpressFare(
-          fareTickets(fareData.nonReservedOrStandingOnly),
-          false,
-        )
-      : undefined;
+
+  const specialVehicleFare =
+    greenKm && version.specialVehicle
+      ? version.specialVehicle.getFare({
+          greenKm,
+          ...(granClassKm !== undefined ? { granClassKm } : {}),
+          ...(granClassWithRefreshmentsKm !== undefined
+            ? { granClassWithRefreshmentsKm }
+            : {}),
+        })
+      : 0;
   const selectedFareBreakdown = fareBreakdown(
-    basicFare,
+    selected.basicFare,
     expressFare,
     specialVehicleFare,
   );
-  const nonReservedFareBreakdown =
-    facility === "ordinary" && fareData.nonReservedOrStandingOnly
-      ? fareBreakdown(
-          basicFare,
-          calculator2026.getExpressFare(
-            fareTickets(fareData.nonReservedOrStandingOnly),
-            false,
-          ),
-        )
-      : undefined;
+  const nonReserved =
+    facility === "ordinary" ? fares.nonReservedOrStandingOnly : undefined;
+  const nonReservedFareBreakdown = nonReserved
+    ? fareBreakdown(
+        nonReserved.basicFare,
+        ticketFare(nonReserved.expressTickets),
+      )
+    : undefined;
 
   return {
     distanceKm,
     facility,
     points,
-    paperFare,
-    ...(nonReservedFare !== undefined ? { nonReservedFare } : {}),
-    basicFare,
+    paperFare: selectedFareBreakdown.total,
+    ...(nonReservedFareBreakdown
+      ? { nonReservedFare: nonReservedFareBreakdown.total }
+      : {}),
+    basicFare: selected.basicFare,
     expressFare,
     specialVehicleFare,
     selectedFareBreakdown,
