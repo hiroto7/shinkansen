@@ -185,19 +185,26 @@ export const createQuote = ({ version: id, ...input }: QuoteInput): Quote => {
     };
   }
 
-  const fares = calculateFareOptions({
-    line,
-    section,
-    highSpeed,
-    season: input.season,
-    seasonRules: version.seasonRules,
-    stationExpressFareRules: version.expressFareRules,
-    getBasicFare: (fareLine, fareSection) =>
-      getBasicFareForSection(version.basicFareRules, fareLine, fareSection),
-  });
-  const selected = highSpeed
-    ? (fares.reservedHighSpeed ?? fares.reserved)
-    : fares.reserved;
+  let fares: ReturnType<typeof calculateFareOptions>;
+  try {
+    fares = calculateFareOptions({
+      line,
+      section,
+      highSpeed,
+      season: input.season,
+      seasonRules: version.seasonRules,
+      stationExpressFareRules: version.expressFareRules,
+      getBasicFare: (fareLine, fareSection) =>
+        getBasicFareForSection(version.basicFareRules, fareLine, fareSection),
+    });
+  } catch (error) {
+    if (!(error instanceof RangeError)) throw error;
+    return { distanceKm, facility, exclusionReason: "invalidJourney" };
+  }
+  const selected = highSpeed ? fares.reservedHighSpeed : fares.reserved;
+  if (selected === undefined) {
+    return { distanceKm, facility, exclusionReason: "invalidJourney" };
+  }
   const expressFare =
     ticketFare(selected.expressTickets) -
     (facility !== "ordinary"

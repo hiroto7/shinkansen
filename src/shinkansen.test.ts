@@ -154,6 +154,56 @@ describe("公開入口の見積もり", () => {
       expect(result.points).toBeUndefined();
       expect(result.exclusionReason).toBe("invalidJourney");
     });
+
+    it("小山から仙台で乗り継いではやぶさを利用する", () => {
+      const line = routes.tohokuLine;
+      const result = quote("東北新幹線", "小山", "新青森", {
+        highSpeed: section(line, "仙台", "新青森"),
+      });
+
+      expect(result).toMatchObject({
+        points: 14_000,
+        expressFare: 6_280,
+        paperFare: 16_510,
+      });
+      expect(quote("東北新幹線", "小山", "新青森")).toMatchObject({
+        expressFare: 6_070,
+        paperFare: 16_300,
+      });
+    });
+
+    it("はやぶさを全区間または途中まで利用する", () => {
+      const line = routes.tohokuLine;
+
+      expect(quote("東北新幹線", "東京", "新青森", {
+        highSpeed: section(line, "東京", "新青森"),
+      })).toMatchObject({ expressFare: 7_330, paperFare: 18_110 });
+      expect(quote("東北新幹線", "東京", "新青森", {
+        highSpeed: section(line, "東京", "仙台"),
+      })).toMatchObject({ expressFare: 7_130, paperFare: 17_910 });
+    });
+
+    it("料金表にない駅をはやぶさ利用区間へ指定しても例外にしない", () => {
+      const line = routes.tohokuLine;
+      const result = quote("東北新幹線", "小山", "新青森", {
+        highSpeed: section(line, "小山", "新青森"),
+      });
+
+      expect(result.points).toBeUndefined();
+      expect(result.exclusionReason).toBe("invalidJourney");
+    });
+
+    it("秋田直通では盛岡までの新幹線料金と盛岡以北を合成する", () => {
+      const line = routes.akitaLine;
+      const result = quote("秋田新幹線", "東京", "秋田", {
+        highSpeed: section(line, "仙台", "秋田"),
+      });
+
+      expect(result).toMatchObject({
+        expressFare: 7_700,
+        paperFare: 18_150,
+      });
+    });
   });
 
   describe("2022年版", () => {

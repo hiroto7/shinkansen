@@ -66,6 +66,80 @@ export const intervalWithin = (
     : { start: outerStart, end: outerEnd };
 };
 
+const highSpeedAvailableStations = (
+  line: Line,
+  section: SortedSection,
+) => {
+  const omiya = routes.tohokuLine.find(({ name }) => name === "大宮")!;
+  const sendai = routes.tohokuLine.find(({ name }) => name === "仙台")!;
+
+  return line
+    .slice(section.departure.index, section.arrival.index + 1)
+    .filter(
+      (station) =>
+        station.index <= omiya.index ||
+        ((line === routes.tohokuLine || line === routes.akitaLine) &&
+          station.index >= sendai.index),
+    );
+};
+
+export const highSpeedStationsForSection = (
+  line: Line,
+  section: SortedSection,
+): readonly Station[] => {
+  if (line !== routes.tohokuLine && line !== routes.akitaLine) return [];
+
+  const morioka = routes.tohokuLine.find(({ name }) => name === "盛岡")!;
+  const sendai = routes.tohokuLine.find(({ name }) => name === "仙台")!;
+
+  return highSpeedAvailableStations(line, section).filter(
+    (station) =>
+      station === section.departure ||
+      station === section.arrival ||
+      (sendai.index <= station.index && station.index < morioka.index),
+  );
+};
+
+export const defaultHighSpeedSection = (
+  line: Line,
+  section: SortedSection,
+): Interval | undefined => {
+  if (line !== routes.tohokuLine && line !== routes.akitaLine) return undefined;
+
+  const omiya = routes.tohokuLine.find(({ name }) => name === "大宮")!;
+  const sendai = routes.tohokuLine.find(({ name }) => name === "仙台")!;
+  const morioka = routes.tohokuLine.find(({ name }) => name === "盛岡")!;
+  const available =
+    (section.departure.index <= omiya.index &&
+      section.arrival.index >= sendai.index) ||
+    (section.departure.index < morioka.index &&
+      section.arrival.index > sendai.index);
+  if (!available) return undefined;
+
+  const stations = highSpeedStationsForSection(line, section);
+  const start = stations[0];
+  const end = stations.at(-1);
+  return start && end && start.index < end.index
+    ? { start: start.index, end: end.index }
+    : undefined;
+};
+
+export const highSpeedIntervalWithin = (
+  interval: Interval,
+  line: Line,
+  section: SortedSection,
+): Interval | undefined => {
+  const fallback = defaultHighSpeedSection(line, section);
+  if (!fallback) return undefined;
+
+  const stations = highSpeedStationsForSection(line, section);
+  const start = stations.find(({ index }) => index >= interval.start);
+  const end = stations.findLast(({ index }) => index <= interval.end);
+  return start && end && start.index < end.index
+    ? { start: start.index, end: end.index }
+    : fallback;
+};
+
 const granClassLastIndex = (line: Line) => {
   if (line === routes.akitaLine) {
     return line.find(({ name }) => name === "盛岡")!.index;
@@ -271,10 +345,12 @@ const App = () => {
   const tripStart = sorted.departure.index;
   const tripEnd = sorted.arrival.index;
   const tripStations = line.slice(tripStart, tripEnd + 1);
+  const defaultHighSpeed = defaultHighSpeedSection(line, sorted);
+  const highSpeedStations = highSpeedStationsForSection(line, sorted);
   const granClassLimit = granClassLastIndex(line);
   const granClassAvailable = tripStart < Math.min(tripEnd, granClassLimit);
   const selectedHighSpeed = highSpeed
-    ? intervalWithin(highSpeed, tripStart, tripEnd)
+    ? highSpeedIntervalWithin(highSpeed, line, sorted)
     : undefined;
   const selectedGreen = green
     ? intervalWithin(green, tripStart, tripEnd)
@@ -494,9 +570,9 @@ const App = () => {
                 </label>
               </div>
 
-              {(line === routes.tohokuLine || line === routes.akitaLine) && (
+              {defaultHighSpeed && (
                 <div className="train-picker">
-                  <label className="switch"><input type="checkbox" checked={selectedHighSpeed !== undefined} onChange={(event) => setHighSpeed(event.target.checked ? { start: tripStart, end: tripEnd } : undefined)} /><span>「はやぶさ」「こまち」を利用する</span></label>
+                  <label className="switch"><input type="checkbox" checked={selectedHighSpeed !== undefined} onChange={(event) => setHighSpeed(event.target.checked ? defaultHighSpeed : undefined)} /><span>「はやぶさ」「こまち」を利用する</span></label>
                 </div>
               )}
 
@@ -545,11 +621,11 @@ const App = () => {
                     {selectedHighSpeed && (
                       <RangeSelect
                         label="はやぶさ・こまち利用区間"
-                        stations={tripStations}
+                        stations={highSpeedStations}
                         start={selectedHighSpeed.start}
                         end={selectedHighSpeed.end}
-                        onStart={(start) => setHighSpeed(rangeAfterStartChange(tripStations, selectedHighSpeed.end, start))}
-                        onEnd={(end) => setHighSpeed(rangeAfterEndChange(tripStations, selectedHighSpeed.start, end))}
+                        onStart={(start) => setHighSpeed(rangeAfterStartChange(highSpeedStations, selectedHighSpeed.end, start))}
+                        onEnd={(end) => setHighSpeed(rangeAfterEndChange(highSpeedStations, selectedHighSpeed.start, end))}
                       />
                     )}
                     {selectedGreen && (

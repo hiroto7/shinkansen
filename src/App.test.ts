@@ -2,7 +2,10 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import App, {
+  defaultHighSpeedSection,
   defaultFacilitySections,
+  highSpeedIntervalWithin,
+  highSpeedStationsForSection,
   intervalWithin,
   rangeAfterEndChange,
   rangeAfterStartChange,
@@ -34,6 +37,46 @@ describe("入力区間補正", () => {
     expect(intervalWithin({ start: 10, end: 12 }, 2, 4)).toEqual({
       start: 3,
       end: 4,
+    });
+  });
+
+  it("小山発では仙台から先をはやぶさ・こまち利用区間にする", () => {
+    const trip = section(line, "小山", "新青森");
+
+    expect(defaultHighSpeedSection(line, trip)).toEqual({
+      start: line.find(({ name }) => name === "仙台")!.index,
+      end: trip.arrival.index,
+    });
+    expect(
+      highSpeedStationsForSection(line, trip).map(({ name }) => name),
+    ).not.toContain("小山");
+    expect(
+      highSpeedStationsForSection(line, trip).map(({ name }) => name),
+    ).toContain("仙台");
+  });
+
+  it("乗車区間変更後も利用可能なはやぶさ・こまち区間へ補正する", () => {
+    const trip = section(line, "小山", "新青森");
+
+    expect(highSpeedIntervalWithin({ start: 0, end: 22 }, line, trip)).toEqual({
+      start: line.find(({ name }) => name === "仙台")!.index,
+      end: trip.arrival.index,
+    });
+  });
+
+  it("料金差を適用できる区間がなければ選択肢を出さない", () => {
+    expect(
+      defaultHighSpeedSection(line, section(line, "小山", "仙台")),
+    ).toBeUndefined();
+  });
+
+  it("秋田直通ではこまち利用区間を秋田まで保持する", () => {
+    const akita = routes.akitaLine;
+    const trip = section(akita, "東京", "秋田");
+
+    expect(defaultHighSpeedSection(akita, trip)).toEqual({
+      start: trip.departure.index,
+      end: trip.arrival.index,
     });
   });
 

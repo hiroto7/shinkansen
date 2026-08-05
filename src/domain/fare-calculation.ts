@@ -63,7 +63,7 @@ const junctions: ReadonlyMap<Line, Station> = new Map(
   ]),
 );
 
-type FareTable = (section: SortedSection) => number;
+type FareTable = (section: SortedSection) => number | undefined;
 
 const parseFareTable = (markdown: string): FareTable => {
   const [header = [], , ...rows] = markdown
@@ -76,12 +76,14 @@ const parseFareTable = (markdown: string): FareTable => {
         .map((cell) => cell.trim()),
     );
 
-  return ({ departure, arrival }) =>
-    Number(
-      rows
-        .find(([station]) => station === arrival.name)!
-        [header.indexOf(departure.name)]!.replaceAll(",", ""),
-    );
+  return ({ departure, arrival }) => {
+    const column = header.indexOf(departure.name);
+    const cell = rows.find(([station]) => station === arrival.name)?.[column];
+    if (!cell) return undefined;
+
+    const fare = Number(cell.replaceAll(",", ""));
+    return Number.isFinite(fare) ? fare : undefined;
+  };
 };
 
 export interface StationExpressFareRules {
@@ -223,6 +225,11 @@ const getSuperExpressTickets = (
 
   const standardFare = stationExpressFareRules.standard.get(line)!;
   const reservedExpressFare = standardFare(section);
+  if (reservedExpressFare === undefined) {
+    throw new RangeError(
+      `${departure.name}・${arrival.name}間の指定席特急料金がありません`,
+    );
+  }
 
   const specificExpressFares =
     departure.name === "郡山" && arrival.name === "福島"
@@ -305,13 +312,20 @@ const getSuperExpressTickets = (
         }
       : undefined;
 
+  const highSpeedFare = highSpeed
+    ? stationExpressFareRules.highSpeed(highSpeed)
+    : undefined;
+  const standardHighSpeedSectionFare = highSpeed
+    ? standardFare(highSpeed)
+    : undefined;
   const reservedHighSpeedFare =
-    highSpeed &&
-    (highSpeed.departure === departure && highSpeed.arrival === arrival
-      ? stationExpressFareRules.highSpeed(section)
-      : reservedExpressFare +
-        stationExpressFareRules.highSpeed(highSpeed) -
-        standardFare(highSpeed));
+    highSpeed && highSpeedFare !== undefined
+      ? highSpeed.departure === departure && highSpeed.arrival === arrival
+        ? highSpeedFare
+        : standardHighSpeedSectionFare !== undefined
+          ? reservedExpressFare + highSpeedFare - standardHighSpeedSectionFare
+          : undefined
+      : undefined;
 
   const reservedHighSpeedTicket: ExpressTicket | undefined =
     reservedHighSpeedFare !== undefined
