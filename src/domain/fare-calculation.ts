@@ -1,5 +1,8 @@
-import { parse } from "csv-parse/browser/esm/sync";
 import { ceil, round, sum } from "lodash";
+import hokurikuFares from "./express-fares/hokuriku.md?raw";
+import joetsuFares from "./express-fares/joetsu.md?raw";
+import tohokuHighSpeedFares from "./express-fares/tohoku-hayabusa-komachi.md?raw";
+import tohokuFares from "./express-fares/tohoku.md?raw";
 import {
   akitaLine as line1,
   basicFareSection,
@@ -73,113 +76,28 @@ const junctions: ReadonlyMap<Line, Station> = new Map(
   ).map(([line, station]) => [line, line.find(({ name }) => name === station)!])
 );
 
-type FareTable = readonly { readonly [column: string]: string }[];
+type FareTable = (section: SortedSection) => number;
 
-const csvs: readonly (readonly [Line, string])[] = [
-  [
-    line0,
-    `
-駅名,東京,上野,大宮,小山,宇都宮,那須塩原,新白河,郡山,福島,白石蔵王,仙台,古川,くりこま高原,一ノ関,水沢江刺,北上,新花巻,盛岡,いわて沼宮内,二戸,八戸,七戸十和田
-上野,2400,,,,,,,,,,,,,,,,,,,,,
-大宮,2610,2400,,,,,,,,,,,,,,,,,,,,
-小山,2610,2400,2400,,,,,,,,,,,,,,,,,,,
-宇都宮,3040,2830,2400,2400,,,,,,,,,,,,,,,,,,
-那須塩原,3380,3170,3170,2400,2400,,,,,,,,,,,,,,,,,
-新白河,3380,3170,3170,3170,2400,2400,,,,,,,,,,,,,,,,
-郡山,4270,4060,3170,3170,3170,2400,2400,,,,,,,,,,,,,,,
-福島,4270,4060,4060,3170,3170,3170,2400,2400,,,,,,,,,,,,,,
-白石蔵王,5040,4830,4060,4060,3170,3170,3170,2400,2400,,,,,,,,,,,,,
-仙台,5040,4830,4830,4060,4060,3170,3170,3170,2400,2400,,,,,,,,,,,,
-古川,5040,4830,4830,4830,4060,4060,4060,3170,3170,2400,2400,,,,,,,,,,,
-くりこま高原,5580,5370,4830,4830,4830,4060,4060,3170,3170,3170,2400,2400,,,,,,,,,,
-一ノ関,5580,5370,5370,4830,4830,4060,4060,4060,3170,3170,2400,2400,2400,,,,,,,,,
-水沢江刺,5580,5370,5370,4830,4830,4830,4060,4060,3170,3170,3170,2400,2400,2400,,,,,,,,
-北上,5580,5370,5370,5370,4830,4830,4830,4060,4060,3170,3170,2400,2400,2400,2400,,,,,,,
-新花巻,5580,5370,5370,5370,4830,4830,4830,4060,4060,3170,3170,3170,2400,2400,2400,2400,,,,,,
-盛岡,5910,5700,5370,5370,5370,4830,4830,4830,4060,4060,3170,3170,3170,2400,2400,2400,2400,,,,,
-いわて沼宮内,5910,5700,5700,5370,5370,5370,4830,4830,4060,4060,4060,3170,3170,3170,2400,2400,2400,2400,,,,
-二戸,5910,5700,5700,5700,5370,5370,5370,4830,4830,4060,4060,4060,3170,3170,3170,3170,3170,2400,2400,,,
-八戸,6280,6070,6070,5700,5700,5370,5370,5370,4830,4830,4060,4060,4060,3170,3170,3170,3170,2400,2400,2400,,
-七戸十和田,6280,6070,6070,5700,5700,5700,5370,5370,4830,4830,4830,4060,4060,4060,3170,3170,3170,3170,3170,2400,2400,
-新青森,6810,6600,6070,6070,6070,5700,5700,5370,5370,5370,4830,4830,4060,4060,4060,4060,4060,3170,3170,3170,2400,2400
-`,
-  ],
-  [
-    line3,
-    `
-駅名,東京,上野,大宮,熊谷,本庄早稲田,高崎,上毛高原,越後湯沢,浦佐,長岡,燕三条
-上野,2400,,,,,,,,,,
-大宮,2610,2400,,,,,,,,,
-熊谷,2610,2400,2400,,,,,,,,
-本庄早稲田,2610,2400,2400,2400,,,,,,,
-高崎,3040,2830,2400,2400,2400,,,,,,
-上毛高原,3380,3170,3170,2400,2400,2400,,,,,
-越後湯沢,3380,3170,3170,3170,3170,2400,2400,,,,
-浦佐,4270,4060,3170,3170,3170,3170,2400,2400,,,
-長岡,4270,4060,4060,4060,3170,3170,3170,2400,2400,,
-燕三条,4270,4060,4060,4060,4060,3170,3170,2400,2400,2400,
-新潟,5040,4830,4830,4060,4060,4060,3170,3170,3170,2400,2400
-`,
-  ],
-  [
-    line5,
-    `
-駅名,東京,上野,大宮,熊谷,本庄早稲田,高崎,安中榛名,軽井沢,佐久平,上田,長野,飯山,上越妙高,糸魚川,黒部宇奈月温泉,富山,新高岡
-上野,2400,,,,,,,,,,,,,,,,
-大宮,2610,2400,,,,,,,,,,,,,,,
-熊谷,2610,2400,2400,,,,,,,,,,,,,,
-本庄早稲田,2610,2400,2400,2400,,,,,,,,,,,,,
-高崎,3040,2830,2400,2400,2400,,,,,,,,,,,,
-安中榛名,3040,2830,2400,2400,2400,2400,,,,,,,,,,,
-軽井沢,3380,3170,3170,2400,2400,2400,2400,,,,,,,,,,
-佐久平,3380,3170,3170,2400,2400,2400,2400,2400,,,,,,,,,
-上田,3380,3170,3170,3170,3170,2400,2400,2400,2400,,,,,,,,
-長野,4270,4060,3170,3170,3170,3170,2400,2400,2400,2400,,,,,,,
-飯山,4270,4060,4060,3170,3170,3170,3170,3170,2400,2400,2400,,,,,,
-上越妙高,4270,4060,4060,4060,3170,3170,3170,3170,3170,2400,2400,2400,,,,,
-糸魚川,5700,5490,4730,4730,4730,4730,3830,3830,3830,3830,3070,3070,2400,,,,
-黒部宇奈月温泉,6030,5820,5820,5050,5050,5050,5050,5050,4160,4160,4160,3830,2400,2400,,,
-富山,6360,6150,6150,6150,6150,5390,5390,5390,5390,5390,4160,3830,3170,2400,2400,,
-新高岡,6900,6690,6150,6150,6150,6150,5390,5390,5390,5390,4160,3830,3170,2400,2400,2400,
-金沢,6900,6690,6690,6150,6150,6150,6150,6150,5390,5390,5050,3830,3170,3170,2400,2400,2400
-`,
-  ],
-];
+const parseFareTable = (markdown: string): FareTable => {
+  const [header = [], , ...rows] = markdown
+    .trim()
+    .split("\n")
+    .map((line) => line.split("|").slice(1, -1).map((cell) => cell.trim()));
 
-const tables: ReadonlyMap<Line, FareTable> = new Map(
-  csvs.map(
-    ([line, raw]) => [line, parse(raw.trim(), { columns: true })] as const
-  )
-);
-
-const table: FareTable = parse(
-  `
-駅名,東京,上野,大宮,仙台,古川,くりこま高原,一ノ関,水沢江刺,北上,新花巻,盛岡,いわて沼宮内,二戸,八戸,七戸十和田
-上野,2400,,,,,,,,,,,,,,
-大宮,2610,2400,,,,,,,,,,,,,
-仙台,5360,5150,5150,,,,,,,,,,,,
-古川,5360,5150,5150,2500,,,,,,,,,,,
-くりこま高原,6000,5790,5250,2500,2500,,,,,,,,,,
-一ノ関,6000,5790,5790,2500,2500,2500,,,,,,,,,
-水沢江刺,6000,5790,5790,3380,2500,2500,2500,,,,,,,,
-北上,6000,5790,5790,3380,2500,2500,2500,2500,,,,,,,
-新花巻,6000,5790,5790,3380,3380,2500,2500,2500,2500,,,,,,
-盛岡,6430,6220,5890,3380,3380,3380,2500,2500,2500,2500,,,,,
-いわて沼宮内,6430,6220,6220,4270,3380,3380,3270,2500,2500,2500,2400,,,,
-二戸,6430,6220,6220,4270,4270,3380,3270,3270,3270,3270,2400,2400,,,
-八戸,6800,6590,6590,4270,4270,4270,3270,3270,3270,3270,2400,2400,2400,,
-七戸十和田,6800,6590,6590,5040,4270,4270,4160,3270,3270,3270,3170,3170,2400,2400,
-新青森,7330,7120,6590,5040,5040,4270,4160,4160,4160,4160,3170,3170,3170,2400,2400
-`.trim(),
-  { columns: true }
-);
+  return ({ departure, arrival }) =>
+    Number(
+      rows.find(([station]) => station === arrival.name)![
+        header.indexOf(departure.name)
+      ]!.replaceAll(",", ""),
+    );
+};
 
 export interface StationExpressFareRules {
   readonly asOf: string;
   readonly unchangedThrough: string;
   readonly sources: readonly string[];
-  readonly standardTables: ReadonlyMap<Line, FareTable>;
-  readonly highSpeedTable: FareTable;
+  readonly standard: ReadonlyMap<Line, FareTable>;
+  readonly highSpeed: FareTable;
 }
 
 /**
@@ -194,8 +112,12 @@ export const stationExpressFareRules2022_03_12: StationExpressFareRules = {
     "https://www.jreast.co.jp/kippu/yakkan/history.html",
     "https://www.jreast.co.jp/ryokaku/beppyou/pdf/beppyou02.pdf",
   ],
-  standardTables: tables,
-  highSpeedTable: table,
+  standard: new Map([
+    [line0, parseFareTable(tohokuFares)],
+    [line3, parseFareTable(joetsuFares)],
+    [line5, parseFareTable(hokurikuFares)],
+  ]),
+  highSpeed: parseFareTable(tohokuHighSpeedFares),
 };
 
 /**
@@ -510,20 +432,6 @@ const getLimitedExpressFares1 = (distance: number) =>
   } as const);
 
 /**
- * 新幹線の指定席特急料金を計算する
- * @param table 指定席特急料金の表
- * @param section 区間。 `arrival` は `departure` より終点に近い駅である必要がある
- * @returns 指定席特急料金
- */
-const getSuperExpressFare = (
-  table: FareTable,
-  section: SortedSection
-): number =>
-  +table.find((row) => row["駅名"] === section.arrival.name)![
-    section.departure.name
-  ]!;
-
-/**
  * 新幹線の指定した区間の特急料金を計算する
  * @param line 東北新幹線、上越新幹線、北陸新幹線のいずれか
  * @param section 特急料金を計算する区間。 `arrival` は `departure` より終点に近い駅である必要がある。
@@ -546,10 +454,8 @@ const getSuperExpressTickets = (
 }> => {
   const { departure, arrival } = section;
 
-  const reservedExpressFare = getSuperExpressFare(
-    stationExpressFareRules.standardTables.get(line)!,
-    section,
-  );
+  const standardFare = stationExpressFareRules.standard.get(line)!;
+  const reservedExpressFare = standardFare(section);
 
   const specificExpressFares =
     departure.name === "郡山" && arrival.name === "福島"
@@ -632,13 +538,10 @@ const getSuperExpressTickets = (
   const reservedHighSpeedFare =
     highSpeed &&
     (highSpeed.departure === departure && highSpeed.arrival === arrival
-      ? getSuperExpressFare(stationExpressFareRules.highSpeedTable, section)
+      ? stationExpressFareRules.highSpeed(section)
       : reservedExpressFare +
-        getSuperExpressFare(stationExpressFareRules.highSpeedTable, highSpeed) -
-        getSuperExpressFare(
-          stationExpressFareRules.standardTables.get(line)!,
-          highSpeed,
-        ));
+        stationExpressFareRules.highSpeed(highSpeed) -
+        standardFare(highSpeed));
 
   const reservedHighSpeedTicket: ExpressTicket | undefined =
     reservedHighSpeedFare !== undefined

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { routes, sectionDistance } from "../routes";
+import {
+  stationExpressFareRules2022_03_12,
+} from "../fare-calculation";
+import { routes, sectionDistance, type Line } from "../routes";
 import { validateJourneySelection } from "../types";
 import { calculator2022, get2022Points } from "./2022";
 import {
@@ -13,6 +16,12 @@ import {
   get2026TrunkBasicFare,
   calculator2026,
 } from "./2026";
+
+const section = (line: Line, departure: string, arrival: string) => ({
+  departure: line.find(({ name }) => name === departure)!,
+  arrival: line.find(({ name }) => name === arrival)!,
+  sorted: true as const,
+});
 
 describe("共通の路線情報", () => {
   it("年版に依存しない駅と営業キロを提供する", () => {
@@ -52,6 +61,34 @@ describe("2022年版", () => {
         season: "最繁忙期",
       }),
     ).toThrow("2022年3月12日時点では最繁忙期の設定がありません");
+  });
+});
+
+describe("共通の新幹線指定席特急料金表", () => {
+  const { standard, highSpeed } = stationExpressFareRules2022_03_12;
+
+  it("Markdownの東北・上越・北陸新幹線表を参照する", () => {
+    expect(
+      standard.get(routes.tohokuLine)!(
+        section(routes.tohokuLine, "東京", "仙台"),
+      ),
+    ).toBe(5_040);
+    expect(
+      standard.get(routes.joetsuLine)!(
+        section(routes.joetsuLine, "長岡", "新潟"),
+      ),
+    ).toBe(2_400);
+    expect(
+      standard.get(routes.hokurikuLine)!(
+        section(routes.hokurikuLine, "長野", "上越妙高"),
+      ),
+    ).toBe(2_400);
+  });
+
+  it("Markdownのはやぶさ・こまち料金表を参照する", () => {
+    expect(highSpeed(section(routes.tohokuLine, "東京", "新青森"))).toBe(
+      7_330,
+    );
   });
 });
 
