@@ -40,8 +40,8 @@ export interface FacilityDistances {
   readonly greenKm: number;
   /** greenKmに内包されるグランクラス区間 */
   readonly granClassKm?: number;
-  /** 指定時はグランクラス(A)。A/B混在時も第130条第2項によりAとして計算 */
-  readonly granClassWithRefreshmentsKm?: number;
+  /** A/B混在時も第130条第2項によりグランクラス全区間を(A)として計算 */
+  readonly includesGranClassA?: boolean;
 }
 
 interface PointInput {
@@ -79,7 +79,7 @@ interface QuoteInput {
   readonly highSpeed?: SortedSection;
   readonly green?: Interval;
   readonly granClass?: Interval;
-  readonly granClassWithRefreshments?: Interval;
+  readonly includesGranClassA?: boolean;
   readonly season: Season;
 }
 
@@ -117,7 +117,7 @@ const fareBreakdown = (
 });
 
 const requestedFacility = (journey: JourneySelection): Facility =>
-  journey.granClassWithRefreshments
+  journey.includesGranClassA
     ? "granClassWithRefreshments"
     : journey.granClass
       ? "granClassNoRefreshments"
@@ -136,7 +136,7 @@ export const createQuote = ({ version: id, ...input }: QuoteInput): Quote => {
     highSpeed,
     green,
     granClass,
-    granClassWithRefreshments,
+    includesGranClassA,
   } = input;
   const distanceKm = distanceBetween(section.departure, section.arrival);
   const journey: JourneySelection = {
@@ -152,7 +152,7 @@ export const createQuote = ({ version: id, ...input }: QuoteInput): Quote => {
       : {}),
     ...(green ? { green } : {}),
     ...(granClass ? { granClass } : {}),
-    ...(granClassWithRefreshments ? { granClassWithRefreshments } : {}),
+    ...(includesGranClassA ? { includesGranClassA: true } : {}),
   };
 
   let facility: Facility;
@@ -213,13 +213,9 @@ export const createQuote = ({ version: id, ...input }: QuoteInput): Quote => {
   };
   const greenKm = green ? intervalDistance(green) : undefined;
   const granClassKm = granClass ? intervalDistance(granClass) : undefined;
-  const granClassWithRefreshmentsKm = granClassWithRefreshments
-    ? intervalDistance(granClassWithRefreshments)
-    : undefined;
   if (
     (green && greenKm === undefined) ||
-    (granClass && granClassKm === undefined) ||
-    (granClassWithRefreshments && granClassWithRefreshmentsKm === undefined)
+    (granClass && granClassKm === undefined)
   ) {
     return { distanceKm, facility, exclusionReason: "invalidJourney" };
   }
@@ -229,9 +225,7 @@ export const createQuote = ({ version: id, ...input }: QuoteInput): Quote => {
       ? version.specialVehicle.getFare({
           greenKm,
           ...(granClassKm !== undefined ? { granClassKm } : {}),
-          ...(granClassWithRefreshmentsKm !== undefined
-            ? { granClassWithRefreshmentsKm }
-            : {}),
+          ...(includesGranClassA ? { includesGranClassA: true } : {}),
         })
       : 0;
   const selectedFareBreakdown = fareBreakdown(

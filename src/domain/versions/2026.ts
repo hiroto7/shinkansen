@@ -245,7 +245,7 @@ const granClassBBands: readonly DistanceBand<number>[] = [
 const getSpecialVehicleFare = ({
   greenKm,
   granClassKm,
-  granClassWithRefreshmentsKm,
+  includesGranClassA,
 }: FacilityDistances): number => {
   if (!(greenKm > 0)) {
     throw new RangeError("グリーン車以上の区間は0kmより大きい必要があります");
@@ -255,22 +255,18 @@ const getSpecialVehicleFare = ({
       "グランクラス区間はグリーン車以上の区間以内である必要があります",
     );
   }
-  if (
-    granClassWithRefreshmentsKm !== undefined &&
-    (granClassKm === undefined || granClassWithRefreshmentsKm > granClassKm)
-  ) {
+  if (includesGranClassA && granClassKm === undefined) {
     throw new RangeError(
-      "飲料・軽食ありの区間はグランクラス区間以内である必要があります",
+      "グランクラス(A)を利用する場合はグランクラス区間が必要です",
     );
   }
 
   const greenFare = valueForDistance(greenKm, greenBands);
   if (granClassKm === undefined) return greenFare;
 
-  const granClassBands =
-    granClassWithRefreshmentsKm === undefined
-      ? granClassBBands
-      : granClassABands;
+  const granClassBands = includesGranClassA
+    ? granClassABands
+    : granClassBBands;
   return (
     greenFare +
     valueForDistance(granClassKm, granClassBands) -

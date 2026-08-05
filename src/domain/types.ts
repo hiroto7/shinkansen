@@ -25,8 +25,8 @@ export interface JourneySelection {
   readonly green?: Interval;
   /** グリーン区間に内包される、連続したグランクラス区間 */
   readonly granClass?: Interval;
-  /** グランクラス区間に内包される、飲料・軽食ありの連続した1区間 */
-  readonly granClassWithRefreshments?: Interval;
+  /** グランクラス(A)を一部でも利用するか */
+  readonly includesGranClassA?: boolean;
 }
 
 export const valueForDistance = <T>(
@@ -80,26 +80,16 @@ export const validateJourneySelection = (journey: JourneySelection): void => {
       throw new RangeError("グランクラス利用区間はグリーン車以上の利用区間に含まれる必要があります");
     }
   }
-  if (journey.granClassWithRefreshments) {
-    assertInterval(
-      "飲料・軽食ありの利用区間",
-      journey.granClassWithRefreshments,
-      trip,
+  if (journey.includesGranClassA && !journey.granClass) {
+    throw new RangeError(
+      "グランクラス(A)を利用する場合はグランクラス利用区間が必要です",
     );
-    if (
-      !journey.granClass ||
-      !contains(journey.granClass, journey.granClassWithRefreshments)
-    ) {
-      throw new RangeError(
-        "飲料・軽食ありの利用区間はグランクラス利用区間に含まれる必要があります",
-      );
-    }
   }
 };
 
 export const highestFacility = (journey: JourneySelection): Facility => {
   validateJourneySelection(journey);
-  return journey.granClassWithRefreshments
+  return journey.includesGranClassA
     ? "granClassWithRefreshments"
     : journey.granClass
       ? "granClassNoRefreshments"

@@ -17,11 +17,7 @@ import {
 import "./App.css";
 
 type Tab = "detail" | "ranking";
-type RankingFacility =
-  | "ordinary"
-  | "green"
-  | "granClassNoRefreshments"
-  | "granClassWithRefreshments";
+type RankingFacility = Facility;
 type RankingLimit = 50 | 100 | "all";
 type OrdinaryRankingBasis = "nonReserved" | "reserved";
 
@@ -41,7 +37,7 @@ const facilityLabels: Readonly<Record<Facility, string>> = {
   ordinary: "普通車指定席",
   green: "グリーン車",
   granClassNoRefreshments: "グランクラス（飲料・軽食なし）",
-  granClassWithRefreshments: "グランクラス（飲料・軽食あり）",
+  granClassWithRefreshments: "グランクラス（飲料・軽食ありを含む）",
 };
 
 const seasonLabels: Readonly<Record<Season, string>> = {
@@ -52,15 +48,19 @@ const seasonLabels: Readonly<Record<Season, string>> = {
 };
 
 export const intervalWithin = (
-  enabled: boolean,
-  start: number,
-  end: number,
+  interval: Interval,
   outerStart: number,
   outerEnd: number,
 ): Interval | undefined => {
-  if (!enabled || !(outerStart < outerEnd)) return undefined;
-  const clampedStart = Math.max(outerStart, Math.min(start, outerEnd - 1));
-  const clampedEnd = Math.min(outerEnd, Math.max(end, outerStart + 1));
+  if (!(outerStart < outerEnd)) return undefined;
+  const clampedStart = Math.max(
+    outerStart,
+    Math.min(interval.start, outerEnd - 1),
+  );
+  const clampedEnd = Math.min(
+    outerEnd,
+    Math.max(interval.end, outerStart + 1),
+  );
   return clampedStart < clampedEnd
     ? { start: clampedStart, end: clampedEnd }
     : { start: outerStart, end: outerEnd };
@@ -76,11 +76,15 @@ const granClassLastIndex = (line: Line) => {
   return line.length - 1;
 };
 
-const canonicalFacilitySections = (
+export const defaultFacilitySections = (
   line: Line,
   section: SortedSection,
-  facility: RankingFacility,
-) => {
+  facility: Facility,
+): Readonly<{
+  green?: Interval;
+  granClass?: Interval;
+  includesGranClassA?: true;
+}> | undefined => {
   if (facility === "ordinary") return {};
 
   const green: Interval = {
@@ -99,7 +103,7 @@ const canonicalFacilitySections = (
     green,
     granClass,
     ...(facility === "granClassWithRefreshments"
-      ? { granClassWithRefreshments: granClass }
+      ? { includesGranClassA: true }
       : {}),
   };
 };
@@ -238,18 +242,10 @@ const App = () => {
   const [arrivalIndex, setArrivalIndex] = useState(line.length - 1);
   const [season, setSeason] = useState<Season>(average);
   const supportedSeasons = supportedSeasonsForVersion(version);
-  const [highSpeedEnabled, setHighSpeedEnabled] = useState(false);
-  const [highSpeedStart, setHighSpeedStart] = useState(0);
-  const [highSpeedEnd, setHighSpeedEnd] = useState(line.length - 1);
-  const [greenEnabled, setGreenEnabled] = useState(false);
-  const [greenStart, setGreenStart] = useState(0);
-  const [greenEnd, setGreenEnd] = useState(line.length - 1);
-  const [granClassEnabled, setGranClassEnabled] = useState(false);
-  const [granClassStart, setGranClassStart] = useState(0);
-  const [granClassEnd, setGranClassEnd] = useState(line.length - 1);
-  const [refreshments, setRefreshments] = useState(false);
-  const [refreshmentStart, setRefreshmentStart] = useState(0);
-  const [refreshmentEnd, setRefreshmentEnd] = useState(line.length - 1);
+  const [highSpeed, setHighSpeed] = useState<Interval>();
+  const [facility, setFacility] = useState<Facility>("ordinary");
+  const [green, setGreen] = useState<Interval>();
+  const [granClass, setGranClass] = useState<Interval>();
   const [rankingFacility, setRankingFacility] =
     useState<RankingFacility>("ordinary");
   const [rankingLimit, setRankingLimit] = useState<RankingLimit>(50);
@@ -262,14 +258,10 @@ const App = () => {
     setRouteIndex(nextRouteIndex);
     setDepartureIndex(0);
     setArrivalIndex(nextLine.length - 1);
-    setHighSpeedStart(0);
-    setHighSpeedEnd(nextLine.length - 1);
-    setGreenStart(0);
-    setGreenEnd(nextLine.length - 1);
-    setGranClassStart(0);
-    setGranClassEnd(nextLine.length - 1);
-    setRefreshmentStart(0);
-    setRefreshmentEnd(nextLine.length - 1);
+    setHighSpeed(undefined);
+    setFacility("ordinary");
+    setGreen(undefined);
+    setGranClass(undefined);
   };
 
   const sorted = routes.sortSection({
@@ -281,54 +273,31 @@ const App = () => {
   const tripStations = line.slice(tripStart, tripEnd + 1);
   const granClassLimit = granClassLastIndex(line);
   const granClassAvailable = tripStart < Math.min(tripEnd, granClassLimit);
-  const highSpeed = intervalWithin(
-    highSpeedEnabled,
-    highSpeedStart,
-    highSpeedEnd,
-    tripStart,
-    tripEnd,
+  const selectedHighSpeed = highSpeed
+    ? intervalWithin(highSpeed, tripStart, tripEnd)
+    : undefined;
+  const selectedGreen = green
+    ? intervalWithin(green, tripStart, tripEnd)
+    : undefined;
+  const granClassOuterStart = selectedGreen?.start ?? tripStart;
+  const granClassOuterEnd = Math.min(
+    selectedGreen?.end ?? tripEnd,
+    granClassLimit,
   );
-  const green = intervalWithin(
-    greenEnabled,
-    greenStart,
-    greenEnd,
-    tripStart,
-    tripEnd,
-  );
-  const granClassOuterStart = green?.start ?? tripStart;
-  const granClassOuterEnd = Math.min(green?.end ?? tripEnd, granClassLimit);
   const granClassStations = line.slice(
     granClassOuterStart,
     granClassOuterEnd + 1,
   );
-  const granClass = intervalWithin(
-    green !== undefined && granClassEnabled && granClassAvailable,
-    granClassStart,
-    granClassEnd,
-    granClassOuterStart,
-    granClassOuterEnd,
-  );
-  const refreshmentStations = granClass
-    ? line.slice(granClass.start, granClass.end + 1)
-    : [];
-  const refreshmentSection = granClass
-    ? intervalWithin(
-        refreshments,
-        refreshmentStart,
-        refreshmentEnd,
-        granClass.start,
-        granClass.end,
-      )
+  const selectedGranClass = granClass
+    ? intervalWithin(granClass, granClassOuterStart, granClassOuterEnd)
     : undefined;
-  const selectedFacility: Facility = refreshmentSection
-    ? "granClassWithRefreshments"
-    : granClass
-      ? "granClassNoRefreshments"
-      : green
-        ? "green"
-        : "ordinary";
-  const highSpeedSection = highSpeed
-    ? { departure: line[highSpeed.start]!, arrival: line[highSpeed.end]!, sorted: true as const }
+  const selectedFacility: Facility = selectedGranClass
+    ? facility
+    : selectedGreen
+      ? "green"
+      : "ordinary";
+  const highSpeedSection = selectedHighSpeed
+    ? { departure: line[selectedHighSpeed.start]!, arrival: line[selectedHighSpeed.end]!, sorted: true as const }
     : undefined;
 
   const quote = createQuote({
@@ -337,10 +306,10 @@ const App = () => {
     line,
     section: sorted,
     ...(highSpeedSection ? { highSpeed: highSpeedSection } : {}),
-    ...(green ? { green } : {}),
-    ...(granClass ? { granClass } : {}),
-    ...(refreshmentSection
-      ? { granClassWithRefreshments: refreshmentSection }
+    ...(selectedGreen ? { green: selectedGreen } : {}),
+    ...(selectedGranClass ? { granClass: selectedGranClass } : {}),
+    ...(facility === "granClassWithRefreshments" && selectedGranClass
+      ? { includesGranClassA: true }
       : {}),
     season,
   });
@@ -353,7 +322,7 @@ const App = () => {
           rankingLine.flatMap((departure, departureOffset) =>
             rankingLine.slice(departureOffset + 1).flatMap((arrival) => {
               const rankingSection: SortedSection = { departure, arrival, sorted: true };
-              const facilities = canonicalFacilitySections(
+              const facilities = defaultFacilitySections(
                 rankingLine,
                 rankingSection,
                 rankingFacility,
@@ -402,9 +371,9 @@ const App = () => {
     }
     if (next === "2022-03-12") {
       setRankingFacility("ordinary");
-      setGreenEnabled(false);
-      setGranClassEnabled(false);
-      setRefreshments(false);
+      setFacility("ordinary");
+      setGreen(undefined);
+      setGranClass(undefined);
     }
   };
 
@@ -412,30 +381,18 @@ const App = () => {
     setCampaign(next);
     if (next === "shinshuPreDc") {
       setRankingFacility("ordinary");
-      setGreenEnabled(false);
-      setGranClassEnabled(false);
-      setRefreshments(false);
+      setFacility("ordinary");
+      setGreen(undefined);
+      setGranClass(undefined);
     }
   };
 
   const onFacilityChange = (next: Facility) => {
-    const usesGreen = next !== "ordinary";
-    const usesGranClass =
-      next === "granClassNoRefreshments" ||
-      next === "granClassWithRefreshments";
-    setGreenEnabled(usesGreen);
-    setGranClassEnabled(usesGranClass);
-    setRefreshments(next === "granClassWithRefreshments");
-    if (usesGreen) {
-      setGreenStart(tripStart);
-      setGreenEnd(tripEnd);
-    }
-    if (usesGranClass) {
-      setGranClassStart(tripStart);
-      setGranClassEnd(Math.min(tripEnd, granClassLimit));
-      setRefreshmentStart(tripStart);
-      setRefreshmentEnd(Math.min(tripEnd, granClassLimit));
-    }
+    const defaults = defaultFacilitySections(line, sorted, next);
+    if (!defaults) return;
+    setFacility(next);
+    setGreen(defaults.green);
+    setGranClass(defaults.granClass);
   };
 
   return (
@@ -506,7 +463,7 @@ const App = () => {
           >
             <section className="panel journey-panel">
               <div className="panel-heading"><h3>乗車区間</h3></div>
-              <div className="field-grid">
+              <div className={`journey-fields${group.lines.length > 1 ? " has-direction" : ""}`}>
                 <label>路線
                   <select value={groupName} onChange={(event) => resetRoute(event.target.value)}>
                     {[...routes.lineGroups.keys()].map((name) => <option key={name}>{name}</option>)}
@@ -519,13 +476,30 @@ const App = () => {
                     </select>
                   </label>
                 )}
+                <label>乗車駅
+                  <select value={departureIndex} onChange={(event) => {
+                    const next = rangeAfterStartChange(line, arrivalIndex, Number(event.target.value));
+                    setDepartureIndex(next.start);
+                    setArrivalIndex(next.end);
+                  }}>
+                    {line.slice(0, -1).map((station) => <option value={station.index} key={station.name}>{station.name}</option>)}
+                  </select>
+                </label>
+                <span className="journey-arrow">→</span>
+                <label>降車駅
+                  <select value={arrivalIndex} onChange={(event) => {
+                    const next = rangeAfterEndChange(line, departureIndex, Number(event.target.value));
+                    setDepartureIndex(next.start);
+                    setArrivalIndex(next.end);
+                  }}>
+                    {line.slice(1).map((station) => <option value={station.index} key={station.name}>{station.name}</option>)}
+                  </select>
+                </label>
               </div>
-              <RangeSelect label="全乗車区間" stations={line} start={departureIndex} end={arrivalIndex} onStart={setDepartureIndex} onEnd={setArrivalIndex} />
 
               {(line === routes.tohokuLine || line === routes.akitaLine) && (
-                <div className="segment-control">
-                  <label className="switch"><input type="checkbox" checked={highSpeedEnabled} onChange={(event) => { setHighSpeedEnabled(event.target.checked); if (event.target.checked) { setHighSpeedStart(tripStart); setHighSpeedEnd(tripEnd); } }} /><span>「はやぶさ」「こまち」を利用する</span></label>
-                  {highSpeedEnabled && highSpeed && <RangeSelect label="はやぶさ・こまち利用区間" stations={tripStations} start={highSpeed.start} end={highSpeed.end} onStart={setHighSpeedStart} onEnd={setHighSpeedEnd} />}
+                <div className="train-picker">
+                  <label className="switch"><input type="checkbox" checked={selectedHighSpeed !== undefined} onChange={(event) => setHighSpeed(event.target.checked ? { start: tripStart, end: tripEnd } : undefined)} /><span>「はやぶさ」「こまち」を利用する</span></label>
                 </div>
               )}
 
@@ -535,9 +509,9 @@ const App = () => {
                     <legend>利用する最上位の座席設備</legend>
                     {([
                       ["ordinary", "普通車指定席", "全区間で普通車指定席を利用"],
-                      ["green", "グリーン車", "一部または全部で利用"],
-                      ["granClassNoRefreshments", "グランクラス", "全区間で飲料・軽食なし"],
-                      ["granClassWithRefreshments", "グランクラス", "一部または全部で飲料・軽食あり"],
+                      ["green", "グリーン車", "設定可能な全区間で利用"],
+                      ["granClassNoRefreshments", "グランクラス", "飲料・軽食なしのみ"],
+                      ["granClassWithRefreshments", "グランクラス", "飲料・軽食ありを含む"],
                     ] as const).map(([value, title, description]) => {
                       const isGranClass = value.startsWith("granClass");
                       const campaignUnavailable =
@@ -564,43 +538,47 @@ const App = () => {
                       );
                     })}
                   </fieldset>
-                  {greenEnabled && (
-                    <div className="segment-control">
-                      <RangeSelect
-                        label={granClassEnabled ? "グリーン車またはグランクラスを利用する区間" : "グリーン車を利用する区間"}
-                        stations={tripStations}
-                        start={green?.start ?? tripStart}
-                        end={green?.end ?? tripEnd}
-                        onStart={setGreenStart}
-                        onEnd={setGreenEnd}
-                      />
-                      {granClassEnabled && granClassAvailable && (
-                        <>
-                          <RangeSelect
-                            label="そのうちグランクラスを利用する区間"
-                            stations={granClassStations}
-                            start={granClass?.start ?? granClassOuterStart}
-                            end={granClass?.end ?? granClassOuterEnd}
-                            onStart={setGranClassStart}
-                            onEnd={setGranClassEnd}
-                          />
-                          {refreshments && granClass && (
-                            <RangeSelect
-                              label="そのうち飲料・軽食ありの区間"
-                              stations={refreshmentStations}
-                              start={refreshmentSection?.start ?? granClass.start}
-                              end={refreshmentSection?.end ?? granClass.end}
-                              onStart={setRefreshmentStart}
-                              onEnd={setRefreshmentEnd}
-                            />
-                          )}
-                        </>
-                      )}
-                    </div>
-                  )}
                 </div>
               )}
-              <p className="constraint-note">各入力欄では、途中で分かれない1つの区間を指定してください。</p>
+
+              {(selectedHighSpeed || selectedGreen) && (
+                <details className="section-details">
+                  <summary>一部区間を指定</summary>
+                  <div className="segment-control">
+                    {selectedHighSpeed && (
+                      <RangeSelect
+                        label="はやぶさ・こまち利用区間"
+                        stations={tripStations}
+                        start={selectedHighSpeed.start}
+                        end={selectedHighSpeed.end}
+                        onStart={(start) => setHighSpeed(rangeAfterStartChange(tripStations, selectedHighSpeed.end, start))}
+                        onEnd={(end) => setHighSpeed(rangeAfterEndChange(tripStations, selectedHighSpeed.start, end))}
+                      />
+                    )}
+                    {selectedGreen && (
+                      <RangeSelect
+                        label={selectedGranClass ? "グリーン車またはグランクラスを利用する区間" : "グリーン車を利用する区間"}
+                        stations={tripStations}
+                        start={selectedGreen.start}
+                        end={selectedGreen.end}
+                        onStart={(start) => setGreen(rangeAfterStartChange(tripStations, selectedGreen.end, start))}
+                        onEnd={(end) => setGreen(rangeAfterEndChange(tripStations, selectedGreen.start, end))}
+                      />
+                    )}
+                    {selectedGranClass && (
+                      <RangeSelect
+                        label="そのうちグランクラスを利用する区間"
+                        stations={granClassStations}
+                        start={selectedGranClass.start}
+                        end={selectedGranClass.end}
+                        onStart={(start) => setGranClass(rangeAfterStartChange(granClassStations, selectedGranClass.end, start))}
+                        onEnd={(end) => setGranClass(rangeAfterEndChange(granClassStations, selectedGranClass.start, end))}
+                      />
+                    )}
+                  </div>
+                  <p className="constraint-note">途中で分かれない1つの区間を指定してください。</p>
+                </details>
+              )}
             </section>
 
             <section className="panel result-panel">
@@ -658,7 +636,7 @@ const App = () => {
                   {version === "2026-03-14" && campaign !== "shinshuPreDc" && <>
                     <option value="green">グリーン車</option>
                     <option value="granClassNoRefreshments">グランクラス（飲料・軽食なし）</option>
-                    <option value="granClassWithRefreshments">グランクラス（飲料・軽食あり）</option>
+                    <option value="granClassWithRefreshments">グランクラス（飲料・軽食ありを含む）</option>
                   </>}
                 </select>
               </label>

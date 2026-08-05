@@ -1,9 +1,4 @@
 import { describe, expect, it } from "vitest";
-import {
-  intervalWithin,
-  rangeAfterEndChange,
-  rangeAfterStartChange,
-} from "./App";
 import { calculateBasicFare, calculateEastBasicFare } from "./domain/basic-fares";
 import { stationExpressFareRules2022_03_12 } from "./domain/fare-calculation";
 import { createQuote, supportedSeasonsForVersion } from "./domain/quote";
@@ -139,10 +134,7 @@ describe("公開入口の見積もり", () => {
         section: trip,
         green: granClass,
         granClass,
-        granClassWithRefreshments: {
-          start: line.find(({ name }) => name === "仙台")!.index,
-          end: trip.arrival.index,
-        },
+        includesGranClassA: true,
         season: average,
       });
 
@@ -285,7 +277,7 @@ describe("年版・料金規則", () => {
       highSpeed: { start: 1, end: 4 },
       green: { start: 0, end: 4 },
       granClass: { start: 1, end: 3 },
-      granClassWithRefreshments: { start: 2, end: 3 },
+      includesGranClassA: true,
     })).not.toThrow();
   });
 
@@ -296,6 +288,14 @@ describe("年版・料金規則", () => {
       green: { start: 0, end: 2 },
       granClass: { start: 3, end: 4 },
     })).toThrow("グランクラス利用区間はグリーン車以上の利用区間に含まれる必要があります");
+  });
+
+  it("グランクラス区間なしで(A)だけを指定できない", () => {
+    expect(() => validateJourneySelection({
+      origin: 0,
+      destination: 5,
+      includesGranClassA: true,
+    })).toThrow("グランクラス(A)を利用する場合はグランクラス利用区間が必要です");
   });
 
   it.each([
@@ -323,7 +323,7 @@ describe("年版・料金規則", () => {
     expect(special.getFare({
       greenKm: 535.3,
       granClassKm: 535.3,
-      granClassWithRefreshmentsKm: 351.8,
+      includesGranClassA: true,
     })).toBe(12_400);
     expect(6_050 - special.expressReduction).toBe(5_520);
   });
@@ -359,21 +359,5 @@ describe("年版・料金規則", () => {
   it("信州プレDCの対象外区間と上位設備を拒否する", () => {
     expect(shinshuPoints("東京", "上越妙高", "ordinary")).toBeUndefined();
     expect(shinshuPoints("東京", "長野", "green")).toBeUndefined();
-  });
-});
-
-describe("入力区間補正", () => {
-  const line = route("東北新幹線");
-
-  it("始点が終点以降になった場合は終点を次の駅へ送る", () => {
-    expect(rangeAfterStartChange(line, 4, 4)).toEqual({ start: 4, end: 5 });
-  });
-
-  it("終点が始点以前になった場合は始点を前の駅へ戻す", () => {
-    expect(rangeAfterEndChange(line, 4, 4)).toEqual({ start: 3, end: 4 });
-  });
-
-  it("既存の設備区間が乗車区間外になっても設備選択を維持する", () => {
-    expect(intervalWithin(true, 10, 12, 2, 4)).toEqual({ start: 3, end: 4 });
   });
 });
