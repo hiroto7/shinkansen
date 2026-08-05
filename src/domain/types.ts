@@ -1,5 +1,3 @@
-export type DataVersion = "2022-03-12" | "2026-03-14";
-
 export type Facility =
   | "ordinary"
   | "green"

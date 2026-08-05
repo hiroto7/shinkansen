@@ -2,6 +2,7 @@ import hokurikuFares from "./express-fares/hokuriku.md?raw";
 import joetsuFares from "./express-fares/joetsu.md?raw";
 import tohokuHighSpeedFares from "./express-fares/tohoku-hayabusa-komachi.md?raw";
 import tohokuFares from "./express-fares/tohoku.md?raw";
+import { getBasicFareForSection } from "./basic-fares";
 import {
   akitaLine as line1,
   basicFareSection,
@@ -19,34 +20,18 @@ import {
 } from "./routes";
 import type { Season } from "./seasons";
 
-export interface SeasonRules {
-  readonly effectiveFrom: string;
-  readonly sources: readonly string[];
-  readonly supportedSeasons: readonly Season[];
-  adjustment(season: Season): number;
-}
+/** 2022年4月1日施行で、2026年3月14日現在も有効なシーズン加減。 */
+const seasonAdjustment = (season: Season) =>
+  season === "最繁忙期"
+    ? 400
+    : season === "繁忙期"
+      ? 200
+      : season === "閑散期"
+        ? -200
+        : 0;
 
-/** 2022年4月1日以降のJR東日本新幹線のシーズン加減。 */
-export const seasonRules2022_04_01: SeasonRules = {
-  effectiveFrom: "2022-04-01",
-  sources: [
-    "https://www.jreast.co.jp/kippu/yakkan/pdf/history220210-1.pdf",
-    "https://www.jreast.co.jp/ryokaku/02_hen/02_syo/07_setsu/05.html",
-    "https://www.jreast.co.jp/ryokaku/02_hen/03_syo/07_setsu/",
-  ],
-  supportedSeasons: ["閑散期", "通常期", "繁忙期", "最繁忙期"],
-  adjustment: (season) =>
-    season === "最繁忙期"
-      ? 400
-      : season === "繁忙期"
-        ? 200
-        : season === "閑散期"
-          ? -200
-          : 0,
-};
-
-const applySeason = (fare: number, season: Season, rules: SeasonRules) =>
-  fare + rules.adjustment(season);
+const applySeason = (fare: number, season: Season) =>
+  fare + seasonAdjustment(season);
 
 const junctions: ReadonlyMap<Line, Station> = new Map(
   (
@@ -86,33 +71,16 @@ const parseFareTable = (markdown: string): FareTable => {
   };
 };
 
-export interface StationExpressFareRules {
-  readonly asOf: string;
-  readonly unchangedThrough: string;
-  readonly sources: readonly string[];
-  readonly standard: ReadonlyMap<Line, FareTable>;
-  readonly highSpeed: FareTable;
-}
-
 /**
- * 2022年版アプリが当時の旅客営業規則別表第2号から転記した表を、
- * 現行の別表第2号と運送約款改正履歴に照合した新幹線の通常期基準額。
- * 将来この表が改定された場合は、この値を上書きせず別の規則部品を追加する。
+ * 2026年3月14日時点の旅客営業規則別表第2号と
+ * 運送約款改正履歴に照合した新幹線の通常期基準額。
  */
-export const stationExpressFareRules2022_03_12: StationExpressFareRules = {
-  asOf: "2022-03-12",
-  unchangedThrough: "2026-03-14",
-  sources: [
-    "https://www.jreast.co.jp/kippu/yakkan/history.html",
-    "https://www.jreast.co.jp/ryokaku/beppyou/pdf/beppyou02.pdf",
-  ],
-  standard: new Map([
-    [line0, parseFareTable(tohokuFares)],
-    [line3, parseFareTable(joetsuFares)],
-    [line5, parseFareTable(hokurikuFares)],
-  ]),
-  highSpeed: parseFareTable(tohokuHighSpeedFares),
-};
+export const standardExpressFareTables: ReadonlyMap<Line, FareTable> = new Map([
+  [line0, parseFareTable(tohokuFares)],
+  [line3, parseFareTable(joetsuFares)],
+  [line5, parseFareTable(hokurikuFares)],
+]);
+export const highSpeedExpressFareTable = parseFareTable(tohokuHighSpeedFares);
 
 const reserved = "指定席";
 const nonReserved = "自由席";
@@ -180,11 +148,10 @@ const limitedExpressFares2 = {
 const getLimitedExpressFares0 = (
   distance: number,
   season: Season,
-  seasonRules: SeasonRules,
 ) => {
   const reserved = getLimitedExpressFare3(distance);
   return {
-    reserved: applySeason(reserved, season, seasonRules),
+    reserved: applySeason(reserved, season),
     nonReservedOrStandingOnly: reserved - 530,
   } as const;
 };
@@ -213,8 +180,6 @@ const getSuperExpressTickets = (
   section: SortedSection,
   highSpeed: SortedSection | undefined,
   season: Season,
-  seasonRules: SeasonRules,
-  stationExpressFareRules: StationExpressFareRules,
 ): Readonly<{
   reserved: ExpressTicket;
   nonReserved: ExpressTicket | undefined;
@@ -223,7 +188,7 @@ const getSuperExpressTickets = (
 }> => {
   const { departure, arrival } = section;
 
-  const standardFare = stationExpressFareRules.standard.get(line)!;
+  const standardFare = standardExpressFareTables.get(line)!;
   const reservedExpressFare = standardFare(section);
   if (reservedExpressFare === undefined) {
     throw new RangeError(
@@ -235,7 +200,7 @@ const getSuperExpressTickets = (
     departure.name === "郡山" && arrival.name === "福島"
       ? {
           nonReservedOrStandingOnly: 880,
-          reserved: applySeason(1_410, season, seasonRules),
+          reserved: applySeason(1_410, season),
         }
       : departure.name === "東京" && arrival.name === "大宮"
         ? { nonReservedOrStandingOnly: 1090 }
@@ -267,7 +232,7 @@ const getSuperExpressTickets = (
         }
       : {
           type: reserved,
-          fare: applySeason(reservedExpressFare, season, seasonRules),
+          fare: applySeason(reservedExpressFare, season),
         }),
   };
 
@@ -313,7 +278,7 @@ const getSuperExpressTickets = (
       : undefined;
 
   const highSpeedFare = highSpeed
-    ? stationExpressFareRules.highSpeed(highSpeed)
+    ? highSpeedExpressFareTable(highSpeed)
     : undefined;
   const standardHighSpeedSectionFare = highSpeed
     ? standardFare(highSpeed)
@@ -334,7 +299,7 @@ const getSuperExpressTickets = (
           availableSeat: reserved,
           section,
           highSpeed,
-          fare: applySeason(reservedHighSpeedFare, season, seasonRules),
+          fare: applySeason(reservedHighSpeedFare, season),
         }
       : undefined;
 
@@ -355,11 +320,10 @@ const getLimitedExpressFares2 = (
   line: Line,
   section: SortedSection,
   season: Season,
-  seasonRules: SeasonRules,
 ) =>
   line === line4
     ? limitedExpressFares2
-    : getLimitedExpressFares0(getDistance0(section), season, seasonRules);
+    : getLimitedExpressFares0(getDistance0(section), season);
 
 /**
  * 新幹線以外の線区の指定した区間の特急料金を計算する
@@ -591,17 +555,11 @@ export const calculateFareOptions = ({
   section,
   highSpeed,
   season,
-  seasonRules,
-  stationExpressFareRules,
-  getBasicFare,
 }: {
   line: Line;
   section: SortedSection;
   highSpeed: SortedSection | undefined;
   season: Season;
-  seasonRules: SeasonRules;
-  stationExpressFareRules: StationExpressFareRules;
-  getBasicFare: (line: Line, section: SortedSection) => number;
 }) => {
   const { departure, arrival } = section;
 
@@ -625,8 +583,6 @@ export const calculateFareOptions = ({
                   }
                 : highSpeed),
             season,
-            seasonRules,
-            stationExpressFareRules,
           )
         : undefined
       : getSuperExpressTickets(
@@ -634,8 +590,6 @@ export const calculateFareOptions = ({
           section,
           highSpeed,
           season,
-          seasonRules,
-          stationExpressFareRules,
         );
 
   const limitedExpressFares =
@@ -646,26 +600,14 @@ export const calculateFareOptions = ({
         ? getLimitedExpressTickets(
             line,
             section,
-            (fareLine, fareSection, fareSeason) =>
-              getLimitedExpressFares2(
-                fareLine,
-                fareSection,
-                fareSeason,
-                seasonRules,
-              ),
+            getLimitedExpressFares2,
             season,
           )
         : getLimitedExpressTickets(
             line,
             { departure: junction, arrival, sorted: true },
             line === line4
-              ? (fareLine, fareSection, fareSeason) =>
-                  getLimitedExpressFares2(
-                    fareLine,
-                    fareSection,
-                    fareSeason,
-                    seasonRules,
-                  )
+              ? getLimitedExpressFares2
               : (_, section) => getLimitedExpressFares1(getDistance0(section)),
             season,
           )
@@ -700,10 +642,12 @@ export const calculateFareOptions = ({
       limitedExpressFares?.reserved,
     ].filter((ticket): ticket is ExpressTicket => ticket !== undefined);
 
-  const basicFare0 = getBasicFare(line, section);
+  const basicFare0 = getBasicFareForSection(line, section);
   const fareSection = basicFareSection(section);
   const basicFare1 =
-    fareSection === section ? basicFare0 : getBasicFare(line, fareSection);
+    fareSection === section
+      ? basicFare0
+      : getBasicFareForSection(line, fareSection);
 
   const nonReservedOrStandingOnly: TotalFare | undefined =
     nonReservedOrStandingOnlyExpressTickets &&

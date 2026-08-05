@@ -5,11 +5,10 @@ import {
   type SortedSection,
   type Station,
 } from "./domain/routes";
-import { average, type Season } from "./domain/seasons";
-import type { DataVersion, Facility, Interval } from "./domain/types";
+import { average, seasons, type Season } from "./domain/seasons";
+import type { Facility, Interval } from "./domain/types";
 import {
   createQuote,
-  supportedSeasonsForVersion,
   type Campaign,
   type ExclusionReason,
   type FareBreakdown,
@@ -27,11 +26,6 @@ const yen = new Intl.NumberFormat("ja-JP", {
   maximumFractionDigits: 0,
 });
 const integer = new Intl.NumberFormat("ja-JP");
-
-const versionOptions: readonly { value: DataVersion; label: string }[] = [
-  { value: "2026-03-14", label: "2026年3月14日以降" },
-  { value: "2022-03-12", label: "2022年版" },
-];
 
 const facilityLabels: Readonly<Record<Facility, string>> = {
   ordinary: "普通車指定席",
@@ -285,10 +279,6 @@ const RangeSelect = ({
 const exclusionMessages: Readonly<
   Record<ExclusionReason, { readonly title: string; readonly detail: string }>
 > = {
-  historicalFacility: {
-    title: "2022年版の対象外です",
-    detail: "2022年版は普通車指定席のみ参照できます。",
-  },
   limitedFacility: {
     title: "全線35%特別レートの対象外です",
     detail: "飲料・軽食ありのグランクラスは対象外です。",
@@ -306,7 +296,6 @@ const exclusionMessages: Readonly<
 
 const App = () => {
   const [tab, setTab] = useState<Tab>("detail");
-  const [version, setVersion] = useState<DataVersion>("2026-03-14");
   const [campaign, setCampaign] = useState<Campaign>("regular");
   const [groupName, setGroupName] = useState("東北新幹線");
   const group = routes.lineGroups.get(groupName)!;
@@ -315,7 +304,6 @@ const App = () => {
   const [departureIndex, setDepartureIndex] = useState(0);
   const [arrivalIndex, setArrivalIndex] = useState(line.length - 1);
   const [season, setSeason] = useState<Season>(average);
-  const supportedSeasons = supportedSeasonsForVersion(version);
   const [highSpeed, setHighSpeed] = useState<Interval>();
   const [facility, setFacility] = useState<Facility>("ordinary");
   const [green, setGreen] = useState<Interval>();
@@ -377,7 +365,6 @@ const App = () => {
     : undefined;
 
   const quote = createQuote({
-    version,
     campaign,
     line,
     section: sorted,
@@ -405,7 +392,6 @@ const App = () => {
               );
               if (facilities === undefined) return [];
               const rankingQuote = createQuote({
-                version,
                 campaign,
                 line: rankingLine,
                 section: rankingSection,
@@ -433,22 +419,11 @@ const App = () => {
         ),
     );
     return rows.sort((a, b) => b.value - a.value);
-  }, [campaign, ordinaryRankingBasis, rankingFacility, season, tab, version]);
+  }, [campaign, ordinaryRankingBasis, rankingFacility, season, tab]);
   const ranking =
     rankingLimit === "all"
       ? rankingRows
       : rankingRows.slice(0, rankingLimit);
-
-  const onVersionChange = (next: DataVersion) => {
-    setVersion(next);
-    setCampaign("regular");
-    if (next === "2022-03-12") {
-      setRankingFacility("ordinary");
-      setFacility("ordinary");
-      setGreen(undefined);
-      setGranClass(undefined);
-    }
-  };
 
   const onCampaignChange = (next: Campaign) => {
     setCampaign(next);
@@ -502,27 +477,16 @@ const App = () => {
         </nav>
 
         <section className="control-bar">
-          <label>データ年版
-            <select value={version} onChange={(event) => onVersionChange(event.target.value as DataVersion)}>
-              {versionOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-          </label>
           <label>交換レート
             <select value={campaign} onChange={(event) => onCampaignChange(event.target.value as Campaign)}>
               <option value="regular">通常</option>
-              {version === "2022-03-12" ? (
-                <option value="shinkansenYear">新幹線YEARスペシャル</option>
-              ) : (
-                <>
-                  <option value="limited35Percent">全線35%特別レート</option>
-                  <option value="shinshuPreDc">信州プレDC（対象区間のみ）</option>
-                </>
-              )}
+              <option value="limited35Percent">全線35%特別レート</option>
+              <option value="shinshuPreDc">信州プレDC（対象区間のみ）</option>
             </select>
           </label>
           <label>シーズン
             <select value={season} onChange={(event) => setSeason(event.target.value as Season)}>
-              {supportedSeasons.map((value) => <option key={value} value={value}>{seasonLabels[value]}</option>)}
+              {seasons.map((value) => <option key={value} value={value}>{seasonLabels[value]}</option>)}
             </select>
           </label>
         </section>
@@ -576,8 +540,7 @@ const App = () => {
                 </div>
               )}
 
-              {version === "2026-03-14" && (
-                <div className="facility-stack">
+              <div className="facility-stack">
                   <fieldset className="facility-picker">
                     <legend>利用する最上位の座席設備</legend>
                     {([
@@ -611,8 +574,7 @@ const App = () => {
                       );
                     })}
                   </fieldset>
-                </div>
-              )}
+              </div>
 
               {(selectedHighSpeed || selectedGreen) && (
                 <details className="section-details">
@@ -706,7 +668,7 @@ const App = () => {
               <label>設備
                 <select value={rankingFacility} onChange={(event) => setRankingFacility(event.target.value as RankingFacility)}>
                   <option value="ordinary">普通車指定席</option>
-                  {version === "2026-03-14" && campaign !== "shinshuPreDc" && <>
+                  {campaign !== "shinshuPreDc" && <>
                     <option value="green">グリーン車</option>
                     <option value="granClassNoRefreshments">グランクラス（飲料・軽食なし）</option>
                     <option value="granClassWithRefreshments">グランクラス（飲料・軽食ありを含む）</option>
@@ -740,6 +702,12 @@ const App = () => {
           <p>時刻表・列車編成・残席・発売可否は判定しません。最新情報はご自身でお調べください。</p>
         </aside>
       </main>
+      <footer className="site-footer">
+        <p>
+          <a href="https://shinkansen-2022.vercel.app/">2022年版（更新終了・参考）</a>
+          は現行の運賃・制度とは異なります。
+        </p>
+      </footer>
     </div>
   );
 };

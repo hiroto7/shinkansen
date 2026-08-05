@@ -1,7 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { calculateBasicFare, calculateEastBasicFare } from "./domain/basic-fares";
-import { stationExpressFareRules2022_03_12 } from "./domain/fare-calculation";
-import { createQuote, supportedSeasonsForVersion } from "./domain/quote";
+import {
+  calculateEastBasicFare,
+  calculateLocalBasicFare,
+  calculateTrunkBasicFare,
+} from "./domain/basic-fares";
+import {
+  getCurrentPoints,
+  getSpecialVehicleFare,
+  specialVehicleExpressReduction,
+} from "./domain/current-rules";
+import {
+  highSpeedExpressFareTable,
+  standardExpressFareTables,
+} from "./domain/fare-calculation";
+import { createQuote } from "./domain/quote";
 import {
   routes,
   sectionDistance,
@@ -10,7 +22,6 @@ import {
 } from "./domain/routes";
 import { average, busy } from "./domain/seasons";
 import { validateJourneySelection, type Facility } from "./domain/types";
-import { version2026 } from "./domain/versions/2026";
 
 const section = (
   line: Line,
@@ -33,7 +44,6 @@ const quote = (
 ) => {
   const line = route(group);
   return createQuote({
-    version: "2026-03-14",
     campaign: "regular",
     line,
     section: section(line, departure, arrival),
@@ -42,22 +52,12 @@ const quote = (
   });
 };
 
-const quote2022 = (
-  departure: string,
-  arrival: string,
-  campaign: "regular" | "shinkansenYear" = "regular",
-) =>
-  quote("東北新幹線", departure, arrival, {
-    version: "2022-03-12",
-    campaign,
-  });
-
 const currentPoints = (
   distanceKm: number,
   facility: Facility,
   campaign: "regular" | "limited35Percent" = "regular",
 ) =>
-  version2026.getPoints({
+  getCurrentPoints({
     distanceKm,
     facility,
     campaign,
@@ -66,7 +66,7 @@ const currentPoints = (
   });
 
 describe("公開入口の見積もり", () => {
-  describe("2026年版", () => {
+  describe("現行版", () => {
     it("宇都宮―那須塩原のポイントと比較額を維持する", () => {
       const result = quote("東北新幹線", "宇都宮", "那須塩原");
 
@@ -95,7 +95,6 @@ describe("公開入口の見積もり", () => {
       const index = arrival === "ガーラ湯沢" ? 1 : 0;
       const line = route(group, index);
       const result = createQuote({
-        version: "2026-03-14",
         campaign: "regular",
         line,
         section: section(line, departure, arrival),
@@ -108,7 +107,6 @@ describe("公開入口の見積もり", () => {
       const line = route("山形新幹線");
       const trip = section(line, "東京", "新庄");
       const result = createQuote({
-        version: "2026-03-14",
         campaign: "regular",
         line,
         section: trip,
@@ -128,7 +126,6 @@ describe("公開入口の見積もり", () => {
       const trip = section(line, "宇都宮", "新青森");
       const granClass = { start: trip.departure.index, end: trip.arrival.index };
       const result = createQuote({
-        version: "2026-03-14",
         campaign: "regular",
         line,
         section: trip,
@@ -206,70 +203,6 @@ describe("公開入口の見積もり", () => {
     });
   });
 
-  describe("2022年版", () => {
-    it.each([
-      ["東京", "上野", "regular", 2_160],
-      ["東京", "宇都宮", "regular", 4_620],
-      ["東京", "仙台", "regular", 7_940],
-      ["東京", "新青森", "regular", 12_110],
-      ["東京", "仙台", "shinkansenYear", 3_900],
-    ] as const)("%s―%s（%s）を%sポイントにする", (departure, arrival, campaign, points) => {
-      expect(quote2022(departure, arrival, campaign).points).toBe(points);
-    });
-
-    it("東京―仙台の普通運賃と通常期指定席料金を維持する", () => {
-      expect(quote2022("東京", "仙台")).toMatchObject({
-        basicFare: 6_050,
-        expressFare: 5_040,
-        paperFare: 11_090,
-      });
-    });
-
-    it("新幹線eチケットには特定都区市内制度を適用しない", () => {
-      const line = routes.hokurikuLine;
-      const result = createQuote({
-        version: "2022-03-12",
-        campaign: "regular",
-        line,
-        section: section(line, "上野", "長野"),
-        season: average,
-      });
-
-      expect(result).toMatchObject({ distanceKm: 218.8, basicFare: 3_740 });
-    });
-
-    it("最繁忙期を含む4段階のシーズンを扱う", () => {
-      expect(supportedSeasonsForVersion("2022-03-12")).toEqual([
-        "閑散期",
-        "通常期",
-        "繁忙期",
-        "最繁忙期",
-      ]);
-      expect(quote("東北新幹線", "東京", "仙台", {
-        version: "2022-03-12",
-        season: "最繁忙期",
-      })).toMatchObject({
-        expressFare: 5_440,
-        paperFare: 11_490,
-      });
-    });
-
-    it("普通車以外を2022年版の対象外にする", () => {
-      const line = routes.tohokuLine;
-      const trip = section(line, "東京", "仙台");
-      const result = createQuote({
-        version: "2022-03-12",
-        campaign: "regular",
-        line,
-        section: trip,
-        green: { start: trip.departure.index, end: trip.arrival.index },
-        season: average,
-      });
-      expect(result.points).toBeUndefined();
-      expect(result.exclusionReason).toBe("historicalFacility");
-    });
-  });
-
   it("信州プレDCは対象駅間の普通車指定席だけにポイントを返す", () => {
     const line = route("北陸新幹線");
     const green = {
@@ -290,8 +223,8 @@ describe("公開入口の見積もり", () => {
   });
 });
 
-describe("年版・料金規則", () => {
-  it("年版に依存しない駅と営業キロを提供する", () => {
+describe("現行の料金規則", () => {
+  it("駅と営業キロを提供する", () => {
     expect(sectionDistance(section(routes.yamagataLine, "東京", "新庄"))).toBe(421.4);
   });
 
@@ -300,12 +233,12 @@ describe("年版・料金規則", () => {
     [routes.joetsuLine, "長岡", "新潟", 2_400],
     [routes.hokurikuLine, "長野", "上越妙高", 2_400],
   ] as const)("通常列車の指定席特急料金表を参照する", (line, departure, arrival, fare) => {
-    const standard = stationExpressFareRules2022_03_12.standard.get(line)!;
+    const standard = standardExpressFareTables.get(line)!;
     expect(standard(section(line, departure, arrival))).toBe(fare);
   });
 
   it("はやぶさ・こまちの指定席特急料金表を参照する", () => {
-    expect(stationExpressFareRules2022_03_12.highSpeed(
+    expect(highSpeedExpressFareTable(
       section(routes.tohokuLine, "東京", "新青森"),
     )).toBe(7_330);
   });
@@ -356,30 +289,29 @@ describe("年版・料金規則", () => {
     [3.6, 200], [11, 260], [210, 3_850], [250, 4_620],
     [330, 5_940], [713.7, 10_780],
   ])("幹線%skmの普通運賃を%s円にする", (distance, fare) => {
-    expect(calculateBasicFare(version2026.basicFareRules.trunk, distance)).toBe(fare);
+    expect(calculateTrunkBasicFare(distance)).toBe(fare);
   });
 
   it.each([
     [7, 220], [29, 620], [94.1, 1_980], [137, 2_750], [210, 4_180],
   ])("地方交通線%skmの普通運賃を%s円にする", (distance, fare) => {
-    expect(calculateBasicFare(version2026.basicFareRules.local, distance)).toBe(fare);
+    expect(calculateLocalBasicFare(distance)).toBe(fare);
   });
 
   it.each([
     [75.6, 75.6, 1_600], [192.5, 75.6, 3_850], [7, 2, 220],
   ])("幹線%skm・地方交通線%skmの普通運賃を%s円にする", (distance, local, fare) => {
-    expect(calculateEastBasicFare(version2026.basicFareRules, distance, local)).toBe(fare);
+    expect(calculateEastBasicFare(distance, local)).toBe(fare);
   });
 
   it("特別車両料金と指定席料金の530円低減を全体へ適用する", () => {
-    const special = version2026.specialVehicle!;
-    expect(special.getFare({ greenKm: 477.2, granClassKm: 11 })).toBe(8_550);
-    expect(special.getFare({
+    expect(getSpecialVehicleFare({ greenKm: 477.2, granClassKm: 11 })).toBe(8_550);
+    expect(getSpecialVehicleFare({
       greenKm: 535.3,
       granClassKm: 535.3,
       includesGranClassA: true,
     })).toBe(12_400);
-    expect(6_050 - special.expressReduction).toBe(5_520);
+    expect(6_050 - specialVehicleExpressReduction).toBe(5_520);
   });
 
   const shinshuCases = [
@@ -394,7 +326,7 @@ describe("年版・料金規則", () => {
   ] as const;
 
   const shinshuPoints = (departure: string, arrival: string, facility: Facility) =>
-    version2026.getPoints({
+    getCurrentPoints({
       distanceKm: 222.4,
       facility,
       campaign: "shinshuPreDc",
