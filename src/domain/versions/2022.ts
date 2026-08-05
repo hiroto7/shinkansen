@@ -91,7 +91,6 @@ const basicFareRules: BasicFareRules = {
     centralKm: centralTrunkKm,
     finalize: oldFinalize("ceil"),
   },
-  alwaysApplyCityZone: false,
   mixedCalculationKm: (operatingKm, localKm) =>
     operatingKm + roundTo(localKm * (17.8 / 16.2 - 1), 0.1),
 };

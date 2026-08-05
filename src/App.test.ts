@@ -143,7 +143,7 @@ describe("2026年版の通し特急料金", () => {
     expect(quote.basicFare).toBe(3_850);
   });
 
-  it("特定都区市内の中心駅から普通運賃を計算する", () => {
+  it("新幹線eチケットには特定都区市内制度を適用しない", () => {
     const line = route("北陸新幹線");
     const quote = createQuote({
       version: "2026-03-14",
@@ -154,7 +154,7 @@ describe("2026年版の通し特急料金", () => {
     });
 
     expect(quote.distanceKm).toBe(218.8);
-    expect(quote.basicFare).toBe(4_180);
+    expect(quote.basicFare).toBe(3_850);
   });
 
   it("不正な設備区間を例外にせず対象外として返す", () => {

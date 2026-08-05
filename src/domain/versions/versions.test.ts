@@ -64,6 +64,20 @@ describe("2022年版", () => {
     expect(result.paperFare).toBe(11_090);
   });
 
+  it("新幹線eチケットには特定都区市内制度を適用しない", () => {
+    const line = routes.hokurikuLine;
+    const result = createQuote({
+      version: "2022-03-12",
+      campaign: "regular",
+      line,
+      section: section(line, "上野", "長野"),
+      season: average,
+    });
+
+    expect(result.distanceKm).toBe(218.8);
+    expect(result.basicFare).toBe(3_740);
+  });
+
   it("3段階のシーズンだけを扱う", () => {
     expect(supportedSeasonsForVersion("2022-03-12")).toEqual([
       "閑散期",

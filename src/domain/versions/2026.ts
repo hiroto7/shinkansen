@@ -201,7 +201,6 @@ const basicFareRules: BasicFareRules = {
     centralKm: centralLocalKm,
     finalize: currentFinalize,
   },
-  alwaysApplyCityZone: true,
   useLocalFareForShortMixed: true,
   mixedCalculationKm: (operatingKm, localKm) =>
     roundTo(operatingKm - localKm + roundTo(localKm * 1.1, 0.1), 0.1),

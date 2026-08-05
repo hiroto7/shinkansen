@@ -1,5 +1,4 @@
 import {
-  basicFareSection,
   distanceBetween,
   routes,
   type Line,
@@ -30,7 +29,6 @@ export interface BasicFareRules {
   readonly trunk: FareScale;
   readonly local: FareScale;
   readonly electric?: FareScale;
-  readonly alwaysApplyCityZone: boolean;
   mixedCalculationKm(operatingKm: number, localKm: number): number;
   useLocalFareForShortMixed?: boolean;
 }
@@ -133,12 +131,9 @@ export const getBasicFareForSection = (
   line: Line,
   section: SortedSection,
 ) => {
-  const target = rules.alwaysApplyCityZone
-    ? basicFareSection(section)
-    : section;
-  const distanceKm = distanceBetween(target.departure, target.arrival);
+  const distanceKm = distanceBetween(section.departure, section.arrival);
   const omiyaIndex = line.findIndex(({ name }) => name === "大宮");
-  if (rules.electric && target.arrival.index <= omiyaIndex) {
+  if (rules.electric && section.arrival.index <= omiyaIndex) {
     return calculateBasicFare(rules.electric, distanceKm);
   }
   if (line !== routes.akitaLine)
@@ -147,9 +142,9 @@ export const getBasicFareForSection = (
   const morioka = line.find(({ name }) => name === "盛岡")!;
   const omagari = line.find(({ name }) => name === "大曲")!;
   const localStart =
-    target.departure.index < morioka.index ? morioka : target.departure;
+    section.departure.index < morioka.index ? morioka : section.departure;
   const localEnd =
-    target.arrival.index > omagari.index ? omagari : target.arrival;
+    section.arrival.index > omagari.index ? omagari : section.arrival;
   const localKm =
     localStart.index < localEnd.index
       ? distanceBetween(localStart, localEnd)
