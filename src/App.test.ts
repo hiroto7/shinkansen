@@ -62,6 +62,8 @@ describe("区間入力画面", () => {
     const html = renderToStaticMarkup(createElement(App));
 
     expect(html).toContain('class="journey-fields"');
+    expect(html).toContain("2022年版");
+    expect(html).toContain("最繁忙期");
     expect(html).toContain("乗車駅");
     expect(html).toContain("降車駅");
     expect(html).not.toContain("はやぶさ・こまち利用区間 始点");

@@ -30,7 +30,7 @@ const integer = new Intl.NumberFormat("ja-JP");
 
 const versionOptions: readonly { value: DataVersion; label: string }[] = [
   { value: "2026-03-14", label: "2026年3月14日以降" },
-  { value: "2022-03-12", label: "2022年3月12日時点" },
+  { value: "2022-03-12", label: "2022年版" },
 ];
 
 const facilityLabels: Readonly<Record<Facility, string>> = {
@@ -366,9 +366,6 @@ const App = () => {
   const onVersionChange = (next: DataVersion) => {
     setVersion(next);
     setCampaign("regular");
-    if (!supportedSeasonsForVersion(next).includes(season)) {
-      setSeason(average);
-    }
     if (next === "2022-03-12") {
       setRankingFacility("ordinary");
       setFacility("ordinary");

@@ -26,19 +26,6 @@ export interface SeasonRules {
   adjustment(season: Season): number;
 }
 
-/** 2022年3月12日時点。最繁忙期の設定前。 */
-export const seasonRules2022_03_12: SeasonRules = {
-  effectiveFrom: "2022-03-12",
-  sources: ["https://www.jreast.co.jp/kippu/yakkan/pdf/history220210-1.pdf"],
-  supportedSeasons: ["閑散期", "通常期", "繁忙期"],
-  adjustment: (season) => {
-    if (season === "最繁忙期") {
-      throw new RangeError("2022年3月12日時点では最繁忙期の設定がありません");
-    }
-    return season === "繁忙期" ? 200 : season === "閑散期" ? -200 : 0;
-  },
-};
-
 /** 2022年4月1日以降のJR東日本新幹線のシーズン加減。 */
 export const seasonRules2022_04_01: SeasonRules = {
   effectiveFrom: "2022-04-01",

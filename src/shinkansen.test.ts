@@ -188,19 +188,23 @@ describe("公開入口の見積もり", () => {
       expect(result).toMatchObject({ distanceKm: 218.8, basicFare: 3_740 });
     });
 
-    it("3段階のシーズンだけを扱う", () => {
+    it("最繁忙期を含む4段階のシーズンを扱う", () => {
       expect(supportedSeasonsForVersion("2022-03-12")).toEqual([
         "閑散期",
         "通常期",
         "繁忙期",
+        "最繁忙期",
       ]);
-      expect(() => quote("東北新幹線", "東京", "仙台", {
+      expect(quote("東北新幹線", "東京", "仙台", {
         version: "2022-03-12",
         season: "最繁忙期",
-      })).toThrow("2022年3月12日時点では最繁忙期の設定がありません");
+      })).toMatchObject({
+        expressFare: 5_440,
+        paperFare: 11_490,
+      });
     });
 
-    it("普通車以外を参考版の対象外にする", () => {
+    it("普通車以外を2022年版の対象外にする", () => {
       const line = routes.tohokuLine;
       const trip = section(line, "東京", "仙台");
       const result = createQuote({

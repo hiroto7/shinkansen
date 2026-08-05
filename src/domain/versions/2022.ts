@@ -7,7 +7,7 @@ import {
   type BasicFareRules,
 } from "../basic-fares";
 import {
-  seasonRules2022_03_12,
+  seasonRules2022_04_01,
   stationExpressFareRules2022_03_12,
 } from "../fare-calculation";
 import type { VersionDefinition } from "../quote";
@@ -16,14 +16,14 @@ import { valueForDistance } from "../types";
 
 const metadata = {
   id: "2022-03-12",
-  label: "2022年3月12日時点",
+  label: "2022年版",
   sources: {
     regular: "https://www.jreast.co.jp/press/2021/20210413_ho01.pdf",
     shinkansenYear:
       "https://www.jreast.co.jp/shinkansenyear2022/tokuten_ticket/",
     seasonRules: "https://www.jreast.co.jp/press/2021/20211005_ho04.pdf",
   },
-  note: "旧アプリが対象としていた普通車指定席の交換ポイント",
+  note: "2022年当時のJRE POINT特典チケット（普通車指定席）の交換ポイント",
 } as const;
 
 const points: Readonly<
@@ -97,7 +97,7 @@ const basicFareRules: BasicFareRules = {
 
 export const version2022: VersionDefinition = {
   metadata,
-  seasonRules: seasonRules2022_03_12,
+  seasonRules: seasonRules2022_04_01,
   expressFareRules: stationExpressFareRules2022_03_12,
   basicFareRules,
   supportsFacility: (facility) => facility === "ordinary",
