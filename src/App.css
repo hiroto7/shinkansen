@@ -79,7 +79,7 @@ select { width: 100%; border: 0; border-bottom: 1px solid #94a198; background: t
 .unavailable p { color: #6a5b51; line-height: 1.7; }
 
 .ranking-note { color: #65746b; line-height: 1.7; }
-.ranking-tools { max-width: 900px; margin-bottom: 18px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+.ranking-tools { max-width: 600px; margin-bottom: 18px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px; }
 .ranking-tools label { display: block; color: #65746b; font-size: 11px; font-weight: 700; }
 .ranking-table-wrap { overflow-x: auto; }
 .ranking-table { width: 100%; border-collapse: collapse; min-width: 720px; }

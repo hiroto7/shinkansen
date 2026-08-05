@@ -396,153 +396,10 @@ const getLimitedExpressTickets = (
   };
 };
 
-interface TicketType {
-  readonly name: string;
-  readonly url?: URL;
-  isAvailable(line: Line, expressTickets: readonly ExpressTicket[]): boolean;
-}
-
-const ticketTypes: readonly [TicketType, TicketType, TicketType] = [
-  {
-    name: "紙のきっぷ",
-    isAvailable() {
-      return true;
-    },
-  },
-  {
-    name: "タッチでGo!新幹線",
-    url: new URL("https://www.jreast.co.jp/touchdego/"),
-    isAvailable(line: Line, expressTickets: readonly ExpressTicket[]) {
-      return !(
-        expressTickets.some(
-          ({ availableSeat }) => availableSeat === reserved,
-        ) ||
-        ((line === line0 || line === line1) &&
-          expressTickets[0]!.section.departure.index <
-            line.findIndex(({ name }) => name === "盛岡") &&
-          expressTickets.slice(-1)[0]!.section.arrival.index >
-            line.findIndex(({ name }) => name === "盛岡")) ||
-        (line === line2 &&
-          expressTickets[0]!.section.departure.index <
-            line.findIndex(({ name }) => name === "福島") &&
-          expressTickets.slice(-1)[0]!.section.arrival.index >
-            line.findIndex(({ name }) => name === "福島"))
-      );
-    },
-  },
-  {
-    name: "新幹線eチケット",
-    url: new URL("https://www.eki-net.com/top/e-ticket/"),
-    isAvailable(line: Line, expressTickets: readonly ExpressTicket[]) {
-      return (
-        !expressTickets.some(
-          ({ availableSeat }) => availableSeat === standingOnly,
-        ) &&
-        (expressTickets[0]!.section.departure !==
-          line.find(({ name }) => name === "東京") ||
-          expressTickets.slice(-1)[0]!.section.arrival !==
-            line.find(({ name }) => name === "上野")) &&
-        (expressTickets[0]!.section.departure !==
-          line.find(({ name }) => name === "越後湯沢") ||
-          expressTickets.slice(-1)[0]!.section.arrival !==
-            line.find(({ name }) => name === "ガーラ湯沢"))
-      );
-    },
-  },
-];
-
-interface TotalFare {
-  /**
-   * 運賃
-   */
+interface FareOption {
   readonly basicFare: number;
-  /**
-   * 特急券
-   */
   readonly expressTickets: readonly ExpressTicket[];
-  /**
-   * 割引
-   */
-  readonly discount?: number;
-  /**
-   * 運賃・特急料金・割引の合計
-   */
-  readonly total: number;
-  readonly types: readonly TicketType[];
 }
-
-const chooseOneOrBothTicketType = <
-  F extends {
-    readonly total: number;
-    readonly basicFare: number;
-    readonly types: readonly TicketType[];
-  },
->(
-  a: F,
-  b: F,
-): F =>
-  a.total < b.total
-    ? a
-    : a.total > b.total
-      ? b
-      : {
-          ...a,
-          types: [...a.types, ...b.types],
-        };
-
-const totalFares = <
-  F extends {
-    readonly basicFare: number;
-    readonly expressTickets: readonly ExpressTicket[];
-    readonly discount?: number;
-  },
->(
-  fares: F,
-): F & { readonly total: number } => ({
-  ...fares,
-  total:
-    fares.basicFare +
-    fares.expressTickets.reduce((total, { fare }) => total + fare, 0) +
-    (fares.discount ?? 0),
-});
-
-const getFareTotalWithSomeTicketType = (
-  line: Line,
-  basicFares: readonly [number, number],
-  expressTickets: readonly ExpressTicket[],
-) =>
-  [
-    {
-      basicFare: basicFares[1],
-      expressTickets,
-      types: [ticketTypes[0]],
-    },
-    ...(ticketTypes[1].isAvailable(line, expressTickets)
-      ? [
-          {
-            basicFare: basicFares[1],
-            expressTickets,
-            types: [ticketTypes[1]],
-          },
-        ]
-      : []),
-    ...(ticketTypes[2].isAvailable(line, expressTickets)
-      ? [
-          {
-            basicFare: basicFares[0],
-            expressTickets,
-            types: [ticketTypes[2]],
-            ...(expressTickets.some(
-              ({ availableSeat }) => availableSeat === reserved,
-            )
-              ? { discount: -200 }
-              : {}),
-          },
-        ]
-      : []),
-  ]
-    .map(totalFares)
-    .reduce(chooseOneOrBothTicketType);
 
 /**
  * 指定した区間の運賃・特急料金を計算する
@@ -642,32 +499,15 @@ export const calculateFareOptions = ({
       limitedExpressFares?.reserved,
     ].filter((ticket): ticket is ExpressTicket => ticket !== undefined);
 
-  const basicFare0 = getBasicFareForSection(line, section);
-  const fareSection = basicFareSection(section);
-  const basicFare1 =
-    fareSection === section
-      ? basicFare0
-      : getBasicFareForSection(line, fareSection);
+  const basicFare = getBasicFareForSection(line, basicFareSection(section));
 
-  const nonReservedOrStandingOnly: TotalFare | undefined =
+  const nonReservedOrStandingOnly: FareOption | undefined =
     nonReservedOrStandingOnlyExpressTickets &&
-    getFareTotalWithSomeTicketType(
-      line,
-      [basicFare0, basicFare1],
-      nonReservedOrStandingOnlyExpressTickets,
-    );
-  const reserved: TotalFare = getFareTotalWithSomeTicketType(
-    line,
-    [basicFare0, basicFare1],
-    reservedExpressTickets,
-  );
-  const reservedHighSpeed: TotalFare | undefined =
+    { basicFare, expressTickets: nonReservedOrStandingOnlyExpressTickets };
+  const reserved: FareOption = { basicFare, expressTickets: reservedExpressTickets };
+  const reservedHighSpeed: FareOption | undefined =
     reservedHighSpeedExpressTickets &&
-    getFareTotalWithSomeTicketType(
-      line,
-      [basicFare0, basicFare1],
-      reservedHighSpeedExpressTickets,
-    );
+    { basicFare, expressTickets: reservedHighSpeedExpressTickets };
 
   return {
     distance,
@@ -677,4 +517,4 @@ export const calculateFareOptions = ({
   } as const;
 };
 
-export type { ExpressTicket, TotalFare };
+export type { ExpressTicket, FareOption };

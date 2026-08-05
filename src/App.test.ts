@@ -2,15 +2,18 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import App, {
+  buildRankingRows,
   defaultHighSpeedSection,
   defaultFacilitySections,
   highSpeedIntervalWithin,
   highSpeedStationsForSection,
   intervalWithin,
+  rankRows,
   rangeAfterEndChange,
   rangeAfterStartChange,
 } from "./App";
 import { routes, type Line, type SortedSection } from "./domain/routes";
+import { average } from "./domain/seasons";
 
 const section = (
   line: Line,
@@ -111,7 +114,30 @@ describe("区間入力画面", () => {
     expect(html).toContain("最繁忙期");
     expect(html).toContain("乗車駅");
     expect(html).toContain("降車駅");
+    expect(html).toContain("JRE POINT特典チケットのレート計算");
+    expect(html).not.toContain("表示件数");
+    expect(html).toContain("位");
     expect(html).not.toContain("はやぶさ・こまち利用区間 始点");
     expect(html).not.toContain("グリーン車を利用する区間 始点");
+  });
+});
+
+describe("ランキング", () => {
+  it("共有区間を重複させない", () => {
+    const rows = buildRankingRows("regular", average, "ordinary", "nonReserved");
+
+    expect(new Set(rows.map(({ key }) => key))).toHaveProperty("size", rows.length);
+    expect(rows.filter(
+      ({ departure, arrival }) => departure === "東京" && arrival === "仙台",
+    )).toHaveLength(1);
+  });
+
+  it("同じレートを同順位にする", () => {
+    expect(rankRows([
+      { value: 3 },
+      { value: 2 },
+      { value: 2 },
+      { value: 1 },
+    ]).map(({ rank }) => rank)).toEqual([1, 2, 2, 4]);
   });
 });

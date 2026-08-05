@@ -90,7 +90,7 @@ describe("公開入口の見積もり", () => {
       ["山形新幹線", "福島", "新庄", busy, { expressFare: 2_310 }],
       ["上越新幹線", "東京", "ガーラ湯沢", average, { expressFare: 3_480 }],
       ["秋田新幹線", "水沢江刺", "秋田", average, { basicFare: 3_850 }],
-      ["北陸新幹線", "上野", "長野", average, { distanceKm: 218.8, basicFare: 3_850 }],
+      ["北陸新幹線", "上野", "長野", average, { distanceKm: 218.8, basicFare: 4_180 }],
     ] as const)("%sの%s―%sを所定額で計算する", (group, departure, arrival, season, expected) => {
       const index = arrival === "ガーラ湯沢" ? 1 : 0;
       const line = route(group, index);
@@ -119,6 +119,30 @@ describe("公開入口の見積もり", () => {
         specialVehicleFare: 5_400,
         paperFare: 18_400,
       });
+    });
+
+    it("上野―新庄を紙のきっぷの所定額で計算する", () => {
+      expect(quote("山形新幹線", "上野", "新庄", { season: busy })).toMatchObject({
+        basicFare: 7_480,
+        expressFare: 5_840,
+        paperFare: 13_320,
+      });
+    });
+
+    it("逆方向でも同じ見積もりを返す", () => {
+      const line = routes.tohokuLine;
+      const { section: reversed, reversed: wasReversed } = routes.sortSection({
+        departure: line.find(({ name }) => name === "新青森")!,
+        arrival: line.find(({ name }) => name === "東京")!,
+      });
+
+      expect(wasReversed).toBe(true);
+      expect(createQuote({
+        campaign: "regular",
+        line,
+        section: reversed,
+        season: average,
+      })).toEqual(quote("東北新幹線", "東京", "新青森"));
     });
 
     it("グランクラス(A)と(B)の混在行程を(A)の所定額で計算する", () => {

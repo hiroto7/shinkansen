@@ -1,6 +1,6 @@
 {
-  "short_name": "新幹線特典レート",
-  "name": "新幹線特典レート",
+  "short_name": "JRE POINT特典チケットのレート計算",
+  "name": "JRE POINT特典チケットのレート計算",
   "icons": [
     {
       "src": "favicon.ico",
