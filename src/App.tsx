@@ -319,6 +319,17 @@ const App = () => {
           </button>
         </nav>
 
+        <aside className="notice" aria-labelledby="notice-heading">
+          <h2 id="notice-heading">ご利用上の注意</h2>
+          <p>
+            本サイトはJR東日本・えきねっとの公式サービスではない、非公式の計算ツールです。計算結果の正確性・完全性を保証するものではなく、運賃・料金・交換ポイント等は変更される場合があります。実際の予約・購入前に、
+            <a href="https://www.jreast.co.jp/ryokaku/" target="_blank" rel="noreferrer">JR東日本の旅客営業規則</a>
+            および
+            <a href="https://www.eki-net.com/top/product/shinkansen/e-tokuten.html" target="_blank" rel="noreferrer">えきねっとの商品ページ</a>
+            など、公式の最新情報をご確認ください。時刻表・列車編成・残席・発売可否は判定しません。
+          </p>
+        </aside>
+
         <section className="control-bar">
           <label>交換レート
             <select value={campaign} onChange={(event) => onCampaignChange(event.target.value as Campaign)}>
@@ -591,9 +602,6 @@ const App = () => {
           </section>
         )}
 
-        <aside className="notice">
-          <p>時刻表・列車編成・残席・発売可否は判定しません。最新情報はご自身でお調べください。</p>
-        </aside>
       </main>
     </div>
   );
