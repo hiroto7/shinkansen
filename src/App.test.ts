@@ -20,4 +20,21 @@ describe("区間入力画面", () => {
     expect(html).not.toContain("はやぶさ・こまち利用区間 始点");
     expect(html).not.toContain("グリーン車を利用する区間 始点");
   });
+
+  it("条件入力前に免責事項と確認先を表示する", () => {
+    const html = renderToStaticMarkup(createElement(App));
+
+    expect(html).toContain("ご利用上の注意");
+    expect(html).toContain("非公式の計算ツール");
+    expect(html).toContain("計算結果の正確性・完全性を保証するものではなく");
+    expect(html).toContain("公式の最新情報をご確認ください");
+    expect(html).toContain("時刻表・列車編成・残席・発売可否は判定しません");
+    expect(html).toContain("https://www.jreast.co.jp/ryokaku/");
+    expect(html).toContain("https://www.eki-net.com/top/product/shinkansen/e-tokuten.html");
+
+    const noticeIndex = html.indexOf('class="notice"');
+    const controlsIndex = html.indexOf('class="control-bar"');
+    expect(noticeIndex).toBeGreaterThan(-1);
+    expect(controlsIndex).toBeGreaterThan(noticeIndex);
+  });
 });
