@@ -1,10 +1,5 @@
 import { useMemo, useState } from "react";
-import {
-  routes,
-  type Line,
-  type SortedSection,
-  type Station,
-} from "./domain/routes";
+import { routes, type Station } from "./domain/routes";
 import { average, seasons, type Season } from "./domain/seasons";
 import type { Facility, Interval } from "./domain/types";
 import {
@@ -13,11 +8,25 @@ import {
   type ExclusionReason,
   type FareBreakdown,
 } from "./domain/quote";
+import {
+  buildRankingRows,
+  defaultFacilitySections,
+  defaultHighSpeedSection,
+  granClassLastIndex,
+  highSpeedIntervalWithin,
+  highSpeedStationsForSection,
+  intervalWithin,
+  rankForRate,
+  rankingBasisForHighSpeed,
+  rate,
+  sectionFrom,
+  updateDirectedInterval,
+  type DirectedInterval,
+  type RankingBasis,
+} from "./app-logic";
 import "./App.css";
 
 type Tab = "detail" | "ranking";
-type RankingFacility = Facility;
-type OrdinaryRankingBasis = "nonReserved" | "reserved";
 
 const yen = new Intl.NumberFormat("ja-JP", {
   style: "currency",
@@ -32,213 +41,6 @@ const facilityLabels: Readonly<Record<Facility, string>> = {
   granClassNoRefreshments: "グランクラス（飲料・軽食なし）",
   granClassWithRefreshments: "グランクラス（飲料・軽食ありを含む）",
 };
-
-const seasonLabels: Readonly<Record<Season, string>> = {
-  閑散期: "閑散期",
-  通常期: "通常期",
-  繁忙期: "繁忙期",
-  最繁忙期: "最繁忙期",
-};
-
-export const intervalWithin = (
-  interval: Interval,
-  outerStart: number,
-  outerEnd: number,
-): Interval | undefined => {
-  if (!(outerStart < outerEnd)) return undefined;
-  const clampedStart = Math.max(
-    outerStart,
-    Math.min(interval.start, outerEnd - 1),
-  );
-  const clampedEnd = Math.min(
-    outerEnd,
-    Math.max(interval.end, outerStart + 1),
-  );
-  return clampedStart < clampedEnd
-    ? { start: clampedStart, end: clampedEnd }
-    : { start: outerStart, end: outerEnd };
-};
-
-const highSpeedAvailableStations = (
-  line: Line,
-  section: SortedSection,
-) => {
-  const omiya = routes.tohokuLine.find(({ name }) => name === "大宮")!;
-  const sendai = routes.tohokuLine.find(({ name }) => name === "仙台")!;
-
-  return line
-    .slice(section.departure.index, section.arrival.index + 1)
-    .filter(
-      (station) =>
-        station.index <= omiya.index ||
-        ((line === routes.tohokuLine || line === routes.akitaLine) &&
-          station.index >= sendai.index),
-    );
-};
-
-export const highSpeedStationsForSection = (
-  line: Line,
-  section: SortedSection,
-): readonly Station[] => {
-  if (line !== routes.tohokuLine && line !== routes.akitaLine) return [];
-
-  const morioka = routes.tohokuLine.find(({ name }) => name === "盛岡")!;
-  const sendai = routes.tohokuLine.find(({ name }) => name === "仙台")!;
-
-  return highSpeedAvailableStations(line, section).filter(
-    (station) =>
-      station === section.departure ||
-      station === section.arrival ||
-      (sendai.index <= station.index && station.index < morioka.index),
-  );
-};
-
-export const defaultHighSpeedSection = (
-  line: Line,
-  section: SortedSection,
-): Interval | undefined => {
-  if (line !== routes.tohokuLine && line !== routes.akitaLine) return undefined;
-
-  const omiya = routes.tohokuLine.find(({ name }) => name === "大宮")!;
-  const sendai = routes.tohokuLine.find(({ name }) => name === "仙台")!;
-  const morioka = routes.tohokuLine.find(({ name }) => name === "盛岡")!;
-  const available =
-    (section.departure.index <= omiya.index &&
-      section.arrival.index >= sendai.index) ||
-    (section.departure.index < morioka.index &&
-      section.arrival.index > sendai.index);
-  if (!available) return undefined;
-
-  const stations = highSpeedStationsForSection(line, section);
-  const start = stations[0];
-  const end = stations.at(-1);
-  return start && end && start.index < end.index
-    ? { start: start.index, end: end.index }
-    : undefined;
-};
-
-export const highSpeedIntervalWithin = (
-  interval: Interval,
-  line: Line,
-  section: SortedSection,
-): Interval | undefined => {
-  const fallback = defaultHighSpeedSection(line, section);
-  if (!fallback) return undefined;
-
-  const stations = highSpeedStationsForSection(line, section);
-  const start = stations.find(({ index }) => index >= interval.start);
-  const end = stations.findLast(({ index }) => index <= interval.end);
-  return start && end && start.index < end.index
-    ? { start: start.index, end: end.index }
-    : fallback;
-};
-
-const granClassLastIndex = (line: Line) => {
-  if (line === routes.akitaLine) {
-    return line.find(({ name }) => name === "盛岡")!.index;
-  }
-  if (line === routes.yamagataLine) {
-    return line.find(({ name }) => name === "福島")!.index;
-  }
-  return line.length - 1;
-};
-
-export const defaultFacilitySections = (
-  line: Line,
-  section: SortedSection,
-  facility: Facility,
-): Readonly<{
-  green?: Interval;
-  granClass?: Interval;
-  includesGranClassA?: true;
-}> | undefined => {
-  if (facility === "ordinary") return {};
-
-  const green: Interval = {
-    start: section.departure.index,
-    end: section.arrival.index,
-  };
-  if (facility === "green") return { green };
-
-  const granClassEnd = Math.min(section.arrival.index, granClassLastIndex(line));
-  if (section.departure.index >= granClassEnd) return undefined;
-  const granClass: Interval = {
-    start: section.departure.index,
-    end: granClassEnd,
-  };
-  return {
-    green,
-    granClass,
-    ...(facility === "granClassWithRefreshments"
-      ? { includesGranClassA: true }
-      : {}),
-  };
-};
-
-const rate = (fare: number | undefined, points: number | undefined) =>
-  fare !== undefined && points !== undefined ? fare / points : undefined;
-
-const rankingSections = (() => {
-  const sections = new Map<
-    string,
-    { readonly group: string; readonly line: Line; readonly section: SortedSection }
-  >();
-  for (const [group, { lines }] of routes.lineGroups) {
-    for (const line of lines) {
-      line.forEach((departure, index) => {
-        line.slice(index + 1).forEach((arrival) => {
-          const key = `${departure.name}|${arrival.name}`;
-          if (!sections.has(key)) {
-            sections.set(key, {
-              group,
-              line,
-              section: { departure, arrival, sorted: true },
-            });
-          }
-        });
-      });
-    }
-  }
-  return [...sections.values()];
-})();
-
-export const rankRows = <T extends { readonly value: number },>(rows: readonly T[]) =>
-  [...rows]
-    .sort((a, b) => b.value - a.value)
-    .map((row, _index, sorted) => ({
-      ...row,
-      rank: sorted.findIndex(({ value }) => value === row.value) + 1,
-    }));
-
-export const buildRankingRows = (
-  campaign: Campaign,
-  season: Season,
-  facility: RankingFacility,
-  ordinaryBasis: OrdinaryRankingBasis,
-) => rankRows(rankingSections.flatMap(({ group, line, section }) => {
-  const facilities = defaultFacilitySections(line, section, facility);
-  if (!facilities) return [];
-  const quote = createQuote({ campaign, line, section, ...facilities, season });
-  if (quote.points === undefined) return [];
-  return [{
-    key: `${section.departure.name}-${section.arrival.name}`,
-    group,
-    departure: section.departure.name,
-    arrival: section.arrival.name,
-    ...quote,
-    value:
-      facility === "ordinary" && ordinaryBasis === "nonReserved"
-        ? rate(quote.nonReservedFare ?? quote.paperFare, quote.points) ?? 0
-        : rate(quote.paperFare, quote.points) ?? 0,
-  }];
-}));
-
-const rankForRate = (
-  rows: ReturnType<typeof buildRankingRows>,
-  value: number | undefined,
-) => value === undefined
-  ? undefined
-  : (rows.find(({ value: ranked }) => ranked <= value)?.rank ?? rows.length + 1);
 
 const RateCard = ({
   label,
@@ -270,59 +72,30 @@ const RateCard = ({
   </article>
 );
 
-export const rangeAfterStartChange = (
-  stations: readonly Station[],
-  end: number,
-  start: number,
-) => {
-  const position = stations.findIndex((station) => station.index === start);
-  const next = stations[position + 1];
-  return { start, end: start >= end && next ? next.index : end };
-};
-
-export const rangeAfterEndChange = (
-  stations: readonly Station[],
-  start: number,
-  end: number,
-) => {
-  const position = stations.findIndex((station) => station.index === end);
-  const previous = stations[position - 1];
-  return { start: end <= start && previous ? previous.index : start, end };
-};
-
 const RangeSelect = ({
   label,
   stations,
-  start,
-  end,
-  onStart,
-  onEnd,
+  value,
+  onChange,
 }: {
   label: string;
   stations: readonly Station[];
-  start: number;
-  end: number;
-  onStart: (value: number) => void;
-  onEnd: (value: number) => void;
+  value: DirectedInterval;
+  onChange: (value: Interval) => void;
 }) => {
-  const selectStart = (value: number) => {
-    const range = rangeAfterStartChange(stations, end, value);
-    if (range.end !== end) onEnd(range.end);
-    onStart(range.start);
+  const change = (edge: 0 | 1, index: number) => {
+    const [from, to] = updateDirectedInterval(stations, value, edge, index);
+    onChange({ start: Math.min(from, to), end: Math.max(from, to) });
   };
-  const selectEnd = (value: number) => {
-    const range = rangeAfterEndChange(stations, start, value);
-    if (range.start !== start) onStart(range.start);
-    onEnd(range.end);
-  };
+  const [from, to] = value;
 
   return (
     <div className="range-select">
       <span>{label}</span>
       <select
         aria-label={`${label} 始点`}
-        value={start}
-        onChange={(event) => selectStart(Number(event.target.value))}
+        value={from}
+        onChange={(event) => change(0, Number(event.target.value))}
       >
         {stations.slice(0, -1).map((station) => (
           <option value={station.index} key={station.name}>{station.name}</option>
@@ -331,8 +104,8 @@ const RangeSelect = ({
       <span className="range-arrow">→</span>
       <select
         aria-label={`${label} 終点`}
-        value={end}
-        onChange={(event) => selectEnd(Number(event.target.value))}
+        value={to}
+        onChange={(event) => change(1, Number(event.target.value))}
       >
         {stations.slice(1).map((station) => (
           <option value={station.index} key={station.name}>{station.name}</option>
@@ -375,9 +148,9 @@ const App = () => {
   const [green, setGreen] = useState<Interval>();
   const [granClass, setGranClass] = useState<Interval>();
   const [rankingFacility, setRankingFacility] =
-    useState<RankingFacility>("ordinary");
-  const [ordinaryRankingBasis, setOrdinaryRankingBasis] =
-    useState<OrdinaryRankingBasis>("nonReserved");
+    useState<Facility>("ordinary");
+  const [rankingBasis, setRankingBasis] =
+    useState<RankingBasis>("nonReserved");
 
   const resetRoute = (nextGroupName: string, nextRouteIndex = 0) => {
     const nextLine = routes.lineGroups.get(nextGroupName)!.lines[nextRouteIndex]!;
@@ -393,12 +166,22 @@ const App = () => {
 
   const departure = line[departureIndex] ?? line[0]!;
   const arrival = line[arrivalIndex] ?? line.at(-1)!;
-  const sorted = routes.sortSection({ departure, arrival }).section;
+  const { section: sorted, reversed } = routes.sortSection({ departure, arrival });
   const tripStart = sorted.departure.index;
   const tripEnd = sorted.arrival.index;
-  const tripStations = line.slice(tripStart, tripEnd + 1);
+  const inTravelDirection = <T,>(values: readonly T[]) => {
+    if (reversed) return values.toReversed();
+    return values;
+  };
+  const directed = ({ start, end }: Interval): DirectedInterval => {
+    if (reversed) return [end, start];
+    return [start, end];
+  };
+  const tripStations = inTravelDirection(line.slice(tripStart, tripEnd + 1));
   const defaultHighSpeed = defaultHighSpeedSection(line, sorted);
-  const highSpeedStations = highSpeedStationsForSection(line, sorted);
+  const highSpeedStations = inTravelDirection(
+    highSpeedStationsForSection(line, sorted),
+  );
   const granClassLimit = granClassLastIndex(line);
   const granClassAvailable = tripStart < Math.min(tripEnd, granClassLimit);
   const selectedHighSpeed = highSpeed
@@ -424,9 +207,7 @@ const App = () => {
     : selectedGreen
       ? "green"
       : "ordinary";
-  const highSpeedSection = selectedHighSpeed
-    ? { departure: line[selectedHighSpeed.start]!, arrival: line[selectedHighSpeed.end]!, sorted: true as const }
-    : undefined;
+  const highSpeedSection = sectionFrom(line, selectedHighSpeed);
 
   const quote = createQuote({
     campaign,
@@ -441,26 +222,51 @@ const App = () => {
     season,
   });
 
+  let activeRankingBasis: RankingBasis = "reserved";
+  if (rankingFacility === "ordinary") activeRankingBasis = rankingBasis;
   const rankingRows = useMemo(
-    () => buildRankingRows(campaign, season, rankingFacility, ordinaryRankingBasis),
-    [campaign, ordinaryRankingBasis, rankingFacility, season],
+    () => buildRankingRows(campaign, season, rankingFacility, activeRankingBasis),
+    [activeRankingBasis, campaign, rankingFacility, season],
   );
-  const selectedRankingRows = useMemo(
-    () => buildRankingRows(campaign, season, quote.facility, "reserved"),
-    [campaign, quote.facility, season],
+  const selectedBasis = rankingBasisForHighSpeed(
+    selectedHighSpeed,
+    defaultHighSpeed,
   );
-  const nonReservedRankingRows = useMemo(
-    () => buildRankingRows(campaign, season, "ordinary", "nonReserved"),
-    [campaign, season],
+  const selectedRank = useMemo(
+    () => {
+      if (!selectedBasis) return undefined;
+      return rankForRate(
+        buildRankingRows(campaign, season, quote.facility, selectedBasis),
+        rate(quote.paperFare, quote.points),
+      );
+    },
+    [
+      campaign,
+      quote.facility,
+      quote.paperFare,
+      quote.points,
+      season,
+      selectedBasis,
+    ],
   );
-  const selectedRank = rankForRate(
-    selectedRankingRows,
-    rate(quote.paperFare, quote.points),
+  const nonReservedRank = useMemo(
+    () => rankForRate(
+      buildRankingRows(campaign, season, "ordinary", "nonReserved"),
+      rate(quote.nonReservedFare, quote.points),
+    ),
+    [campaign, quote.nonReservedFare, quote.points, season],
   );
-  const nonReservedRank = rankForRate(
-    nonReservedRankingRows,
-    rate(quote.nonReservedFare, quote.points),
-  );
+  let selectedFareLabel = "同じ設備・行程";
+  if (quote.facility === "ordinary") {
+    selectedFareLabel = "普通車指定席";
+    if (selectedHighSpeed) {
+      selectedFareLabel = "はやぶさ・こまち指定席";
+    }
+  }
+  let rankingFareLabel = "普通車指定席";
+  if (rankingBasis === "highSpeed") {
+    rankingFareLabel = "はやぶさ・こまち指定席";
+  }
 
   const onCampaignChange = (next: Campaign) => {
     setCampaign(next);
@@ -523,7 +329,7 @@ const App = () => {
           </label>
           <label>シーズン
             <select value={season} onChange={(event) => setSeason(event.target.value as Season)}>
-              {seasons.map((value) => <option key={value} value={value}>{seasonLabels[value]}</option>)}
+              {seasons.map((value) => <option key={value}>{value}</option>)}
             </select>
           </label>
         </section>
@@ -613,30 +419,24 @@ const App = () => {
                       <RangeSelect
                         label="はやぶさ・こまち利用区間"
                         stations={highSpeedStations}
-                        start={selectedHighSpeed.start}
-                        end={selectedHighSpeed.end}
-                        onStart={(start) => setHighSpeed(rangeAfterStartChange(highSpeedStations, selectedHighSpeed.end, start))}
-                        onEnd={(end) => setHighSpeed(rangeAfterEndChange(highSpeedStations, selectedHighSpeed.start, end))}
+                        value={directed(selectedHighSpeed)}
+                        onChange={setHighSpeed}
                       />
                     )}
                     {selectedGreen && (
                       <RangeSelect
                         label={selectedGranClass ? "グリーン車またはグランクラスを利用する区間" : "グリーン車を利用する区間"}
                         stations={tripStations}
-                        start={selectedGreen.start}
-                        end={selectedGreen.end}
-                        onStart={(start) => setGreen(rangeAfterStartChange(tripStations, selectedGreen.end, start))}
-                        onEnd={(end) => setGreen(rangeAfterEndChange(tripStations, selectedGreen.start, end))}
+                        value={directed(selectedGreen)}
+                        onChange={setGreen}
                       />
                     )}
                     {selectedGranClass && (
                       <RangeSelect
                         label="そのうちグランクラスを利用する区間"
-                        stations={granClassStations}
-                        start={selectedGranClass.start}
-                        end={selectedGranClass.end}
-                        onStart={(start) => setGranClass(rangeAfterStartChange(granClassStations, selectedGranClass.end, start))}
-                        onEnd={(end) => setGranClass(rangeAfterEndChange(granClassStations, selectedGranClass.start, end))}
+                        stations={inTravelDirection(granClassStations)}
+                        value={directed(selectedGranClass)}
+                        onChange={setGranClass}
                       />
                     )}
                   </div>
@@ -676,7 +476,7 @@ const App = () => {
                         />
                       )}
                       <RateCard
-                        label={quote.facility === "ordinary" ? "普通車指定席" : "同じ設備・行程"}
+                        label={selectedFareLabel}
                         breakdown={quote.selectedFareBreakdown}
                         points={quote.points}
                         rank={selectedRank}
@@ -697,7 +497,7 @@ const App = () => {
             <div className="panel-heading"><h3>{facilityLabels[rankingFacility]}レート</h3></div>
             <div className="ranking-tools">
               <label>設備
-                <select value={rankingFacility} onChange={(event) => setRankingFacility(event.target.value as RankingFacility)}>
+                <select value={rankingFacility} onChange={(event) => setRankingFacility(event.target.value as Facility)}>
                   <option value="ordinary">普通車指定席</option>
                   {campaign !== "shinshuPreDc" && <>
                     <option value="green">グリーン車</option>
@@ -707,18 +507,87 @@ const App = () => {
                 </select>
               </label>
               {rankingFacility === "ordinary" && (
-                <label>並び順
-                  <select value={ordinaryRankingBasis} onChange={(event) => setOrdinaryRankingBasis(event.target.value as OrdinaryRankingBasis)}>
+                <label>比較対象
+                  <select value={rankingBasis} onChange={(event) => setRankingBasis(event.target.value as RankingBasis)}>
                     <option value="nonReserved">自由席・立席との比較</option>
                     <option value="reserved">普通車指定席との比較</option>
+                    <option value="highSpeed">はやぶさ・こまち指定席との比較</option>
                   </select>
                 </label>
               )}
             </div>
             <p className="ranking-note">全{integer.format(rankingRows.length)}件</p>
-            <div className="ranking-table-wrap"><table className={`ranking-table${rankingFacility === "ordinary" ? " ordinary" : ""}`}><thead><tr><th>#</th><th>区間</th><th>距離</th><th>ポイント</th>{rankingFacility === "ordinary" ? <><th>自由席・立席</th><th>円/pt</th><th>普通車指定席</th><th>円/pt</th></> : <><th>所定額</th><th>円/pt</th></>}</tr></thead><tbody>
-              {rankingRows.map((row) => <tr key={row.key}><td>{row.rank}</td><td><small>{row.group}</small><strong>{row.departure} → {row.arrival}</strong></td><td>{row.distanceKm.toFixed(1)} km</td><td>{row.points === undefined ? "—" : integer.format(row.points)}</td>{rankingFacility === "ordinary" ? <><td>{row.nonReservedFare === undefined ? "—" : yen.format(row.nonReservedFare)}</td><td>{row.nonReservedFare === undefined ? "—" : <strong className={ordinaryRankingBasis === "nonReserved" ? "selected-rate" : ""}>{(rate(row.nonReservedFare, row.points) ?? 0).toFixed(2)}</strong>}</td><td>{row.paperFare === undefined ? "—" : yen.format(row.paperFare)}</td><td><strong className={ordinaryRankingBasis === "reserved" ? "selected-rate" : ""}>{(rate(row.paperFare, row.points) ?? 0).toFixed(2)}</strong></td></> : <><td>{row.paperFare === undefined ? "—" : yen.format(row.paperFare)}</td><td><strong className="selected-rate">{row.value.toFixed(2)}</strong></td></>}</tr>)}
-            </tbody></table></div>
+            <div className="ranking-table-wrap">
+              <table className={`ranking-table${rankingFacility === "ordinary" ? " ordinary" : ""}`}>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>区間</th>
+                    <th>距離</th>
+                    <th>ポイント</th>
+                    {rankingFacility === "ordinary" ? (
+                      <>
+                        <th>自由席・立席</th>
+                        <th>円/pt</th>
+                        <th>{rankingFareLabel}</th>
+                        <th>円/pt</th>
+                      </>
+                    ) : (
+                      <>
+                        <th>所定額</th>
+                        <th>円/pt</th>
+                      </>
+                    )}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rankingRows.map((row) => (
+                    <tr key={row.key}>
+                      <td>{row.rank}</td>
+                      <td>
+                        <small>{row.group}</small>
+                        <strong>{row.departure} → {row.arrival}</strong>
+                      </td>
+                      <td>{row.distanceKm.toFixed(1)} km</td>
+                      <td>
+                        {row.points === undefined ? "—" : integer.format(row.points)}
+                      </td>
+                      {rankingFacility === "ordinary" ? (
+                        <>
+                          <td>
+                            {row.nonReservedFare === undefined
+                              ? "—"
+                              : yen.format(row.nonReservedFare)}
+                          </td>
+                          <td>
+                            {row.nonReservedFare === undefined ? "—" : (
+                              <strong className={rankingBasis === "nonReserved" ? "selected-rate" : ""}>
+                                {(rate(row.nonReservedFare, row.points) ?? 0).toFixed(2)}
+                              </strong>
+                            )}
+                          </td>
+                          <td>
+                            {row.paperFare === undefined ? "—" : yen.format(row.paperFare)}
+                          </td>
+                          <td>
+                            <strong className={rankingBasis !== "nonReserved" ? "selected-rate" : ""}>
+                              {(rate(row.paperFare, row.points) ?? 0).toFixed(2)}
+                            </strong>
+                          </td>
+                        </>
+                      ) : (
+                        <>
+                          <td>
+                            {row.paperFare === undefined ? "—" : yen.format(row.paperFare)}
+                          </td>
+                          <td><strong className="selected-rate">{row.value.toFixed(2)}</strong></td>
+                        </>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </section>
         )}
 

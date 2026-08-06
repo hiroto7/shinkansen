@@ -65,7 +65,7 @@ const currentPoints = (
     arrival: "上野",
   });
 
-describe("公開入口の見積もり", () => {
+describe("見積もり", () => {
   describe("現行版", () => {
     it("宇都宮―那須塩原のポイントと比較額を維持する", () => {
       const result = quote("東北新幹線", "宇都宮", "那須塩原");
